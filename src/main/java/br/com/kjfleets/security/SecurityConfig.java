@@ -85,6 +85,12 @@ public class SecurityConfig {
                         .hasAnyRole("ADMIN", "DISPATCHER", "FLEET_MANAGER")
                         .requestMatchers("/drivers/**", "/vehicles/**", "/fleets/**").hasAnyRole("ADMIN", "FLEET_MANAGER")
                         .requestMatchers("/places/**").hasAnyRole("ADMIN", "DISPATCHER")
+                        .requestMatchers(HttpMethod.POST, "/orders").hasAnyRole("ADMIN", "DISPATCHER", "CUSTOMER")
+                        .requestMatchers(HttpMethod.GET, "/orders/**")
+                        .hasAnyRole("ADMIN", "DISPATCHER", "FLEET_MANAGER", "CUSTOMER")
+                        .requestMatchers(HttpMethod.POST, "/orders/*/cancel").hasAnyRole("ADMIN", "DISPATCHER", "CUSTOMER")
+                        .requestMatchers("/orders/**").hasAnyRole("ADMIN", "DISPATCHER")
+                        .requestMatchers(HttpMethod.GET, "/customers/**").hasAnyRole("ADMIN", "DISPATCHER", "FLEET_MANAGER")
                         .anyRequest().authenticated())
                 .build();
     }
