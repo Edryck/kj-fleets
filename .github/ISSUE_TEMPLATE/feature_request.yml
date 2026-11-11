@@ -1,0 +1,24 @@
+name: Sugerir melhoria
+description: Ideia de funcionalidade ou ajuste
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: Antes de sugerir, confira o que está **fora do escopo** no PRODUCT.md.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Que problema isso resolve
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposta
+      description: Como você imagina (rota, regra, perfil que usa).
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativas consideradas

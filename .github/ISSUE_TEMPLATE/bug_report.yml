@@ -1,0 +1,37 @@
+name: Relatar bug
+description: Algo não funciona como o esperado
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: O que aconteceu
+      description: Descreva o comportamento errado.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: O que era esperado
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Como reproduzir
+      description: Rota, corpo da requisição, perfil usado (ADMIN, DISPATCHER...). Não cole senha nem token.
+      placeholder: |
+        1. POST /orders ...
+        2. POST /orders/{id}/dispatch ...
+    validations:
+      required: true
+  - type: input
+    id: code
+    attributes:
+      label: Código de erro retornado
+      placeholder: ORDER_DISPATCH_REQUIRES_DRIVER
+  - type: input
+    id: env
+    attributes:
+      label: Ambiente
+      placeholder: JDK 21, PostgreSQL 16, Ubuntu 24.04
