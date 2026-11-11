@@ -14,9 +14,9 @@ public final class VehicleDtos {
 
     public record VehicleResponse(String publicId, String plate, String type, VehicleStatus status, String driverId) {
 
-        public static VehicleResponse from(Vehicle vehicle) {
+        public static VehicleResponse from(Vehicle vehicle, String driverId) {
             return new VehicleResponse(vehicle.getPublicId(), vehicle.getPlate(), vehicle.getType(),
-                    vehicle.getStatus(), null);
+                    vehicle.getStatus(), driverId);
         }
     }
 }
