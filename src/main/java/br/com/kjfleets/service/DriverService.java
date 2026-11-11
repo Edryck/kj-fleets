@@ -85,6 +85,8 @@ public class DriverService {
         if (driver.getStatus() == DriverStatus.BUSY) {
             throw BusinessException.conflict("RESOURCE_IN_USE", "Motorista ocupado não pode ser removido");
         }
+        // Fleet é o dono do join table, então a saída da frota tem que ser pelo lado dela
+        driver.getFleets().forEach(fleet -> fleet.getDrivers().remove(driver));
         driver.setActive(false);
         driver.getUser().setActive(false);
         driver.setVehicle(null);
