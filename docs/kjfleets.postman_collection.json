@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "KJ Fleets",
-    "description": "Rascunho. Os corpos das requisições são propostas: ajustar quando os DTOs existirem. Importa no Postman e no Insomnia.",
+    "description": "Cadastros e autenticação já seguem os DTOs. Pedidos, rota e dashboard ainda são rascunho: ajustar quando existirem. Importa no Postman e no Insomnia.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -49,6 +49,14 @@
     },
     {
       "key": "vehicleId",
+      "value": ""
+    },
+    {
+      "key": "fleetId",
+      "value": ""
+    },
+    {
+      "key": "placeId",
       "value": ""
     },
     {
@@ -509,6 +517,36 @@
       "name": "Motorista (Basic Auth)",
       "item": [
         {
+          "name": "Meu perfil",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/driver/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "driver",
+                "me"
+              ]
+            },
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "{{driverUser}}"
+                },
+                {
+                  "key": "password",
+                  "value": "{{driverPass}}"
+                }
+              ]
+            }
+          }
+        },
+        {
           "name": "Meus pedidos",
           "request": {
             "method": "GET",
@@ -729,6 +767,43 @@
       "name": "Cadastros",
       "item": [
         {
+          "name": "Criar veículo",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/vehicles",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "vehicles"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plate\": \"ABC1D23\",\n  \"type\": \"VAN\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.publicId) pm.collectionVariables.set('vehicleId', body.publicId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Criar motorista",
           "request": {
             "method": "POST",
@@ -744,14 +819,27 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"João Motorista\",\n  \"phone\": \"45988880000\",\n  \"licenseNumber\": \"12345678900\",\n  \"username\": \"joao\",\n  \"password\": \"troque-esta-senha\"\n}",
+              "raw": "{\n  \"name\": \"João Motorista\",\n  \"phone\": \"45988880000\",\n  \"licenseNumber\": \"12345678900\",\n  \"vehicleId\": \"{{vehicleId}}\",\n  \"username\": \"joao\",\n  \"password\": \"troque-esta-senha\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
                 }
               }
+            },
+            "description": "Use o `vehicleId` de um veículo criado antes (ou apague a linha). Se o veículo estiver em manutenção ou já vinculado a outro motorista, responde 409 RESOURCE_IN_USE."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.publicId) pm.collectionVariables.set('driverId', body.publicId);"
+                ]
+              }
             }
-          }
+          ]
         },
         {
           "name": "Listar motoristas",
@@ -811,31 +899,6 @@
           }
         },
         {
-          "name": "Criar veículo",
-          "request": {
-            "method": "POST",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/vehicles",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "vehicles"
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"plate\": \"ABC1D23\",\n  \"type\": \"VAN\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          }
-        },
-        {
           "name": "Listar veículos",
           "request": {
             "method": "GET",
@@ -867,14 +930,26 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Frota Centro\"\n}",
+              "raw": "{\n  \"name\": \"Frota Centro\",\n  \"driverIds\": [\n    \"{{driverId}}\"\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"
                 }
               }
             }
-          }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.publicId) pm.collectionVariables.set('fleetId', body.publicId);"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Listar frotas",
@@ -915,7 +990,19 @@
                 }
               }
             }
-          }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.publicId) pm.collectionVariables.set('placeId', body.publicId);"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Listar lugares",
@@ -929,6 +1016,184 @@
               ],
               "path": [
                 "places"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Atualizar motorista",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/drivers/{{driverId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "drivers",
+                "{{driverId}}"
+              ]
+            },
+            "description": "Não aceita `status: BUSY` (é definido pelas rotas). Motorista BUSY não muda de status.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"João Motorista\",\n  \"phone\": \"45988880000\",\n  \"licenseNumber\": \"12345678900\",\n  \"vehicleId\": \"{{vehicleId}}\",\n  \"status\": \"AVAILABLE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Desativar motorista",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/drivers/{{driverId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "drivers",
+                "{{driverId}}"
+              ]
+            },
+            "description": "Soft delete: o motorista some das listagens e o username continua ocupado."
+          }
+        },
+        {
+          "name": "Atualizar veículo",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/vehicles/{{vehicleId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "vehicles",
+                "{{vehicleId}}"
+              ]
+            },
+            "description": "`status` aceita AVAILABLE e MAINTENANCE. IN_USE é definido pelas rotas.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plate\": \"ABC1D23\",\n  \"type\": \"VAN\",\n  \"status\": \"AVAILABLE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Desativar veículo",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/vehicles/{{vehicleId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "vehicles",
+                "{{vehicleId}}"
+              ]
+            },
+            "description": "Soft delete: a placa continua ocupada e o motorista vinculado fica sem veículo."
+          }
+        },
+        {
+          "name": "Atualizar frota",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fleets/{{fleetId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fleets",
+                "{{fleetId}}"
+              ]
+            },
+            "description": "Substitui a lista de motoristas da frota.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Frota Centro\",\n  \"driverIds\": [\n    \"{{driverId}}\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Desativar frota",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fleets/{{fleetId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fleets",
+                "{{fleetId}}"
+              ]
+            },
+            "description": "Soft delete: a frota sai das listagens e os motoristas são desvinculados."
+          }
+        },
+        {
+          "name": "Atualizar lugar",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/places/{{placeId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "places",
+                "{{placeId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Depósito Central\",\n  \"address\": \"Rua A, 100\",\n  \"lat\": -24.862,\n  \"lng\": -54.337,\n  \"contact\": {\n    \"name\": \"Ana\",\n    \"phone\": \"45999990000\",\n    \"email\": \"ana@example.com\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Desativar lugar",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/places/{{placeId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "places",
+                "{{placeId}}"
               ]
             }
           }

@@ -107,7 +107,7 @@ Regra de ouro: **o código acompanha o padrão da aula** — poucos arquivos, po
 | WebSocket | Cliente STOMP inscrito num pedido recebe o evento quando o status muda |
 | API | Collection em `docs/kjfleets.postman_collection.json`, mantida junto do código |
 
-- Banco de teste separado do de desenvolvimento (`kjfleets_test`). Teste nunca aponta para o banco de dev.
+- Banco de teste sobe com Testcontainers: um PostgreSQL 17 descartável por execução. Precisa de Docker rodando. Teste nunca aponta para o banco de dev.
 - Teste novo para cada bug corrigido.
 
 ## 11. Git

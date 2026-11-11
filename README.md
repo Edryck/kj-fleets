@@ -33,7 +33,7 @@ Java 21, Maven, Spring Boot (Web, Data JPA, Security, WebSocket, Validation), Lo
 
 ## Como rodar
 
-Pré-requisitos: JDK 21, Maven e PostgreSQL.
+Pré-requisitos: JDK 21, PostgreSQL (para rodar a aplicação) e Docker (para os testes, que sobem um PostgreSQL com Testcontainers). O Maven Wrapper (`./mvnw`) já vem no repositório.
 
 1. Crie o banco:
 
@@ -47,7 +47,7 @@ Pré-requisitos: JDK 21, Maven e PostgreSQL.
    |---|---|
    | `DB_URL` | ex.: `jdbc:postgresql://localhost:5432/kjfleets` |
    | `DB_USER` / `DB_PASSWORD` | acesso ao banco |
-   | `JWT_SECRET` | segredo para assinar os tokens |
+   | `JWT_SECRET` | segredo para assinar os tokens; mínimo 32 bytes, senão a aplicação não sobe |
    | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | primeiro ADMIN, criado no startup se não houver usuários |
    | `ROUTING_MODE` | `haversine` (padrão) ou `road` |
    | `ROUTING_DETOUR_FACTOR` | fator sobre a distância em linha reta no modo `haversine` (padrão 1.3) |
@@ -57,13 +57,13 @@ Pré-requisitos: JDK 21, Maven e PostgreSQL.
 3. Suba a aplicação:
 
    ```bash
-   mvn spring-boot:run
+   ./mvnw spring-boot:run
    ```
 
-4. Rode os testes:
+4. Rode os testes (com o Docker de pé):
 
    ```bash
-   mvn test
+   ./mvnw test
    ```
 
 ### Grafo viário (modo `road`, opcional)
@@ -78,12 +78,12 @@ Aponte as variáveis `ROUTING_GRAPH_NODES` e `ROUTING_GRAPH_EDGES` para eles e c
 ## Autenticação
 
 - `POST /auth/register` cria um CUSTOMER; `POST /auth/login` devolve um JWT. Envie em `Authorization: Bearer <token>`.
-- `/driver/**` usa **Basic Auth** com o usuário e a senha do motorista.
+- `/driver/**` usa **Basic Auth** com o usuário e a senha do motorista. O motorista não recebe JWT: `POST /auth/login` responde 401 para ele.
 - Rastreio público (`GET /track/{trackingNumber}`) e `/auth/**` não exigem login.
 
 ## Endpoints
 
-Resumo por grupo. A tabela completa, com o acesso de cada perfil, está em [ARCHITECTURE.md](ARCHITECTURE.md#api-rest) e a matriz de permissões em [ARCHITECTURE.md](ARCHITECTURE.md#perfis-e-permissões). Nas rotas, `{id}` é o `publicId`.
+Resumo por grupo. A tabela completa, com o acesso de cada perfil, está em [ARCHITECTURE.md](ARCHITECTURE.md#api-rest) e a matriz de permissões em [ARCHITECTURE.md](ARCHITECTURE.md#perfis-e-permissões). Nas rotas, `{id}` é o `publicId`. Listagens aceitam `limit` (padrão 20, máximo 100) e `offset`.
 
 Erros de regra de negócio voltam como `422` (ou `409`) com um código estável, por exemplo `ORDER_DISPATCH_REQUIRES_DRIVER`. O recurso de outra pessoa responde `404`.
 
@@ -92,8 +92,8 @@ Erros de regra de negócio voltam como `422` (ou `409`) com um código estável,
 | Auth e usuários | `POST /auth/register`, `POST /auth/login`, `POST /users`, `GET /users` |
 | Pedidos | `POST /orders`, `GET /orders`, `GET /orders/{id}`, `GET /orders/{id}/tracking`, `POST /orders/{id}/assign`, `dispatch`, `activity`, `pod`, `cancel`, `route`, `GET /orders/{id}/route` |
 | Rastreio público | `GET /track/{trackingNumber}` |
-| Motorista (Basic Auth) | `GET /driver/orders`, `POST /driver/orders/{id}/accept`, `activity`, `pod`, `GET /driver/orders/{id}/route`, `POST /driver/location` |
-| Cadastros | CRUD de `/drivers`, `/vehicles`, `/fleets`, `/places`; `GET /drivers/nearest` |
+| Motorista (Basic Auth) | `GET /driver/me`, `GET /driver/orders`, `POST /driver/orders/{id}/accept`, `activity`, `pod`, `GET /driver/orders/{id}/route`, `POST /driver/location` |
+| Cadastros | CRUD de `/drivers`, `/vehicles`, `/fleets`, `/places` (`DELETE` desativa, não apaga); `GET /drivers/nearest` |
 | Roteirização | `POST /routes/optimize`, `POST /dispatch/plan`, `GET /graph/shortest-path`, `POST /graph/import` |
 | Dashboard | `GET /dashboard/summary`, `orders-timeseries`, `drivers-performance`, `routing-savings`, `live` |
 

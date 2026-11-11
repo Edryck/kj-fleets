@@ -56,6 +56,7 @@ erDiagram
         double lat
         double lng
         timestamptz last_seen_at
+        boolean active
     }
     VEHICLE {
         uuid id PK
@@ -63,11 +64,13 @@ erDiagram
         string plate UK
         string type
         string status
+        boolean active
     }
     FLEET {
         uuid id PK
         string public_id UK
         string name
+        boolean active
     }
     ORDERS {
         uuid id PK
@@ -113,6 +116,7 @@ erDiagram
         string address
         double lat
         double lng
+        boolean active
     }
     CONTACT {
         uuid id PK
@@ -179,6 +183,8 @@ erDiagram
 | `route_stop.type` | `START`, `PICKUP`, `WAYPOINT`, `DROPOFF` |
 
 ### Tabelas
+
+Motorista, veículo, frota e lugar são excluídos por soft delete: a coluna `active` vira `false` e o registro some das listagens. A linha continua no banco, então o `username` do motorista e a `plate` do veículo seguem ocupados. Não há reativação nesta fundação.
 
 | Tabela | Observações |
 |---|---|

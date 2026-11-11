@@ -133,7 +133,7 @@ sequenceDiagram
 
     D->>F: POST /driver/location (Authorization Basic, lat, lng)
     F->>DB: busca usuário DRIVER pelo username
-    alt senha inválida ou usuário não é motorista
+    alt senha inválida, usuário não é motorista ou motorista inativo
         F-->>D: 401
     else autenticado
         F->>C: segue a requisição com o motorista como principal
@@ -164,8 +164,8 @@ sequenceDiagram
 
     U->>A: POST /auth/login (username, senha)
     A->>DB: busca usuário e confere BCrypt
-    alt credenciais inválidas
-        A-->>U: 401
+    alt credenciais inválidas, usuário inativo ou role DRIVER
+        A-->>U: 401 (mesma resposta para os três casos)
     else ok
         A-->>U: 200 com JWT e role
     end
@@ -282,7 +282,7 @@ sequenceDiagram
 flowchart LR
     A["GET /drivers/nearest (lat, lng, limit)"] --> B["SELECT motoristas AVAILABLE com lat e lng preenchidos"]
     B --> C["Calcula Haversine até o ponto"]
-    C --> D["Ordena por distância e aplica limit"]
+    C --> D["Ordena por distância e aplica limit (padrão 5, máximo 20)"]
     D --> E["200 com lista e distanceKm"]
 ```
 

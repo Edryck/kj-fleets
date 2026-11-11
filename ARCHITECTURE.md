@@ -54,7 +54,7 @@ Poucas pastas e poucas classes, no padrão da aula. Ajustar conforme o código f
 
 Nada de segredo no repositório: o `application.properties` lê tudo de variáveis de ambiente.
 - Banco: `DB_URL`, `DB_USER`, `DB_PASSWORD`
-- Segurança: `JWT_SECRET`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`
+- Segurança: `JWT_SECRET` (mínimo 32 bytes; abaixo disso a aplicação nem sobe), `ADMIN_USERNAME`, `ADMIN_PASSWORD`
 - Roteirização: `ROUTING_MODE`, `ROUTING_DETOUR_FACTOR`, `ROUTING_AVG_SPEED_KMH`, `ROUTING_GRAPH_NODES`, `ROUTING_GRAPH_EDGES` (os dois últimos só no modo `road`)
 ## Decisões de modelagem
 
@@ -90,6 +90,17 @@ Nomes e campos abaixo são a proposta do projeto. Os campos reais do Fleetbase *
 | RoadEdge | fromNode, toNode, lengthM | N:1 RoadNode (origem e destino); via de mão dupla = 2 arestas |
 
 Criar um motorista (`POST /drivers`) cria também o `AppUser` com role DRIVER (username e senha vêm no corpo). `POST /auth/register` cria um `AppUser` CUSTOMER com o `Customer`.
+
+### Regras dos cadastros
+
+- **Exclusão é soft delete:** `DELETE` marca `active = false` em motorista, veículo, frota e lugar. Inativo some das listagens e responde 404 em `GET`, `PUT` e `DELETE`. Não há reativação nesta fundação.
+- **Username e placa continuam ocupados** depois da desativação: o username do motorista desativado e a placa do veículo desativado não podem ser reaproveitados (409 `USERNAME_TAKEN` e `PLATE_TAKEN`).
+- **Normalização:** username vira minúsculo, placa vira maiúscula, e os dois perdem espaços nas bordas. O login também normaliza o username.
+- **Motorista nasce `OFFLINE`.** `BUSY` é definido pelas rotas, não à mão: `PUT` com `BUSY` responde 400. Motorista `BUSY` não muda de status nem pode ser removido (409 `RESOURCE_IN_USE`).
+- **Vínculo motorista-veículo:** `vehicleId` é opcional. Veículo inativo, em `MAINTENANCE` ou já vinculado a outro motorista responde 409 `RESOURCE_IN_USE`. Excluir motorista o tira das frotas; excluir veículo solta o vínculo do motorista.
+- **Status do veículo:** `MAINTENANCE` é manual. `IN_USE` não pode ser definido à mão (400), e veículo `IN_USE` não muda de status nem pode ser removido (409 `RESOURCE_IN_USE`). A troca automática para `IN_USE` no despacho e para `AVAILABLE` no fim do pedido entra com os pedidos (subprojeto 2); nesta fundação o status não muda sozinho.
+- **Login:** `POST /auth/login` recusa motorista (role DRIVER) e usuário inativo com 401, com a mesma resposta de credencial inválida. Motorista só se autentica por Basic Auth em `/driver/**`.
+
 ## Fluxo e regras do pedido
 
 Estados: `CREATED → DISPATCHED → DRIVER_ENROUTE → ARRIVED → IN_PROGRESS → COMPLETED`. Terminais: `COMPLETED`, `CANCELLED`, `FAILED`. "Pedido ativo" = de `DISPATCHED` até `IN_PROGRESS`. No `activity`, `code` é o estado de destino.
@@ -145,13 +156,19 @@ Regras da roteirização:
 - Código dos algoritmos em classes **puras, sem Spring**: `RouteOptimizer`, `AssignmentSolver` e `RoadGraph`. Testes esperados: Held-Karp = força bruta (até 8 paradas), 2-opt nunca pior que nearest neighbor, Hungarian nunca pior que greedy, A* com o mesmo custo do Dijkstra.
 ## API REST
 
-Convenção: `{id}` é o `publicId`. Listagens com paginação (`limit`/`offset`, como na API do Fleetbase).
+Convenção: `{id}` é o `publicId`.
+
+Listagens paginadas por `limit` e `offset`: padrão 20, máximo 100 (acima disso vira 100). `limit < 1` ou `offset < 0` responde 400. Resposta:
+
+```json
+{ "items": [], "total": 0, "limit": 20, "offset": 0 }
+```
 
 **Auth e usuários**
 - `POST /auth/register`: cadastro público de CUSTOMER
-- `POST /auth/login`: devolve o JWT
+- `POST /auth/login`: devolve o JWT (recusa motorista e usuário inativo com 401)
 - `POST /users`: cria ADMIN, DISPATCHER ou FLEET_MANAGER (só ADMIN). Motorista nasce em `POST /drivers` e cliente em `POST /auth/register`
-- `GET /users`: lista usuários (só ADMIN)
+- `GET /users`: lista todos os usuários, inclusive inativos (campo `active`), ordenados por username (só ADMIN)
 
 **Pedidos**
 - `POST /orders`: cria pedido (equipe ou cliente)
@@ -170,6 +187,7 @@ Convenção: `{id}` é o `publicId`. Listagens com paginação (`limit`/`offset`
 - `GET /track/{trackingNumber}`: status, linha do tempo e ETA, sem dados pessoais nem coordenadas
 
 **API do motorista (Basic Auth, só pedidos dele)**
+- `GET /driver/me`: dados do próprio motorista
 - `GET /driver/orders`
 - `POST /driver/orders/{id}/accept` (modo ad hoc, opcional)
 - `POST /driver/orders/{id}/activity`
@@ -179,7 +197,22 @@ Convenção: `{id}` é o `publicId`. Listagens com paginação (`limit`/`offset`
 
 **Cadastros (CRUD: `GET`, `GET /{id}`, `POST`, `PUT /{id}`, `DELETE /{id}`)**
 - `/drivers`, `/vehicles`, `/places`, `/fleets`
-- `GET /drivers/nearest`: motoristas `AVAILABLE` por distância (`lat`, `lng`, `limit`)
+- `GET /drivers/nearest`: motoristas `AVAILABLE` por distância (`lat`, `lng`, `limit`). `limit` padrão 5, máximo 20 (acima disso vira 20), `< 1` responde 400
+
+**Erros**
+
+Mesmo formato em todas as respostas de erro: `{ "status", "code", "message", "timestamp" }`. Erros de regra de negócio têm código próprio (ver [Fluxo e regras do pedido](#fluxo-e-regras-do-pedido)). Os genéricos:
+
+| Status | Código | Quando |
+|---|---|---|
+| 400 | `VALIDATION_ERROR` | campo inválido, JSON malformado, parâmetro com tipo errado ou fora da faixa (`limit`, `offset`, lat/lng) |
+| 401 | `UNAUTHORIZED` | sem credencial, token inválido ou credencial errada |
+| 403 | `FORBIDDEN` | autenticado, mas o papel não pode fazer a ação |
+| 404 | `NOT_FOUND` | recurso inexistente, inativo ou de outra pessoa; rota inexistente |
+| 405 | `METHOD_NOT_ALLOWED` | método HTTP não suportado pela rota |
+| 409 | `USERNAME_TAKEN`, `PLATE_TAKEN`, `RESOURCE_IN_USE` | unicidade ou recurso em uso |
+| 415 | `UNSUPPORTED_MEDIA_TYPE` | corpo que não é JSON |
+| 500 | `INTERNAL_ERROR` | erro inesperado; a resposta não traz stack trace, o log fica no servidor |
 
 **Roteirização**
 - `POST /routes/optimize`: sem gravar nada (início opcional, pickup, waypoints, dropoff, `algorithm`)
@@ -214,7 +247,7 @@ Convenção: `{id}` é o `publicId`. Listagens com paginação (`limit`/`offset`
 | `/auth/**` e `GET /track/{trackingNumber}` | público | público | público | público | público |
 ## Auth
 
-- **JWT:** todos os perfis, menos o motorista. Tudo fora de `/auth/**`, `/track/**` e `/driver/**` exige JWT.
+- **JWT:** todos os perfis, menos o motorista. Tudo fora de `/auth/**`, `/track/**` e `/driver/**` exige JWT. Assinado em HS256, válido por 8 horas. `JWT_SECRET` precisa de pelo menos 32 bytes.
 - **Basic Auth:** só em `/driver/**`, com o username e a senha do motorista (BCrypt). O motorista é identificado pelo principal autenticado, nunca por id na URL.
 - O primeiro ADMIN é criado no startup a partir de `ADMIN_USERNAME` e `ADMIN_PASSWORD`, se ainda não existir nenhum usuário.
 - Segredo do JWT e credenciais do banco em variáveis de ambiente, nunca no repositório.
@@ -240,6 +273,7 @@ Opcional: uma página estática (`src/main/resources/static/dashboard.html`, Cha
 - Dev: `spring.jpa.hibernate.ddl-auto=update`. Manter um `schema.sql` exportado do pgAdmin como snapshot para a entrega (`docs/schema.sql`).
 - Índices: `orders(status)`, `orders(created_at)`, `orders(finished_at)`, `tracking_status(order_id, created_at)`, `driver(status)`, `route(order_id)` único, `road_edge(from_node)`.
 - Evitar N+1 nas listagens (`@EntityGraph` ou fetch join onde fizer sentido).
+- Testes: Testcontainers sobe um PostgreSQL 17 descartável (`postgres:17-alpine`). Precisa de Docker rodando e nunca usa o banco de desenvolvimento.
 
 ## Decisões e trade-offs
 
