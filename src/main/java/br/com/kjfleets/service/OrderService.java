@@ -4,9 +4,14 @@ import br.com.kjfleets.config.BusinessException;
 import br.com.kjfleets.dto.OrderDtos.CreateOrderRequest;
 import br.com.kjfleets.dto.OrderDtos.ItemDto;
 import br.com.kjfleets.dto.OrderDtos.OrderDetailResponse;
+import br.com.kjfleets.dto.OrderDtos.OrderFilter;
+import br.com.kjfleets.dto.OrderDtos.OrderSummaryResponse;
 import br.com.kjfleets.dto.OrderDtos.PointRequest;
+import br.com.kjfleets.dto.OrderDtos.TrackingResponse;
+import br.com.kjfleets.dto.PageResponse;
 import br.com.kjfleets.entity.Customer;
 import br.com.kjfleets.entity.Order;
+import br.com.kjfleets.entity.OrderStatus;
 import br.com.kjfleets.entity.Payload;
 import br.com.kjfleets.entity.PayloadItem;
 import br.com.kjfleets.entity.Place;
@@ -15,11 +20,16 @@ import br.com.kjfleets.repository.CustomerRepository;
 import br.com.kjfleets.repository.OrderRepository;
 import br.com.kjfleets.repository.PlaceRepository;
 import br.com.kjfleets.repository.TrackingStatusRepository;
+import jakarta.persistence.criteria.Predicate;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 @Service
@@ -60,7 +70,6 @@ public class OrderService {
         if (request.items() != null) {
             for (ItemDto dto : request.items()) {
                 PayloadItem item = new PayloadItem();
-                item.setPayload(payload);
                 item.setName(dto.name());
                 item.setQuantity(dto.quantity());
                 payload.getItems().add(item);
@@ -73,8 +82,80 @@ public class OrderService {
         return OrderDetailResponse.from(order);
     }
 
+    @Transactional(readOnly = true)
+    public PageResponse<OrderSummaryResponse> list(OrderFilter filter, Integer limit, Integer offset,
+                                                   Authentication auth) {
+        Pageable pageable = PageResponse.pageable(limit, offset);
+        OrderFilter scoped = isCustomer(auth) ? ownOnly(filter, auth) : filter;
+        return PageResponse.of(orders.findAll(matching(scoped), pageable), OrderSummaryResponse::from,
+                pageable.getPageSize(), (int) pageable.getOffset());
+    }
+
+    @Transactional(readOnly = true)
+    public OrderDetailResponse get(String publicId, Authentication auth) {
+        return OrderDetailResponse.from(findVisible(publicId, auth));
+    }
+
+    @Transactional(readOnly = true)
+    public List<TrackingResponse> tracking(String publicId, Authentication auth) {
+        return trackings.findByOrderOrderByCreatedAtAscIdAsc(findVisible(publicId, auth)).stream()
+                .map(TrackingResponse::from).toList();
+    }
+
+    // cliente de outro dono recebe 404, não 403, para não confirmar que o pedido existe
+    Order findVisible(String publicId, Authentication auth) {
+        Order order = findOrder(publicId);
+        if (isCustomer(auth)) {
+            Customer own = resolveCustomer(null, auth);
+            if (order.getCustomer() == null || !own.getPublicId().equals(order.getCustomer().getPublicId())) {
+                throw BusinessException.notFound("Pedido");
+            }
+        }
+        return order;
+    }
+
     Order findOrder(String publicId) {
         return orders.findByPublicId(publicId).orElseThrow(() -> BusinessException.notFound("Pedido"));
+    }
+
+    private OrderFilter ownOnly(OrderFilter filter, Authentication auth) {
+        String customerId = resolveCustomer(null, auth).getPublicId();
+        return new OrderFilter(filter.status(), null, customerId, filter.active(), filter.from(), filter.to());
+    }
+
+    private static Specification<Order> matching(OrderFilter filter) {
+        return (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            if (filter.status() != null && !filter.status().isEmpty()) {
+                predicates.add(root.get("status").in(filter.status()));
+            }
+            if (filter.driverId() != null) {
+                predicates.add(cb.equal(root.get("driver").get("publicId"), filter.driverId()));
+            }
+            if (filter.customerId() != null) {
+                predicates.add(cb.equal(root.get("customer").get("publicId"), filter.customerId()));
+            }
+            if (filter.active() != null) {
+                List<OrderStatus> statuses = Arrays.stream(OrderStatus.values())
+                        .filter(status -> status.isActive() == filter.active()).toList();
+                predicates.add(root.get("status").in(statuses));
+            }
+            if (filter.from() != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("createdAt"), filter.from()));
+            }
+            if (filter.to() != null) {
+                predicates.add(cb.lessThanOrEqualTo(root.get("createdAt"), filter.to()));
+            }
+            // count não aceita ORDER BY sem GROUP BY no Postgres
+            if (query.getResultType() != Long.class) {
+                query.orderBy(cb.desc(root.get("createdAt")), cb.desc(root.get("publicId")));
+            }
+            return cb.and(predicates.toArray(Predicate[]::new));
+        };
+    }
+
+    private boolean isCustomer(Authentication auth) {
+        return auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_CUSTOMER"));
     }
 
     void track(Order order, String code, String details, Double lat, Double lng) {
@@ -82,8 +163,7 @@ public class OrderService {
     }
 
     private Customer resolveCustomer(String customerId, Authentication auth) {
-        boolean isCustomer = auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_CUSTOMER"));
-        if (isCustomer) {
+        if (isCustomer(auth)) {
             return customers.findByUserUsername(auth.getName())
                     .orElseThrow(() -> BusinessException.notFound("Cliente"));
         }

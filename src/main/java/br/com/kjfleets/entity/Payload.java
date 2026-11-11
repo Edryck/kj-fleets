@@ -11,12 +11,12 @@ import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
-import jakarta.persistence.OrderBy;
 import jakarta.persistence.OrderColumn;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.BatchSize;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -48,9 +48,12 @@ public class Payload {
             joinColumns = @JoinColumn(name = "payload_id"),
             inverseJoinColumns = @JoinColumn(name = "place_id"))
     @OrderColumn(name = "position")
+    @BatchSize(size = 100)
     private List<Place> waypoints = new ArrayList<>();
 
-    @OneToMany(mappedBy = "payload", cascade = CascadeType.ALL)
-    @OrderBy("id")
+    // unidirectional: @OrderColumn com mappedBy gera aviso do Hibernate; a FK fica em payload_items
+    @OneToMany(cascade = CascadeType.ALL)
+    @JoinColumn(name = "payload_id")
+    @OrderColumn(name = "position")
     private List<PayloadItem> items = new ArrayList<>();
 }
