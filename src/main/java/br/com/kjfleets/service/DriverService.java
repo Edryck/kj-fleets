@@ -3,6 +3,8 @@ package br.com.kjfleets.service;
 import br.com.kjfleets.config.BusinessException;
 import br.com.kjfleets.dto.DriverDtos.CreateDriverRequest;
 import br.com.kjfleets.dto.DriverDtos.DriverResponse;
+import br.com.kjfleets.dto.DriverDtos.LocationRequest;
+import br.com.kjfleets.dto.DriverDtos.NearestDriverResponse;
 import br.com.kjfleets.dto.DriverDtos.UpdateDriverRequest;
 import br.com.kjfleets.dto.PageResponse;
 import br.com.kjfleets.entity.Driver;
@@ -12,10 +14,15 @@ import br.com.kjfleets.entity.Vehicle;
 import br.com.kjfleets.entity.VehicleStatus;
 import br.com.kjfleets.repository.DriverRepository;
 import br.com.kjfleets.repository.VehicleRepository;
+import br.com.kjfleets.routing.Haversine;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
+import java.util.Comparator;
+import java.util.List;
 
 @Service
 public class DriverService {
@@ -83,8 +90,40 @@ public class DriverService {
         driver.setVehicle(null);
     }
 
+    @Transactional(readOnly = true)
+    public DriverResponse me(String username) {
+        return DriverResponse.from(findByUsername(username));
+    }
+
+    @Transactional
+    public void updateLocation(String username, LocationRequest request) {
+        Driver driver = findByUsername(username);
+        driver.setLat(request.lat());
+        driver.setLng(request.lng());
+        driver.setLastSeenAt(Instant.now());
+    }
+
+    @Transactional(readOnly = true)
+    public List<NearestDriverResponse> nearest(double lat, double lng, Integer limit) {
+        int size = limit == null ? 5 : limit;
+        if (size < 1) {
+            throw new BusinessException("VALIDATION_ERROR", HttpStatus.BAD_REQUEST, "limit: deve ser >= 1");
+        }
+        return drivers.findByActiveTrueAndStatusAndLatNotNullAndLngNotNull(DriverStatus.AVAILABLE).stream()
+                .map(d -> new NearestDriverResponse(DriverResponse.from(d),
+                        Haversine.km(lat, lng, d.getLat(), d.getLng())))
+                .sorted(Comparator.comparingDouble(NearestDriverResponse::distanceKm))
+                .limit(Math.min(size, 20))
+                .toList();
+    }
+
     public Driver findActive(String publicId) {
         return drivers.findByPublicIdAndActiveTrue(publicId)
+                .orElseThrow(() -> BusinessException.notFound("Motorista"));
+    }
+
+    private Driver findByUsername(String username) {
+        return drivers.findByUserUsernameAndActiveTrue(username)
                 .orElseThrow(() -> BusinessException.notFound("Motorista"));
     }
 

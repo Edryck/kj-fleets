@@ -2,11 +2,15 @@ package br.com.kjfleets.controller;
 
 import br.com.kjfleets.dto.DriverDtos.CreateDriverRequest;
 import br.com.kjfleets.dto.DriverDtos.DriverResponse;
+import br.com.kjfleets.dto.DriverDtos.NearestDriverResponse;
 import br.com.kjfleets.dto.DriverDtos.UpdateDriverRequest;
 import br.com.kjfleets.dto.PageResponse;
 import br.com.kjfleets.service.DriverService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
 import org.springframework.http.HttpStatus;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -17,7 +21,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 @RestController
+@Validated
 public class DriverController {
 
     private final DriverService service;
@@ -36,6 +43,13 @@ public class DriverController {
     PageResponse<DriverResponse> list(@RequestParam(required = false) Integer limit,
                                       @RequestParam(required = false) Integer offset) {
         return service.list(limit, offset);
+    }
+
+    @GetMapping("/drivers/nearest")
+    List<NearestDriverResponse> nearest(@RequestParam @DecimalMin("-90") @DecimalMax("90") double lat,
+                                        @RequestParam @DecimalMin("-180") @DecimalMax("180") double lng,
+                                        @RequestParam(required = false) Integer limit) {
+        return service.nearest(lat, lng, limit);
     }
 
     @GetMapping("/drivers/{publicId}")

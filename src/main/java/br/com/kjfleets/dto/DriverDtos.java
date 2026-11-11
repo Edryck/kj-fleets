@@ -3,7 +3,10 @@ package br.com.kjfleets.dto;
 import br.com.kjfleets.dto.VehicleDtos.VehicleResponse;
 import br.com.kjfleets.entity.Driver;
 import br.com.kjfleets.entity.DriverStatus;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 import java.time.Instant;
@@ -32,5 +35,12 @@ public final class DriverDtos {
                     driver.getPhone(), driver.getLicenseNumber(), driver.getStatus(), driver.getLat(),
                     driver.getLng(), driver.getLastSeenAt(), vehicle);
         }
+    }
+
+    public record LocationRequest(@NotNull @DecimalMin("-90") @DecimalMax("90") Double lat,
+                                  @NotNull @DecimalMin("-180") @DecimalMax("180") Double lng) {
+    }
+
+    public record NearestDriverResponse(DriverResponse driver, double distanceKm) {
     }
 }

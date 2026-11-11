@@ -184,6 +184,9 @@ class DriverControllerTest extends IntegrationTest {
         String username = "drv-" + unique();
         String id = idOf(createDriver(username, vehicleId, Role.FLEET_MANAGER).andExpect(status().isCreated()));
 
+        mvc.perform(get("/driver/me").with(httpBasic(username, "password-123")))
+                .andExpect(status().isOk());
+
         send(delete("/drivers/" + id), Role.FLEET_MANAGER).andExpect(status().isNoContent());
 
         send(get("/drivers/" + id), Role.ADMIN).andExpect(status().isNotFound());
