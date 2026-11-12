@@ -55,5 +55,6 @@ public class Payload {
     @OneToMany(cascade = CascadeType.ALL)
     @JoinColumn(name = "payload_id")
     @OrderColumn(name = "position")
+    @BatchSize(size = 100)
     private List<PayloadItem> items = new ArrayList<>();
 }

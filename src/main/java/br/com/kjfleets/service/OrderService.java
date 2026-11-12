@@ -3,8 +3,11 @@ package br.com.kjfleets.service;
 import br.com.kjfleets.config.BusinessException;
 import br.com.kjfleets.dto.OrderDtos.ActivityRequest;
 import br.com.kjfleets.dto.OrderDtos.AssignRequest;
+import br.com.kjfleets.dto.OrderDtos.AvailableOrderResponse;
 import br.com.kjfleets.dto.OrderDtos.CancelRequest;
 import br.com.kjfleets.dto.OrderDtos.CreateOrderRequest;
+import br.com.kjfleets.dto.OrderDtos.DriverOrderResponse;
+import br.com.kjfleets.dto.OrderDtos.DriverOrderSummaryResponse;
 import br.com.kjfleets.dto.OrderDtos.ItemDto;
 import br.com.kjfleets.dto.OrderDtos.OrderDetailResponse;
 import br.com.kjfleets.dto.OrderDtos.OrderFilter;
@@ -318,6 +321,32 @@ public class OrderService {
     public List<TrackingResponse> tracking(String publicId, Authentication auth) {
         return trackings.findByOrderOrderByCreatedAtAscIdAsc(findVisible(publicId, auth)).stream()
                 .map(TrackingResponse::from).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<DriverOrderSummaryResponse> driverOrders(String username, OrderStatus status, Integer limit,
+                                                           Integer offset) {
+        Pageable pageable = PageResponse.pageable(limit, offset);
+        return PageResponse.of(orders.findDriverOrders(username, status, pageable), DriverOrderSummaryResponse::from,
+                pageable.getPageSize(), (int) pageable.getOffset());
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<AvailableOrderResponse> availableOrders(Integer limit, Integer offset) {
+        Pageable pageable = PageResponse.pageable(limit, offset);
+        return PageResponse.of(orders.findAvailable(pageable), AvailableOrderResponse::from,
+                pageable.getPageSize(), (int) pageable.getOffset());
+    }
+
+    @Transactional(readOnly = true)
+    public DriverOrderResponse driverOrder(String publicId, String username) {
+        return DriverOrderResponse.from(findDriverOrder(publicId, username));
+    }
+
+    Order findDriverOrder(String publicId, String username) {
+        Order order = findOrder(publicId);
+        requireOwnDriver(order, username);
+        return order;
     }
 
     // cliente de outro dono recebe 404, não 403, para não confirmar que o pedido existe

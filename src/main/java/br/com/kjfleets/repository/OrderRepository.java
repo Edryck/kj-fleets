@@ -37,4 +37,35 @@ public interface OrderRepository extends JpaRepository<Order, UUID>, JpaSpecific
     @Override
     @EntityGraph(attributePaths = {"payload.pickup", "payload.dropoff", "driver", "vehicle", "customer"})
     Page<Order> findAll(@Nullable Specification<Order> spec, Pageable pageable);
+
+    // ativos primeiro, depois CREATED, terminais por último; dentro de cada grupo, o mais antigo antes
+    @EntityGraph(attributePaths = {"payload.pickup", "payload.dropoff", "driver", "vehicle", "customer"})
+    @Query(value = """
+            select o from Order o
+            where o.driver.user.username = :username
+              and (:status is null or o.status = :status)
+            order by case when o.status = br.com.kjfleets.entity.OrderStatus.CREATED then 1
+                          when o.status in (br.com.kjfleets.entity.OrderStatus.DISPATCHED,
+                                            br.com.kjfleets.entity.OrderStatus.DRIVER_ENROUTE,
+                                            br.com.kjfleets.entity.OrderStatus.ARRIVED,
+                                            br.com.kjfleets.entity.OrderStatus.IN_PROGRESS) then 0
+                          else 2 end,
+                     o.createdAt asc, o.publicId asc
+            """, countQuery = """
+            select count(o) from Order o
+            where o.driver.user.username = :username
+              and (:status is null or o.status = :status)
+            """)
+    Page<Order> findDriverOrders(String username, OrderStatus status, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"payload.pickup", "payload.dropoff"})
+    @Query(value = """
+            select o from Order o
+            where o.status = br.com.kjfleets.entity.OrderStatus.CREATED and o.driver is null
+            order by o.createdAt asc, o.publicId asc
+            """, countQuery = """
+            select count(o) from Order o
+            where o.status = br.com.kjfleets.entity.OrderStatus.CREATED and o.driver is null
+            """)
+    Page<Order> findAvailable(Pageable pageable);
 }
