@@ -56,6 +56,7 @@ Nada de segredo no repositório: o `application.properties` lê tudo de variáve
 - Banco: `DB_URL`, `DB_USER`, `DB_PASSWORD`
 - Segurança: `JWT_SECRET` (mínimo 32 bytes; abaixo disso a aplicação nem sobe), `ADMIN_USERNAME`, `ADMIN_PASSWORD`
 - Roteirização: `ROUTING_MODE`, `ROUTING_DETOUR_FACTOR`, `ROUTING_AVG_SPEED_KMH`, `ROUTING_ARRIVAL_RADIUS_M` (raio para concluir parada, padrão 200), `ROUTING_POSITION_MAX_AGE_S` (idade máxima da posição do motorista, padrão 300), `ROUTING_GRAPH_NODES`, `ROUTING_GRAPH_EDGES` (os dois últimos só no modo `road`, subprojeto 6)
+- Dashboard: `DASHBOARD_TIMEZONE` (padrão `America/Sao_Paulo`), `DASHBOARD_STALE_UNASSIGNED_MIN` (30), `DASHBOARD_STALE_ASSIGNED_MIN` (15), `DASHBOARD_STALE_DISPATCHED_MIN` (15), `DASHBOARD_STALE_ENROUTE_MIN` (60), `DASHBOARD_STALE_ARRIVED_MIN` (20), `DASHBOARD_STALE_IN_PROGRESS_MIN` (90) e `DASHBOARD_MAINTENANCE_ALERT_DAYS` (7). Limites de parado: 1 a 1440 min; dias de manutenção: 1 a 365
 ## Decisões de modelagem
 
 - Chave primária `UUID` + `publicId` legível (ex.: `order_x7k2m9`), como no Fleetbase. A API só expõe o `publicId`.
@@ -245,12 +246,10 @@ Mesmo formato em todas as respostas de erro: `{ "status", "code", "message", "ti
 - `GET /graph/shortest-path`: `fromLat`, `fromLng`, `toLat`, `toLng`, `algorithm`
 - `POST /graph/import`: só ADMIN
 
-**Dashboard**
-- `GET /dashboard/summary`
-- `GET /dashboard/orders-timeseries`
-- `GET /dashboard/drivers-performance`
-- `GET /dashboard/routing-savings`
-- `GET /dashboard/live`
+**Dashboard** (somente leitura; detalhes em [Dashboard](#dashboard))
+- Tópicos: `GET /dashboard/orders/summary`, `/dashboard/orders/funnel`, `/dashboard/dispatch/queue`, `/dashboard/fleet/status`, `/dashboard/drivers/performance`, `/dashboard/routing/savings`, `/dashboard/trends/yearly`, `/dashboard/alerts`
+- Painéis: `GET /dashboard/admin`, `/dashboard/dispatch`, `/dashboard/fleet`, `/customer/dashboard` (CUSTOMER) e `/driver/dashboard` (Basic Auth do motorista)
+
 ## Perfis e permissões
 
 | Recurso | ADMIN | DISPATCHER | FLEET_MANAGER | CUSTOMER | DRIVER |
@@ -270,7 +269,17 @@ Mesmo formato em todas as respostas de erro: `{ "status", "code", "message", "ti
 | `POST /dispatch/plan` e `POST /routes/optimize` | sim | sim | não | não | não |
 | `GET /graph/shortest-path` | sim | sim | sim | não | não |
 | `POST /graph/import` | sim | não | não | não | não |
-| `/dashboard/**` | sim | sim | sim | não | não |
+| `GET /dashboard/orders/summary` | sim | sim | sim | só os próprios | não |
+| `GET /dashboard/orders/funnel`, `dispatch/queue`, `routing/savings` | sim | sim | não | não | não |
+| `GET /dashboard/fleet/status` | sim | sim (sem a lista completa de motoristas) | sim | não | não |
+| `GET /dashboard/drivers/performance` | sim | não | sim | não | não |
+| `GET /dashboard/trends/yearly` | sim | não | sim | só os próprios, sem km, economia, ciclo nem motorista | não |
+| `GET /dashboard/alerts` | sim | sim | sim | não | não |
+| `GET /dashboard/admin` | sim | não | não | não | não |
+| `GET /dashboard/dispatch` | sim | sim | não | não | não |
+| `GET /dashboard/fleet` | sim | não | sim | não | não |
+| `GET /customer/dashboard` | não | não | não | sim | não |
+| `GET /driver/dashboard` | não | não | não | não | só o próprio |
 | `/auth/**` e `GET /track/{trackingNumber}` | público | público | público | público | público |
 ## Auth
 
@@ -287,18 +296,68 @@ Mesmo formato em todas as respostas de erro: `{ "status", "code", "message", "ti
 - Publicar via `SimpMessagingTemplate` a partir do service que muda o status ou a posição.
 ## Dashboard
 
-Somente leitura, só para ADMIN, DISPATCHER e FLEET_MANAGER. Tudo agregado no banco (`GROUP BY`, `date_trunc`), nada calculado em memória sobre listas inteiras.
-- `summary`: pedidos por status, motoristas por status, veículos por status, pedidos ativos, finalizados hoje, taxa de sucesso (`COMPLETED / (COMPLETED + FAILED + CANCELLED)`), tempo médio de entrega (`dispatchedAt` até `finishedAt`, só `COMPLETED`) e utilização da frota (`BUSY / (AVAILABLE + BUSY)`).
-- `orders-timeseries` (`days`, padrão 7): por dia, criados, concluídos e falhos/cancelados.
-- `drivers-performance` (`from`, `to`): por motorista, concluídos, falhos, tempo médio e km total.
-- `routing-savings`: por algoritmo, número de rotas, economia média em % e km economizados.
-- `live`: posição e status dos motoristas e os pedidos ativos (com coordenadas de pickup e dropoff), para um mapa.
+Somente leitura. Há dois tipos de consulta: **tópicos** (um número ou uma lista) e **painéis** (um agregado por perfil que reúne os tópicos certos). Tudo é agregado no banco (`GROUP BY`, `FILTER`, `LATERAL`, `date_trunc`); nada soma lista inteira em Java. Sem cache na v1: cada chamada refaz as consultas.
 
-Opcional: uma página estática (`src/main/resources/static/dashboard.html`, Chart.js por CDN) que faz login e consome esses endpoints, só para demonstração. Fora disso, o frontend é outro projeto.
+### Período e fuso
+
+- `period`: `today` (padrão), `7d`, `15d` ou `1m`. Outro valor responde 400.
+- `from` é o início do dia no fuso `DASHBOARD_TIMEZONE` e `to` é o instante da consulta. `7d` e `15d` contam o dia de hoje. `1m` são 30 dias corridos, não o mês civil.
+- `compare=true` em `/dashboard/orders/summary` (só ADMIN) devolve `previous`: a janela de mesmo tamanho logo antes de `from`.
+- Toda resposta traz `meta` (`generatedAt`, `timezone`, `period`, `from`, `to`). Blocos "agora" (fila, funil, frota, alertas) não têm janela: `period` vira `now` e `from` e `to` ficam nulos.
+- Taxas vêm como `{ "rate", "n" }`. `rate` é nulo quando `n` é 0, para não parecer 0%.
+
+### Tópicos
+
+- `GET /dashboard/orders/summary` (`period`, `compare`): pedidos criados no período e por status; cancelamentos por autor (cliente, equipe ou desconhecido); `successRate`, `failureRate` e `cancelRate` sobre os pedidos que terminaram; top 5 motivos de falha; espera média (criação até despacho) e ciclo médio (despacho até conclusão); `podRate` (só ADMIN).
+- `GET /dashboard/orders/funnel`: pedidos ativos por etapa e quantos estão parados em cada uma. As etapas são `UNASSIGNED` (criado, sem motorista), `ASSIGNED` (criado, com motorista), `DISPATCHED`, `DRIVER_ENROUTE`, `ARRIVED` e `IN_PROGRESS`.
+- `GET /dashboard/dispatch/queue`: quatro listas com total, até 50 itens cada: sem motorista, atribuídos sem despacho, em andamento (com ETA vivo e paradas concluídas de total) e parados.
+- `GET /dashboard/fleet/status` (`fleetId`, opcional, no formato `fleet_xxxxxx`): motoristas e veículos por status, pedidos esperando e motoristas disponíveis com posição recente. DISPATCHER não recebe `drivers` (lista completa). Frota inexistente responde 404.
+- `GET /dashboard/drivers/performance` (`period`, `fleetId`): por motorista, concluídos, falhos, taxa de sucesso, pedidos, despacho até chegada (média em minutos) e `busyPct` (tempo em `BUSY` sobre o tempo em `AVAILABLE` mais `BUSY`, no período). `idleDriverIds` lista quem não concluiu nada.
+- `GET /dashboard/routing/savings` (`period`): rotas concluídas, km planejados e de base, km economizados, economia média no total e por algoritmo, e `batchDispatchPct` (percentual de despachos em lote).
+- `GET /dashboard/trends/yearly`: 13 meses (12 fechados e o atual) no fuso do painel, zerados quando vazios. `byDriver` traz os concluídos por motorista e mês. Cliente recebe só contagens e taxa de sucesso, sem km, economia, ciclo nem motorista.
+- `GET /dashboard/alerts`: alertas do perfil (ver abaixo).
+
+Tendência anual é uma **coorte pela data de criação do pedido**: concluídos, falhos, cancelados, ciclo e economia caem no mês em que o pedido foi criado, mesmo que a conclusão seja no mês seguinte.
+
+### Painéis
+
+- `GET /dashboard/admin` (ADMIN, `period`): resumo com comparação, funil, contagens da frota, economia e contagem dos 8 tipos de alerta.
+- `GET /dashboard/dispatch` (ADMIN e DISPATCHER, `period`): fila, motoristas disponíveis, contagens, resumo e alertas do DISPATCHER.
+- `GET /dashboard/fleet` (ADMIN e FLEET_MANAGER, `period`): status da frota, alertas do FLEET_MANAGER, desempenho dos motoristas e `sizing` (por dia: pedidos criados e motoristas que entregaram).
+- `GET /customer/dashboard` (CUSTOMER, `period`): `active` (pedidos ativos, incluindo `CREATED`; `etaMinutes` só em `DRIVER_ENROUTE`, `ARRIVED` e `IN_PROGRESS`), `attention` (falhas no período e pedidos parados), resumo dos próprios pedidos e as 10 últimas entregas.
+- `GET /driver/dashboard` (DRIVER, Basic Auth, sem `period`): pedido em andamento mais antigo, fila de atribuídos, resumo de hoje (concluídos, falhos e paradas concluídas) e GPS (`lastSeenAt`, idade da posição e se ela é válida). "Hoje" é sempre o dia no fuso do painel.
+
+### Alertas
+
+Resposta com `items` (até 100) e `counts` por tipo. Cada alerta traz `type`, `severity` (`LOW`, `MEDIUM`, `HIGH`), `subjectType`, `subjectId`, `message`, `suggestedAction` e `since`. Os limites de parado (`DASHBOARD_STALE_*`) são por etapa e valem tanto para `STALE_ORDER` quanto para a atenção do painel do cliente.
+
+| Tipo | Regra | Severidade | Quem recebe a lista |
+|---|---|---|---|
+| `STALE_ORDER` | Pedido passou do limite da etapa. O relógio começa no último evento de mudança de etapa (ou na criação) | MEDIUM; HIGH acima de 2x o limite | DISPATCHER |
+| `DRIVER_NO_SIGNAL` | Motorista `BUSY` ou `AVAILABLE` sem posição há mais de 2x `ROUTING_POSITION_MAX_AGE_S` (padrão 10 min). Motorista que nunca enviou posição fica de fora | HIGH se tem pedido em andamento; senão MEDIUM | DISPATCHER, FLEET_MANAGER |
+| `STATUS_INCONSISTENT` | Motorista `BUSY` sem pedido ativo, ou `AVAILABLE` com pedido ativo | HIGH | FLEET_MANAGER, ADMIN |
+| `VEHICLE_MAINTENANCE_ON_AVAILABLE_DRIVER` | Motorista `AVAILABLE` com veículo em `MAINTENANCE` | MEDIUM | DISPATCHER, FLEET_MANAGER |
+| `DEMAND_OVER_CAPACITY` | Pedidos sem motorista maiores que os motoristas livres (`AVAILABLE`, veículo `AVAILABLE`, posição recente) | HIGH | DISPATCHER, ADMIN |
+| `SUSPICIOUS_STOP` | Parada concluída nas últimas 24h sem distância registrada (concluída pela equipe) ou a mais de 80% de `ROUTING_ARRIVAL_RADIUS_M` | LOW | FLEET_MANAGER, ADMIN |
+| `ROUTE_MISSING` | Pedido ativo sem rota calculada. A mensagem traz o último `route_failed` | MEDIUM | DISPATCHER |
+| `LONG_MAINTENANCE` | Veículo em `MAINTENANCE` há mais de `DASHBOARD_MAINTENANCE_ALERT_DAYS` dias | LOW | FLEET_MANAGER |
+
+ADMIN recebe a contagem dos 8 tipos, mas a lista só traz os três que são dele (`STATUS_INCONSISTENT`, `DEMAND_OVER_CAPACITY` e `SUSPICIOUS_STOP`). DISPATCHER e FLEET_MANAGER veem contagem e lista só dos tipos do próprio papel. Os painéis `dispatch` e `fleet` mostram os alertas desse operador, mesmo quando quem chama é ADMIN.
+
+### Histórico de status
+
+`status_changes` guarda cada mudança de status de motorista e de veículo, com `from_status`, `to_status`, `changed_at`, `changed_by` (username ou `system`) e `reason` (`manual`, `dispatch`, `finish`, `delete` ou `baseline`). Na subida da aplicação, quem ainda não tem histórico ganha uma linha `baseline` com o status atual, que é o ponto de partida dos tempos. Excluir grava `delete` mesmo sem mudança de status, para a saída aparecer no histórico. Em `tracking_statuses`, `actor_username` e `actor_role` dizem quem gerou cada evento do pedido; é isso que separa o cancelamento do cliente do da equipe.
+
+### Orçamento e evolução
+
+- Cada painel deve responder em menos de 500 ms e com no máximo 20 consultas SQL. `DashboardBudgetTest` mede isso com 5 mil pedidos.
+- Sem cache na v1. Redis fica como evolução para a v2, se a carga pedir.
+- Não há página estática do dashboard nesta entrega; o frontend é outro projeto.
+
 ## Banco (PostgreSQL)
 
 - Dev: `spring.jpa.hibernate.ddl-auto=update`. Manter um `schema.sql` exportado do pgAdmin como snapshot para a entrega (`docs/schema.sql`).
-- Índices: `orders(status)`, `orders(created_at)`, `orders(finished_at)`, `tracking_statuses(order_id, created_at)`, `drivers(status)`, `routes(order_id)` único e `road_edges(from_node)` (subprojeto 6).
+- Índices: `orders(status)`, `orders(created_at)`, `orders(finished_at)`, `tracking_statuses(order_id, created_at)`, `orders(status, created_at)`, `orders(driver_id, finished_at)`, `status_changes(subject_type, subject_id, changed_at)`, `drivers(status)`, `routes(order_id)` único e `road_edges(from_node)` (subprojeto 6).
 - Evitar N+1 nas listagens (`@EntityGraph` ou fetch join onde fizer sentido).
 - Testes: Testcontainers sobe um PostgreSQL 17 descartável (`postgres:17-alpine`). Precisa de Docker rodando e nunca usa o banco de desenvolvimento.
 
@@ -320,6 +379,11 @@ Opcional: uma página estática (`src/main/resources/static/dashboard.html`, Cha
 | Conclusão de parada por ação explícita, com raio rígido | Prova que o motorista esteve perto, não só que o GPS passou ali | Motorista sem posição recente não conclui; a equipe conclui sem checagem |
 | Recálculo congela as paradas concluídas | Não reordena o que já foi feito e mantém a economia medida sobre a mesma base | A rota nova pode não ser a ótima global |
 | Lote só atribui (`apply`) e é tudo ou nada | A equipe confere o plano antes de despachar; nada fica pela metade | Não despacha sozinho: o operador ainda chama `dispatch` por pedido |
+| Agregação no banco (`GROUP BY`, `FILTER`, `LATERAL`) | Números certos sem carregar tabelas na memória; orçamento de 20 consultas por painel, testado | SQL mais longo e mais difícil de ler que o equivalente em Java |
+| Sem cache na v1 | Número sempre do momento, sem invalidação | Cada chamada refaz as consultas; Redis fica para a v2 |
+| Tendência anual por coorte de criação | Taxa, ciclo e economia de um pedido caem no mês em que ele foi criado | Pedido criado num mês e concluído no seguinte só aparece no mês de criação; o mês atual mostra número parcial |
+| `status_changes` separado de `tracking_statuses` | Motorista e veículo não têm pedido, e o histórico do pedido fica só com eventos do pedido | Duas tabelas de histórico para manter |
+| Alerta de sinal ignora quem nunca enviou posição | Evita alerta permanente para quem ainda não usou o app | Motorista que nunca enviou posição não aparece como sem sinal |
 
 ## Fonte das regras
 

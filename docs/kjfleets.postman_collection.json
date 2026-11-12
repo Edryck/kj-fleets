@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "KJ Fleets",
-    "description": "Cadastros, autenticação, pedidos, rotas e despacho já seguem os DTOs. Dashboard e grafo viário (subprojetos 4 e 6) ainda são rascunho: ajustar quando existirem. Importa no Postman e no Insomnia.",
+    "description": "Cadastros, autenticação, pedidos, rotas, despacho e dashboard já seguem os DTOs. Grafo viário (subprojeto 6) ainda é rascunho: ajustar quando existir. Importa no Postman e no Insomnia.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -1566,94 +1566,407 @@
       "name": "Dashboard",
       "item": [
         {
-          "name": "Resumo",
+          "name": "Resumo de pedidos (hoje)",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/dashboard/summary",
+              "raw": "{{baseUrl}}/dashboard/orders/summary?period=today",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "dashboard",
+                "orders",
                 "summary"
-              ]
-            }
-          }
-        },
-        {
-          "name": "Pedidos por dia",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/dashboard/orders-timeseries?days=7",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "dashboard",
-                "orders-timeseries"
               ],
               "query": [
                 {
-                  "key": "days",
-                  "value": "7"
+                  "key": "period",
+                  "value": "today"
                 }
               ]
-            }
+            },
+            "description": "Contagens por status, cancelamentos por autor, taxas, motivos de falha e tempos médios. period: today (padrão), 7d, 15d ou 1m. Fora disso responde 400. podRate só para ADMIN."
           }
         },
         {
-          "name": "Desempenho dos motoristas",
+          "name": "Resumo de pedidos (15 dias)",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/dashboard/drivers-performance",
+              "raw": "{{baseUrl}}/dashboard/orders/summary?period=15d",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "dashboard",
-                "drivers-performance"
+                "orders",
+                "summary"
+              ],
+              "query": [
+                {
+                  "key": "period",
+                  "value": "15d"
+                }
               ]
-            }
+            },
+            "description": "Janela de 15 dias contando hoje."
           }
         },
         {
-          "name": "Economia de rotas",
+          "name": "Resumo de pedidos (1 mês, com comparação)",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/dashboard/routing-savings",
+              "raw": "{{baseUrl}}/dashboard/orders/summary?period=1m&compare=true",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "dashboard",
-                "routing-savings"
+                "orders",
+                "summary"
+              ],
+              "query": [
+                {
+                  "key": "period",
+                  "value": "1m"
+                },
+                {
+                  "key": "compare",
+                  "value": "true"
+                }
               ]
-            }
+            },
+            "description": "1m são 30 dias corridos. compare=true só para ADMIN: devolve previous, a janela de mesmo tamanho logo antes."
           }
         },
         {
-          "name": "Ao vivo",
+          "name": "Funil de pedidos",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/dashboard/live",
+              "raw": "{{baseUrl}}/dashboard/orders/funnel",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "dashboard",
-                "live"
+                "orders",
+                "funnel"
               ]
-            }
+            },
+            "description": "Pedidos ativos por etapa e quantos estão parados em cada uma. Sem período (agora). ADMIN e DISPATCHER."
+          }
+        },
+        {
+          "name": "Fila de despacho",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/dashboard/dispatch/queue",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "dashboard",
+                "dispatch",
+                "queue"
+              ]
+            },
+            "description": "Sem motorista, atribuídos não despachados, em andamento e parados. Até 50 itens por lista, com total. ADMIN e DISPATCHER."
+          }
+        },
+        {
+          "name": "Status da frota",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/dashboard/fleet/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "dashboard",
+                "fleet",
+                "status"
+              ]
+            },
+            "description": "Motoristas e veículos por status, pedidos esperando e motoristas disponíveis com posição recente. DISPATCHER não recebe a lista completa de motoristas."
+          }
+        },
+        {
+          "name": "Status de uma frota",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/dashboard/fleet/status?fleetId={{fleetId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "dashboard",
+                "fleet",
+                "status"
+              ],
+              "query": [
+                {
+                  "key": "fleetId",
+                  "value": "{{fleetId}}"
+                }
+              ]
+            },
+            "description": "fleetId no formato fleet_xxxxxx. Frota inexistente responde 404."
+          }
+        },
+        {
+          "name": "Desempenho dos motoristas (7 dias)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/dashboard/drivers/performance?period=7d",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "dashboard",
+                "drivers",
+                "performance"
+              ],
+              "query": [
+                {
+                  "key": "period",
+                  "value": "7d"
+                }
+              ]
+            },
+            "description": "period: today (padrão), 7d, 15d ou 1m. Fora disso responde 400. ADMIN e FLEET_MANAGER."
+          }
+        },
+        {
+          "name": "Desempenho de uma frota (1 mês)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/dashboard/drivers/performance?period=1m&fleetId={{fleetId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "dashboard",
+                "drivers",
+                "performance"
+              ],
+              "query": [
+                {
+                  "key": "period",
+                  "value": "1m"
+                },
+                {
+                  "key": "fleetId",
+                  "value": "{{fleetId}}"
+                }
+              ]
+            },
+            "description": "Só os motoristas da frota. idleDriverIds lista quem não concluiu nada no período."
+          }
+        },
+        {
+          "name": "Economia de rotas (1 mês)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/dashboard/routing/savings?period=1m",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "dashboard",
+                "routing",
+                "savings"
+              ],
+              "query": [
+                {
+                  "key": "period",
+                  "value": "1m"
+                }
+              ]
+            },
+            "description": "period: today (padrão), 7d, 15d ou 1m. Fora disso responde 400. ADMIN e DISPATCHER."
+          }
+        },
+        {
+          "name": "Tendência anual",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/dashboard/trends/yearly",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "dashboard",
+                "trends",
+                "yearly"
+              ]
+            },
+            "description": "13 meses (12 fechados + atual), pela data de criação do pedido. byDriver só para equipe. Cliente recebe só contagens e taxa."
+          }
+        },
+        {
+          "name": "Alertas",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/dashboard/alerts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "dashboard",
+                "alerts"
+              ]
+            },
+            "description": "Alertas acionáveis do perfil do token, com contagem por tipo. ADMIN, DISPATCHER e FLEET_MANAGER."
+          }
+        },
+        {
+          "name": "Painel admin (hoje)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/dashboard/admin?period=today",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "dashboard",
+                "admin"
+              ],
+              "query": [
+                {
+                  "key": "period",
+                  "value": "today"
+                }
+              ]
+            },
+            "description": "Resumo com comparação, funil, frota, economia e contagem dos 8 tipos de alerta. Só ADMIN. period: today (padrão), 7d, 15d ou 1m. Fora disso responde 400."
+          }
+        },
+        {
+          "name": "Painel de despacho (7 dias)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/dashboard/dispatch?period=7d",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "dashboard",
+                "dispatch"
+              ],
+              "query": [
+                {
+                  "key": "period",
+                  "value": "7d"
+                }
+              ]
+            },
+            "description": "Fila, motoristas disponíveis, resumo e alertas do DISPATCHER. ADMIN e DISPATCHER. period: today (padrão), 7d, 15d ou 1m. Fora disso responde 400."
+          }
+        },
+        {
+          "name": "Painel de frota (1 mês)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/dashboard/fleet?period=1m",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "dashboard",
+                "fleet"
+              ],
+              "query": [
+                {
+                  "key": "period",
+                  "value": "1m"
+                }
+              ]
+            },
+            "description": "Status da frota, alertas do FLEET_MANAGER, desempenho e dimensionamento por dia. ADMIN e FLEET_MANAGER. period: today (padrão), 7d, 15d ou 1m. Fora disso responde 400."
+          }
+        },
+        {
+          "name": "Painel do cliente (7 dias)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/customer/dashboard?period=7d",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "customer",
+                "dashboard"
+              ],
+              "query": [
+                {
+                  "key": "period",
+                  "value": "7d"
+                }
+              ]
+            },
+            "description": "Pedidos ativos (inclui CREATED), atenção (falhas no período e pedidos parados), resumo e últimas entregas. Bearer de um CUSTOMER (o {{token}} da coleção precisa ser de um cliente). period: today (padrão), 7d, 15d ou 1m. Fora disso responde 400."
+          }
+        },
+        {
+          "name": "Painel do motorista",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/driver/dashboard",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "driver",
+                "dashboard"
+              ]
+            },
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "{{driverUser}}"
+                },
+                {
+                  "key": "password",
+                  "value": "{{driverPass}}"
+                }
+              ]
+            },
+            "description": "Pedido em andamento, fila, resumo de hoje e GPS. Sem período: 'hoje' é sempre o dia no fuso do painel. Basic Auth do motorista."
           }
         }
       ]

@@ -12,4 +12,4 @@ A numeração dos fluxos é estável: specs e planos citam "fluxo N".
 | Motoristas | [flow-motoristas.md](flow-motoristas.md) | 6, 12 |
 | Roteirização | [flow-roteirizacao.md](flow-roteirizacao.md) | 13, 18, 14, 15 |
 | Rastreio público | [flow-rastreio.md](flow-rastreio.md) | 17 |
-| Dashboard | [flow-dashboard.md](flow-dashboard.md) | 16 |
+| Dashboard | [flow-dashboard.md](flow-dashboard.md) | 16, 19, 20, 21 |

@@ -55,6 +55,14 @@ Pré-requisitos: JDK 21, PostgreSQL (para rodar a aplicação) e Docker (para os
    | `ROUTING_ARRIVAL_RADIUS_M` | raio, em metros, para o motorista concluir uma parada (padrão 200) |
    | `ROUTING_POSITION_MAX_AGE_S` | idade máxima, em segundos, da posição do motorista para contar como atual (padrão 300) |
    | `ROUTING_GRAPH_NODES` / `ROUTING_GRAPH_EDGES` | caminhos dos CSVs do grafo viário (só no modo `road`) |
+   | `DASHBOARD_TIMEZONE` | fuso dos períodos do dashboard (padrão `America/Sao_Paulo`) |
+   | `DASHBOARD_STALE_UNASSIGNED_MIN` | minutos sem motorista até o pedido virar alerta de parado (padrão 30) |
+   | `DASHBOARD_STALE_ASSIGNED_MIN` | minutos atribuído e não despachado (padrão 15) |
+   | `DASHBOARD_STALE_DISPATCHED_MIN` | minutos despachado sem o motorista sair (padrão 15) |
+   | `DASHBOARD_STALE_ENROUTE_MIN` | minutos a caminho do ponto (padrão 60) |
+   | `DASHBOARD_STALE_ARRIVED_MIN` | minutos no ponto sem começar a operação (padrão 20) |
+   | `DASHBOARD_STALE_IN_PROGRESS_MIN` | minutos em andamento sem concluir (padrão 90) |
+   | `DASHBOARD_MAINTENANCE_ALERT_DAYS` | dias em manutenção até o alerta de veículo parado (padrão 7) |
 
 3. Suba a aplicação:
 
@@ -97,7 +105,8 @@ Erros de regra de negócio voltam como `422` (ou `409`) com um código estável,
 | Motorista (Basic Auth) | `GET /driver/me`, `GET /driver/orders` (`?available=true` lista os pedidos sem motorista), `GET /driver/orders/{id}`, `POST /driver/orders/{id}/accept`, `activity`, `pod`, `GET /driver/orders/{id}/route`, `POST /driver/orders/{id}/stops/{seq}/complete`, `POST /driver/location` |
 | Cadastros | CRUD de `/drivers`, `/vehicles`, `/fleets`, `/places` (`DELETE` desativa, não apaga); `GET /drivers/nearest`; `GET /customers` (só leitura) |
 | Roteirização | `POST /routes/optimize`, `POST /dispatch/plan`, `GET /graph/shortest-path`, `POST /graph/import` |
-| Dashboard | `GET /dashboard/summary`, `orders-timeseries`, `drivers-performance`, `routing-savings`, `live` |
+| Dashboard (tópicos) | `GET /dashboard/orders/summary`, `orders/funnel`, `dispatch/queue`, `fleet/status`, `drivers/performance`, `routing/savings`, `trends/yearly`, `alerts` (`period`: `today`, `7d`, `15d`, `1m`) |
+| Dashboard (painéis) | `GET /dashboard/admin`, `/dashboard/dispatch`, `/dashboard/fleet`, `/customer/dashboard` (CUSTOMER), `/driver/dashboard` (Basic Auth do motorista) |
 
 ## WebSocket
 
