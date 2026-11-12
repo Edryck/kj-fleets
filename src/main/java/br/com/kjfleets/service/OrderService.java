@@ -437,9 +437,7 @@ public class OrderService {
         Pageable pageable = PageResponse.pageable(limit, offset);
         OrderFilter scoped = isCustomer(auth) ? ownOnly(filter, auth) : filter;
         String q = filter.q() == null ? "" : filter.q().trim();
-        if (q.length() > 100) {
-            throw new BusinessException("VALIDATION_ERROR", HttpStatus.BAD_REQUEST, "q deve ter até 100 caracteres");
-        }
+        Search.pattern(q);
         boolean byStatus = "status".equals(filter.sort());
         if (filter.sort() != null && !byStatus && !"createdAt".equals(filter.sort())
                 || filter.dir() != null && !filter.dir().equals("asc") && !filter.dir().equals("desc")) {
@@ -538,11 +536,10 @@ public class OrderService {
             if (filter.to() != null) {
                 predicates.add(cb.lessThanOrEqualTo(root.get("createdAt"), filter.to()));
             }
-            if (!filter.q().isEmpty()) {
+            String pattern = Search.pattern(filter.q());
+            if (pattern != null) {
                 // joins to-one: não duplicam linhas, então count e paginação seguem corretos
                 var payload = root.join("payload", JoinType.LEFT);
-                String pattern = "%" + filter.q().toLowerCase().replace("\\", "\\\\").replace("%", "\\%")
-                        .replace("_", "\\_") + "%";
                 predicates.add(cb.or(
                         cb.like(cb.lower(root.get("trackingNumber")), pattern, '\\'),
                         cb.like(cb.lower(payload.join("pickup", JoinType.LEFT).get("name")), pattern, '\\'),

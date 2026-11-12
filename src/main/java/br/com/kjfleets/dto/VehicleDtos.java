@@ -12,11 +12,12 @@ public final class VehicleDtos {
     public record VehicleRequest(@NotBlank String plate, @NotBlank String type, VehicleStatus status) {
     }
 
-    public record VehicleResponse(String publicId, String plate, String type, VehicleStatus status, String driverId) {
+    public record VehicleResponse(String publicId, String plate, String type, VehicleStatus status, String driverId,
+                                  String driverName, boolean active) {
 
-        public static VehicleResponse from(Vehicle vehicle, String driverId) {
+        public static VehicleResponse from(Vehicle vehicle, String driverId, String driverName) {
             return new VehicleResponse(vehicle.getPublicId(), vehicle.getPlate(), vehicle.getType(),
-                    vehicle.getStatus(), driverId);
+                    vehicle.getStatus(), driverId, driverName, vehicle.isActive());
         }
     }
 }

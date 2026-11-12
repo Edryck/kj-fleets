@@ -6,6 +6,7 @@ import br.com.kjfleets.dto.PlaceDtos.PlaceResponse;
 import br.com.kjfleets.service.PlaceService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -32,9 +33,11 @@ public class PlaceController {
     }
 
     @GetMapping("/places")
-    PageResponse<PlaceResponse> list(@RequestParam(required = false) Integer limit,
-                                     @RequestParam(required = false) Integer offset) {
-        return service.list(limit, offset);
+    PageResponse<PlaceResponse> list(@RequestParam(required = false) String q,
+                                     @RequestParam(defaultValue = "false") boolean includeInactive,
+                                     @RequestParam(required = false) Integer limit,
+                                     @RequestParam(required = false) Integer offset, Authentication auth) {
+        return service.list(q, includeInactive, limit, offset, auth);
     }
 
     @GetMapping("/places/{publicId}")
@@ -45,6 +48,11 @@ public class PlaceController {
     @PutMapping("/places/{publicId}")
     PlaceResponse update(@PathVariable String publicId, @Valid @RequestBody PlaceRequest request) {
         return service.update(publicId, request);
+    }
+
+    @PostMapping("/places/{publicId}/reactivate")
+    PlaceResponse reactivate(@PathVariable String publicId) {
+        return service.reactivate(publicId);
     }
 
     @DeleteMapping("/places/{publicId}")

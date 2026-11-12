@@ -4,6 +4,7 @@ import br.com.kjfleets.dto.CustomerDtos.CustomerResponse;
 import br.com.kjfleets.dto.PageResponse;
 import br.com.kjfleets.service.CustomerService;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -14,6 +15,11 @@ public class CustomerController {
 
     public CustomerController(CustomerService service) {
         this.service = service;
+    }
+
+    @GetMapping("/customers/{publicId}")
+    CustomerResponse get(@PathVariable String publicId) {
+        return service.get(publicId);
     }
 
     @GetMapping("/customers")

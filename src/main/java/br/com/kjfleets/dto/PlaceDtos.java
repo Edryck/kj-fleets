@@ -28,12 +28,12 @@ public final class PlaceDtos {
     }
 
     public record PlaceResponse(String publicId, String name, String address, double lat, double lng,
-                                ContactDto contact) {
+                                ContactDto contact, boolean active) {
 
         public static PlaceResponse from(Place place) {
             ContactDto contact = place.getContact() == null ? null : ContactDto.from(place.getContact());
             return new PlaceResponse(place.getPublicId(), place.getName(), place.getAddress(), place.getLat(),
-                    place.getLng(), contact);
+                    place.getLng(), contact, place.isActive());
         }
     }
 }

@@ -223,7 +223,7 @@ public class DashboardQueries {
                 + "   AND o.status IN ('DISPATCHED', 'DRIVER_ENROUTE', 'ARRIVED', 'IN_PROGRESS')"
                 + "   ORDER BY o.created_at, o.public_id LIMIT 1) AS active_order,"
                 + " (SELECT count(*) FROM orders o WHERE o.driver_id = d.id AND o.status = 'CREATED') AS queue_size,"
-                + " d.last_seen_at, (d.last_seen_at IS NULL OR d.last_seen_at < :freshSince) AS ping_stale"
+                + " d.last_seen_at, (d.last_seen_at IS NULL OR d.last_seen_at < :freshSince) AS ping_stale, d.lat, d.lng"
                 + " FROM drivers d LEFT JOIN vehicles v ON v.id = d.vehicle_id"
                 + " WHERE d.active" + driverFleetFilter(fleetId) + (availableOnly ? " AND " + AVAILABLE_NOW : "")
                 + " ORDER BY d.name, d.public_id";
@@ -233,7 +233,8 @@ public class DashboardQueries {
             Timestamp seen = rs.getTimestamp("last_seen_at");
             return new DriverRow(rs.getString("public_id"), rs.getString("name"), rs.getString("status"),
                     rs.getString("plate"), rs.getString("vehicle_status"), rs.getString("active_order"),
-                    rs.getLong("queue_size"), seen == null ? null : seen.toInstant(), rs.getBoolean("ping_stale"));
+                    rs.getLong("queue_size"), seen == null ? null : seen.toInstant(), rs.getBoolean("ping_stale"),
+                    (Double) rs.getObject("lat"), (Double) rs.getObject("lng"));
         });
     }
 

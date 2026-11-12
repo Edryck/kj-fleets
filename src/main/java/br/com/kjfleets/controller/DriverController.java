@@ -5,11 +5,13 @@ import br.com.kjfleets.dto.DriverDtos.DriverResponse;
 import br.com.kjfleets.dto.DriverDtos.NearestDriverResponse;
 import br.com.kjfleets.dto.DriverDtos.UpdateDriverRequest;
 import br.com.kjfleets.dto.PageResponse;
+import br.com.kjfleets.entity.DriverStatus;
 import br.com.kjfleets.service.DriverService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -40,9 +42,12 @@ public class DriverController {
     }
 
     @GetMapping("/drivers")
-    PageResponse<DriverResponse> list(@RequestParam(required = false) Integer limit,
-                                      @RequestParam(required = false) Integer offset) {
-        return service.list(limit, offset);
+    PageResponse<DriverResponse> list(@RequestParam(required = false) String q,
+                                      @RequestParam(required = false) DriverStatus status,
+                                      @RequestParam(defaultValue = "false") boolean includeInactive,
+                                      @RequestParam(required = false) Integer limit,
+                                      @RequestParam(required = false) Integer offset, Authentication auth) {
+        return service.list(q, status, includeInactive, limit, offset, auth);
     }
 
     @GetMapping("/drivers/nearest")
@@ -60,6 +65,11 @@ public class DriverController {
     @PutMapping("/drivers/{publicId}")
     DriverResponse update(@PathVariable String publicId, @Valid @RequestBody UpdateDriverRequest request) {
         return service.update(publicId, request);
+    }
+
+    @PostMapping("/drivers/{publicId}/reactivate")
+    DriverResponse reactivate(@PathVariable String publicId) {
+        return service.reactivate(publicId);
     }
 
     @DeleteMapping("/drivers/{publicId}")

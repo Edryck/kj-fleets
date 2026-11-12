@@ -13,6 +13,7 @@ import jakarta.persistence.ManyToMany;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.BatchSize;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -65,6 +66,7 @@ public class Driver {
     private Vehicle vehicle;
 
     @ManyToMany(mappedBy = "drivers")
+    @BatchSize(size = 100)
     private Set<Fleet> fleets = new HashSet<>();
 
     @PrePersist

@@ -56,7 +56,8 @@ public final class DashboardDtos {
     }
 
     public record DriverRow(String driverId, String name, String status, String vehiclePlate, String vehicleStatus,
-                            String activeOrderId, long queueSize, Instant lastSeenAt, boolean pingStale) {
+                            String activeOrderId, long queueSize, Instant lastSeenAt, boolean pingStale,
+                            Double lat, Double lng) {
     }
 
     public record FleetStatus(Meta meta, Map<String, Long> driversByStatus, Map<String, Long> vehiclesByStatus,

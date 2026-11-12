@@ -19,12 +19,17 @@ import br.com.kjfleets.repository.DriverRepository;
 import br.com.kjfleets.repository.VehicleRepository;
 import br.com.kjfleets.routing.Haversine;
 import org.springframework.context.ApplicationEventPublisher;
+import jakarta.persistence.criteria.JoinType;
+import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.core.Authentication;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
@@ -62,9 +67,32 @@ public class DriverService {
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<DriverResponse> list(Integer limit, Integer offset) {
+    public PageResponse<DriverResponse> list(String q, DriverStatus status, boolean includeInactive,
+                                             Integer limit, Integer offset, Authentication auth) {
+        Search.requireWriterForInactive(includeInactive, auth, "ADMIN", "FLEET_MANAGER");
         Pageable pageable = PageResponse.pageable(limit, offset);
-        return PageResponse.of(drivers.findByActiveTrueOrderByNameAsc(pageable), DriverResponse::from,
+        String pattern = Search.pattern(q);
+        Specification<Driver> matching = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            if (!includeInactive) {
+                predicates.add(cb.isTrue(root.get("active")));
+            }
+            if (status != null) {
+                predicates.add(cb.equal(root.get("status"), status));
+            }
+            if (pattern != null) {
+                predicates.add(cb.or(
+                        cb.like(cb.lower(root.get("name")), pattern, '\\'),
+                        cb.like(cb.lower(root.join("user", JoinType.LEFT).get("username")), pattern, '\\'),
+                        cb.like(cb.lower(root.get("licenseNumber")), pattern, '\\')));
+            }
+            // count não aceita ORDER BY sem GROUP BY no Postgres
+            if (query.getResultType() != Long.class) {
+                query.orderBy(cb.asc(root.get("name")), cb.asc(root.get("publicId")));
+            }
+            return cb.and(predicates.toArray(Predicate[]::new));
+        };
+        return PageResponse.of(drivers.findAll(matching, pageable), DriverResponse::from,
                 pageable.getPageSize(), (int) pageable.getOffset());
     }
 
@@ -91,6 +119,21 @@ public class DriverService {
         DriverStatus previous = driver.getStatus();
         driver.setStatus(status);
         history.record(StatusSubject.DRIVER, driver.getId(), previous.name(), status.name(), "manual");
+        return DriverResponse.from(driver);
+    }
+
+    // username é único na tabela inteira (inclusive de inativos), então não há colisão possível aqui
+    @Transactional
+    public DriverResponse reactivate(String publicId) {
+        Driver driver = drivers.lockByPublicId(publicId).orElseThrow(() -> BusinessException.notFound("Motorista"));
+        if (!driver.isActive()) {
+            String previous = driver.getStatus().name();
+            driver.setActive(true);
+            driver.getUser().setActive(true);
+            driver.setStatus(DriverStatus.OFFLINE);
+            history.record(StatusSubject.DRIVER, driver.getId(), previous, DriverStatus.OFFLINE.name(), "reactivate",
+                    true);
+        }
         return DriverResponse.from(driver);
     }
 

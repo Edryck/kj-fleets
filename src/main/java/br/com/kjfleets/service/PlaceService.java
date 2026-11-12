@@ -8,9 +8,15 @@ import br.com.kjfleets.dto.PlaceDtos.PlaceResponse;
 import br.com.kjfleets.entity.Contact;
 import br.com.kjfleets.entity.Place;
 import br.com.kjfleets.repository.PlaceRepository;
+import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Service
 public class PlaceService {
@@ -29,9 +35,27 @@ public class PlaceService {
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<PlaceResponse> list(Integer limit, Integer offset) {
+    public PageResponse<PlaceResponse> list(String q, boolean includeInactive, Integer limit, Integer offset,
+                                            Authentication auth) {
+        Search.requireWriterForInactive(includeInactive, auth, "ADMIN", "DISPATCHER");
         Pageable pageable = PageResponse.pageable(limit, offset);
-        return PageResponse.of(places.findByActiveTrueOrderByNameAscPublicIdAsc(pageable), PlaceResponse::from,
+        String pattern = Search.pattern(q);
+        Specification<Place> matching = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            if (!includeInactive) {
+                predicates.add(cb.isTrue(root.get("active")));
+            }
+            if (pattern != null) {
+                predicates.add(cb.or(cb.like(cb.lower(root.get("name")), pattern, '\\'),
+                        cb.like(cb.lower(root.get("address")), pattern, '\\')));
+            }
+            // count não aceita ORDER BY sem GROUP BY no Postgres
+            if (query.getResultType() != Long.class) {
+                query.orderBy(cb.asc(root.get("name")), cb.asc(root.get("publicId")));
+            }
+            return cb.and(predicates.toArray(Predicate[]::new));
+        };
+        return PageResponse.of(places.findAll(matching, pageable), PlaceResponse::from,
                 pageable.getPageSize(), (int) pageable.getOffset());
     }
 
@@ -44,6 +68,13 @@ public class PlaceService {
     public PlaceResponse update(String publicId, PlaceRequest request) {
         Place place = findActive(publicId);
         apply(place, request);
+        return PlaceResponse.from(place);
+    }
+
+    @Transactional
+    public PlaceResponse reactivate(String publicId) {
+        Place place = places.findByPublicId(publicId).orElseThrow(() -> BusinessException.notFound("Lugar"));
+        place.setActive(true);
         return PlaceResponse.from(place);
     }
 

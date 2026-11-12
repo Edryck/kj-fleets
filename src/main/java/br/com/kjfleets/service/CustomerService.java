@@ -1,5 +1,6 @@
 package br.com.kjfleets.service;
 
+import br.com.kjfleets.config.BusinessException;
 import br.com.kjfleets.dto.CustomerDtos.CustomerResponse;
 import br.com.kjfleets.dto.PageResponse;
 import br.com.kjfleets.entity.Customer;
@@ -16,6 +17,12 @@ public class CustomerService {
 
     public CustomerService(CustomerRepository customers) {
         this.customers = customers;
+    }
+
+    @Transactional(readOnly = true)
+    public CustomerResponse get(String publicId) {
+        return CustomerResponse.from(customers.findByPublicId(publicId)
+                .orElseThrow(() -> BusinessException.notFound("Cliente")));
     }
 
     @Transactional(readOnly = true)

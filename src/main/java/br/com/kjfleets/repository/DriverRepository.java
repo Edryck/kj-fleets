@@ -8,6 +8,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 
@@ -19,13 +21,18 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-public interface DriverRepository extends JpaRepository<Driver, UUID> {
+public interface DriverRepository extends JpaRepository<Driver, UUID>, JpaSpecificationExecutor<Driver> {
+
+    @Override
+    @EntityGraph(attributePaths = {"user", "vehicle"})
+    Page<Driver> findAll(Specification<Driver> spec, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"user", "vehicle"})
+    Optional<Driver> findByPublicId(String publicId);
+
 
     @EntityGraph(attributePaths = {"user", "vehicle"})
     Optional<Driver> findByPublicIdAndActiveTrue(String publicId);
-
-    @EntityGraph(attributePaths = {"user", "vehicle"})
-    Page<Driver> findByActiveTrueOrderByNameAsc(Pageable pageable);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select d from Driver d where d.publicId = :publicId")

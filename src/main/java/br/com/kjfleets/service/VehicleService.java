@@ -10,14 +10,20 @@ import br.com.kjfleets.entity.Vehicle;
 import br.com.kjfleets.entity.VehicleStatus;
 import br.com.kjfleets.repository.DriverRepository;
 import br.com.kjfleets.repository.VehicleRepository;
+import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -48,16 +54,37 @@ public class VehicleService {
         vehicle.setType(request.type());
         vehicles.save(vehicle);
         history.record(StatusSubject.VEHICLE, vehicle.getId(), null, vehicle.getStatus().name(), "baseline");
-        return VehicleResponse.from(vehicle, null);
+        return VehicleResponse.from(vehicle, null, null);
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<VehicleResponse> list(Integer limit, Integer offset) {
+    public PageResponse<VehicleResponse> list(String q, VehicleStatus status, boolean includeInactive,
+                                              Integer limit, Integer offset, Authentication auth) {
+        Search.requireWriterForInactive(includeInactive, auth, "ADMIN", "FLEET_MANAGER");
         Pageable pageable = PageResponse.pageable(limit, offset);
-        Page<Vehicle> page = vehicles.findByActiveTrueOrderByPlateAsc(pageable);
-        Map<UUID, String> driverIds = drivers.findByVehicleInAndActiveTrue(page.getContent()).stream()
-                .collect(Collectors.toMap(d -> d.getVehicle().getId(), Driver::getPublicId));
-        return PageResponse.of(page, v -> VehicleResponse.from(v, driverIds.get(v.getId())),
+        String pattern = Search.pattern(q);
+        Specification<Vehicle> matching = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            if (!includeInactive) {
+                predicates.add(cb.isTrue(root.get("active")));
+            }
+            if (status != null) {
+                predicates.add(cb.equal(root.get("status"), status));
+            }
+            if (pattern != null) {
+                predicates.add(cb.or(cb.like(cb.lower(root.get("plate")), pattern, '\\'),
+                        cb.like(cb.lower(root.get("type")), pattern, '\\')));
+            }
+            // count não aceita ORDER BY sem GROUP BY no Postgres
+            if (query.getResultType() != Long.class) {
+                query.orderBy(cb.asc(root.get("plate")), cb.asc(root.get("publicId")));
+            }
+            return cb.and(predicates.toArray(Predicate[]::new));
+        };
+        Page<Vehicle> page = vehicles.findAll(matching, pageable);
+        Map<UUID, Driver> byVehicle = drivers.findByVehicleInAndActiveTrue(page.getContent()).stream()
+                .collect(Collectors.toMap(d -> d.getVehicle().getId(), Function.identity()));
+        return PageResponse.of(page, v -> toResponse(v, byVehicle.get(v.getId())),
                 pageable.getPageSize(), (int) pageable.getOffset());
     }
 
@@ -89,6 +116,21 @@ public class VehicleService {
         return toResponse(vehicle);
     }
 
+    // a placa é única na tabela inteira (inclusive de inativos); o check é só rede de segurança
+    @Transactional
+    public VehicleResponse reactivate(String publicId) {
+        Vehicle vehicle = vehicles.lockByPublicId(publicId).orElseThrow(() -> BusinessException.notFound("Veículo"));
+        if (!vehicle.isActive()) {
+            if (vehicles.existsByPlateAndActiveTrueAndIdNot(vehicle.getPlate(), vehicle.getId())) {
+                throw BusinessException.conflict("PLATE_TAKEN", "Placa já está em uso");
+            }
+            vehicle.setActive(true);
+            String status = vehicle.getStatus().name();
+            history.record(StatusSubject.VEHICLE, vehicle.getId(), status, status, "reactivate", true);
+        }
+        return toResponse(vehicle);
+    }
+
     @Transactional
     public void delete(String publicId) {
         Vehicle vehicle = findActive(publicId);
@@ -108,8 +150,12 @@ public class VehicleService {
     }
 
     private VehicleResponse toResponse(Vehicle vehicle) {
-        String driverId = drivers.findByVehicleAndActiveTrue(vehicle).map(Driver::getPublicId).orElse(null);
-        return VehicleResponse.from(vehicle, driverId);
+        return toResponse(vehicle, drivers.findByVehicleAndActiveTrue(vehicle).orElse(null));
+    }
+
+    private VehicleResponse toResponse(Vehicle vehicle, Driver driver) {
+        return VehicleResponse.from(vehicle, driver == null ? null : driver.getPublicId(),
+                driver == null ? null : driver.getName());
     }
 
     private void ensurePlateFree(String plate) {
