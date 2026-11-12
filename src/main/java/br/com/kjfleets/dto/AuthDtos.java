@@ -36,6 +36,9 @@ public final class AuthDtos {
                                     @NotNull Role role) {
     }
 
+    public record UpdateUserRequest(@NotNull Role role) {
+    }
+
     public record MeResponse(String publicId, String username, String role, String name, String email,
                              String phone) {
     }

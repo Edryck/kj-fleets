@@ -7,6 +7,7 @@ import br.com.kjfleets.dto.AuthDtos.LoginResponse;
 import br.com.kjfleets.dto.AuthDtos.MeResponse;
 import br.com.kjfleets.dto.AuthDtos.RegisterRequest;
 import br.com.kjfleets.dto.AuthDtos.RegisterResponse;
+import br.com.kjfleets.dto.AuthDtos.UpdateUserRequest;
 import br.com.kjfleets.dto.AuthDtos.UserResponse;
 import br.com.kjfleets.dto.PageResponse;
 import br.com.kjfleets.service.AuthService;
@@ -14,6 +15,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -62,5 +64,23 @@ public class AuthController {
     PageResponse<UserResponse> listUsers(@RequestParam(required = false) Integer limit,
                                          @RequestParam(required = false) Integer offset) {
         return service.listUsers(limit, offset);
+    }
+
+    @PutMapping("/users/{publicId}")
+    UserResponse updateUser(Authentication authentication, @PathVariable String publicId,
+                            @Valid @RequestBody UpdateUserRequest request) {
+        return service.updateUser(authentication.getName(), publicId, request.role());
+    }
+
+    @PostMapping("/users/{publicId}/deactivate")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void deactivateUser(Authentication authentication, @PathVariable String publicId) {
+        service.setUserActive(authentication.getName(), publicId, false);
+    }
+
+    @PostMapping("/users/{publicId}/reactivate")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void reactivateUser(Authentication authentication, @PathVariable String publicId) {
+        service.setUserActive(authentication.getName(), publicId, true);
     }
 }

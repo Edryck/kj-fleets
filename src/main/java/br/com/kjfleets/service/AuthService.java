@@ -128,6 +128,51 @@ public class AuthService {
     }
 
     @Transactional
+    public UserResponse updateUser(String callerUsername, String publicId, Role role) {
+        AppUser target = lockTarget(callerUsername, publicId);
+        if (role == Role.CUSTOMER || role == Role.DRIVER) {
+            throw new BusinessException("VALIDATION_ERROR", HttpStatus.BAD_REQUEST,
+                    "role: CUSTOMER e DRIVER têm cadastro próprio");
+        }
+        if (target.getRole() == Role.ADMIN && role != Role.ADMIN) {
+            guardAdminLoss(callerUsername, target);
+        }
+        target.setRole(role);
+        return UserResponse.from(target);
+    }
+
+    @Transactional
+    public void setUserActive(String callerUsername, String publicId, boolean active) {
+        AppUser target = lockTarget(callerUsername, publicId);
+        if (!active && target.isActive() && target.getRole() == Role.ADMIN) {
+            guardAdminLoss(callerUsername, target);
+        }
+        target.setActive(active);
+    }
+
+    // trava os admins ativos e reconfere o chamador: ele pode ter sido rebaixado depois de autenticar,
+    // e sem isso dois admins se rebaixando juntos zeram a lista. Com o chamador ativo e != alvo, sobra >= 1 admin.
+    private AppUser lockTarget(String callerUsername, String publicId) {
+        boolean callerIsAdmin = users.findByRoleAndActiveTrueOrderById(Role.ADMIN).stream()
+                .anyMatch(u -> u.getUsername().equals(callerUsername));
+        if (!callerIsAdmin) {
+            throw new BusinessException("FORBIDDEN", HttpStatus.FORBIDDEN, "Apenas ADMIN ativo pode gerir usuários");
+        }
+        AppUser target = users.findByPublicId(publicId).orElseThrow(() -> BusinessException.notFound("Usuário"));
+        if (target.getRole() == Role.CUSTOMER || target.getRole() == Role.DRIVER) {
+            throw new BusinessException("VALIDATION_ERROR", HttpStatus.BAD_REQUEST,
+                    "Clientes e motoristas são geridos pelo próprio cadastro");
+        }
+        return target;
+    }
+
+    private void guardAdminLoss(String callerUsername, AppUser target) {
+        if (target.getUsername().equals(callerUsername)) {
+            throw BusinessException.conflict("RESOURCE_IN_USE", "Você não pode rebaixar ou desativar a si mesmo");
+        }
+    }
+
+    @Transactional
     public AppUser newUser(String username, String rawPassword, Role role) {
         String normalized = username.trim().toLowerCase();
         if (users.existsByUsername(normalized)) {
