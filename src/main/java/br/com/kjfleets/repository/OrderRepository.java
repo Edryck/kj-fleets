@@ -17,6 +17,7 @@ import org.springframework.lang.Nullable;
 import jakarta.persistence.LockModeType;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -33,6 +34,15 @@ public interface OrderRepository extends JpaRepository<Order, UUID>, JpaSpecific
     boolean existsByDriverAndStatusIn(Driver driver, Collection<OrderStatus> statuses);
 
     boolean existsByVehicleAndStatusIn(Vehicle vehicle, Collection<OrderStatus> statuses);
+
+    // trava as linhas (por id, ordem fixa) e o Postgres reavalia o status depois de esperar o lock
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select o from Order o where o.driver = :driver and o.status = :status order by o.id")
+    List<Order> findByDriverAndStatus(Driver driver, OrderStatus status);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select o from Order o where o.vehicle = :vehicle and o.status = :status order by o.id")
+    List<Order> findByVehicleAndStatus(Vehicle vehicle, OrderStatus status);
 
     @Override
     @EntityGraph(attributePaths = {"payload.pickup", "payload.dropoff", "driver", "vehicle", "customer"})

@@ -26,9 +26,12 @@ public class VehicleService {
 
     private final DriverRepository drivers;
 
-    public VehicleService(VehicleRepository vehicles, DriverRepository drivers) {
+    private final OrderService orderService;
+
+    public VehicleService(VehicleRepository vehicles, DriverRepository drivers, OrderService orderService) {
         this.vehicles = vehicles;
         this.drivers = drivers;
+        this.orderService = orderService;
     }
 
     @Transactional
@@ -83,6 +86,7 @@ public class VehicleService {
         if (vehicle.getStatus() == VehicleStatus.IN_USE) {
             throw BusinessException.conflict("RESOURCE_IN_USE", "Veículo em uso não pode ser removido");
         }
+        orderService.releaseVehicle(vehicle);
         drivers.findByVehicleAndActiveTrue(vehicle).ifPresent(driver -> driver.setVehicle(null));
         vehicle.setActive(false);
     }

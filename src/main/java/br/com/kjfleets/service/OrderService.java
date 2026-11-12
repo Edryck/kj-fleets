@@ -14,6 +14,8 @@ import br.com.kjfleets.dto.OrderDtos.OrderFilter;
 import br.com.kjfleets.dto.OrderDtos.OrderSummaryResponse;
 import br.com.kjfleets.dto.OrderDtos.PodRequest;
 import br.com.kjfleets.dto.OrderDtos.PointRequest;
+import br.com.kjfleets.dto.OrderDtos.PublicEvent;
+import br.com.kjfleets.dto.OrderDtos.PublicTrackingResponse;
 import br.com.kjfleets.dto.OrderDtos.TrackingResponse;
 import br.com.kjfleets.dto.PageResponse;
 import br.com.kjfleets.entity.Customer;
@@ -324,6 +326,56 @@ public class OrderService {
         if (order.getStatus() != OrderStatus.CREATED) {
             throw new BusinessException("ORDER_INVALID_TRANSITION", HttpStatus.UNPROCESSABLE_ENTITY,
                     "Pedido em " + order.getStatus() + " não aceita esta ação");
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public PublicTrackingResponse publicTracking(String trackingNumber) {
+        Order order = orders.findByTrackingNumber(trackingNumber)
+                .orElseThrow(() -> BusinessException.notFound("Pedido"));
+        List<PublicEvent> timeline = trackings.findByOrderOrderByCreatedAtAscIdAsc(order).stream()
+                .filter(t -> !t.getCode().equals("assigned") && !t.getCode().equals("unassigned"))
+                .map(t -> new PublicEvent(t.getCode(), t.getStatus(), t.getCreatedAt())).toList();
+        return new PublicTrackingResponse(order.getTrackingNumber(), order.getStatus(), order.getCreatedAt(),
+                order.getFinishedAt(), null, timeline);
+    }
+
+    // chamado pelo DriverService antes de tocar no motorista: a ordem de trava é pedido, motorista, veículo
+    @Transactional
+    public void releaseDriver(Driver driver) {
+        releaseOrdersOf(driver);
+        // com o lock do motorista nenhum assign novo entra; a segunda passada pega o que commitou no meio
+        drivers.lockById(driver.getId()).orElseThrow();
+        releaseOrdersOf(driver);
+        // despacho que ganhou a corrida do lock acima já commitou: a consulta nova enxerga
+        if (orders.existsByDriverAndStatusIn(driver, ACTIVE)) {
+            throw BusinessException.conflict("RESOURCE_IN_USE", "Motorista ocupado não pode ser removido");
+        }
+    }
+
+    @Transactional
+    public void releaseVehicle(Vehicle vehicle) {
+        releaseOrdersOf(vehicle);
+        // com o lock do veículo nenhum assign novo entra; a segunda passada pega o que commitou no meio
+        vehicles.lockById(vehicle.getId()).orElseThrow();
+        releaseOrdersOf(vehicle);
+        if (orders.existsByVehicleAndStatusIn(vehicle, ACTIVE)) {
+            throw BusinessException.conflict("RESOURCE_IN_USE", "Veículo em uso não pode ser removido");
+        }
+    }
+
+    private void releaseOrdersOf(Driver driver) {
+        for (Order order : orders.findByDriverAndStatus(driver, OrderStatus.CREATED)) {
+            order.setDriver(null);
+            order.setVehicle(null);
+            track(order, "unassigned", "motorista desativado", null, null);
+        }
+    }
+
+    private void releaseOrdersOf(Vehicle vehicle) {
+        for (Order order : orders.findByVehicleAndStatus(vehicle, OrderStatus.CREATED)) {
+            order.setVehicle(null);
+            track(order, "unassigned", "veículo desativado", null, null);
         }
     }
 

@@ -118,6 +118,13 @@ public final class OrderDtos {
         }
     }
 
+    public record PublicTrackingResponse(String trackingNumber, OrderStatus status, Instant createdAt,
+                                         Instant finishedAt, Integer etaMinutes, List<PublicEvent> timeline) {
+    }
+
+    public record PublicEvent(String code, OrderStatus status, Instant at) {
+    }
+
     public record OrderDetailResponse(String publicId, String trackingNumber, OrderStatus status,
                                       CustomerRef customer, DriverRef driver, VehicleRef vehicle,
                                       PlaceResponse pickup, PlaceResponse dropoff, List<PlaceResponse> waypoints,

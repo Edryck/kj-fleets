@@ -30,11 +30,14 @@ public class DriverService {
     private final DriverRepository drivers;
     private final VehicleRepository vehicles;
     private final AuthService auth;
+    private final OrderService orderService;
 
-    public DriverService(DriverRepository drivers, VehicleRepository vehicles, AuthService auth) {
+    public DriverService(DriverRepository drivers, VehicleRepository vehicles, AuthService auth,
+                         OrderService orderService) {
         this.drivers = drivers;
         this.vehicles = vehicles;
         this.auth = auth;
+        this.orderService = orderService;
     }
 
     @Transactional
@@ -85,6 +88,7 @@ public class DriverService {
         if (driver.getStatus() == DriverStatus.BUSY) {
             throw BusinessException.conflict("RESOURCE_IN_USE", "Motorista ocupado não pode ser removido");
         }
+        orderService.releaseDriver(driver);
         // Fleet é o dono do join table, então a saída da frota tem que ser pelo lado dela
         driver.getFleets().forEach(fleet -> fleet.getDrivers().remove(driver));
         driver.setActive(false);
