@@ -40,6 +40,9 @@ public final class OrderDtos {
                                      @Size(max = 500) String notes, Map<String, Object> meta) {
     }
 
+    public record AssignRequest(@NotBlank String driverId, String vehicleId) {
+    }
+
     public record OrderFilter(List<OrderStatus> status, String driverId, String customerId, Boolean active,
                               Instant from, Instant to) {
     }

@@ -1,5 +1,6 @@
 package br.com.kjfleets.controller;
 
+import br.com.kjfleets.dto.OrderDtos.AssignRequest;
 import br.com.kjfleets.dto.OrderDtos.CreateOrderRequest;
 import br.com.kjfleets.dto.OrderDtos.OrderDetailResponse;
 import br.com.kjfleets.dto.OrderDtos.OrderFilter;
@@ -35,6 +36,16 @@ public class OrderController {
     @ResponseStatus(HttpStatus.CREATED)
     OrderDetailResponse create(@Valid @RequestBody CreateOrderRequest request, Authentication authentication) {
         return service.create(request, authentication);
+    }
+
+    @PostMapping("/orders/{publicId}/assign")
+    OrderDetailResponse assign(@PathVariable String publicId, @Valid @RequestBody AssignRequest request) {
+        return service.assign(publicId, request);
+    }
+
+    @PostMapping("/orders/{publicId}/dispatch")
+    OrderDetailResponse dispatch(@PathVariable String publicId) {
+        return service.dispatch(publicId);
     }
 
     @GetMapping("/orders")

@@ -7,6 +7,10 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+
+import jakarta.persistence.LockModeType;
 
 import java.util.Collection;
 import java.util.List;
@@ -20,6 +24,14 @@ public interface DriverRepository extends JpaRepository<Driver, UUID> {
 
     @EntityGraph(attributePaths = {"user", "vehicle"})
     Page<Driver> findByActiveTrueOrderByNameAsc(Pageable pageable);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select d from Driver d where d.publicId = :publicId")
+    Optional<Driver> lockByPublicId(String publicId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select d from Driver d where d.id = :id")
+    Optional<Driver> lockById(UUID id);
 
     Optional<Driver> findByUserUsernameAndActiveTrue(String username);
 
