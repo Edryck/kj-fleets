@@ -1,5 +1,7 @@
 package br.com.kjfleets.controller;
 
+import br.com.kjfleets.dto.DashboardDtos.DispatchQueue;
+import br.com.kjfleets.dto.DashboardDtos.FleetStatus;
 import br.com.kjfleets.dto.DashboardDtos.Funnel;
 import br.com.kjfleets.dto.DashboardDtos.OrdersSummary;
 import br.com.kjfleets.service.DashboardService;
@@ -26,5 +28,15 @@ public class DashboardController {
     @GetMapping("/dashboard/orders/funnel")
     Funnel funnel() {
         return service.funnel();
+    }
+
+    @GetMapping("/dashboard/dispatch/queue")
+    DispatchQueue dispatchQueue() {
+        return service.dispatchQueue();
+    }
+
+    @GetMapping("/dashboard/fleet/status")
+    FleetStatus fleetStatus(@RequestParam(required = false) String fleetId, Authentication auth) {
+        return service.fleetStatus(fleetId, auth);
     }
 }

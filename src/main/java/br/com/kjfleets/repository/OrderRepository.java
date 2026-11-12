@@ -84,4 +84,8 @@ public interface OrderRepository extends JpaRepository<Order, UUID>, JpaSpecific
 
     @EntityGraph(attributePaths = {"payload.pickup"})
     List<Order> findByPublicIdIn(Collection<String> publicIds);
+
+    // payload entra no grafo porque o lado inverso do OneToOne senão é uma consulta por pedido
+    @EntityGraph(attributePaths = {"driver", "payload"})
+    List<Order> findTop50ByStatusInOrderByCreatedAtAsc(Collection<OrderStatus> statuses);
 }

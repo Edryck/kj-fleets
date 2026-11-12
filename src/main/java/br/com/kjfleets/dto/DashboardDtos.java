@@ -37,4 +37,28 @@ public final class DashboardDtos {
 
     public record Funnel(Meta meta, Map<String, Long> byStage, Map<String, Long> staleByStage) {
     }
+
+    public record QueueItem(String orderId, String trackingNumber, String pickupName, String dropoffName,
+                            long minutesInStage) {
+    }
+
+    public record InProgressItem(String orderId, String status, String driverId, String driverName, Integer etaMinutes,
+                                 int stopsDone, int stopsTotal) {
+    }
+
+    public record Paged<T>(List<T> items, long total) {
+    }
+
+    public record DispatchQueue(Meta meta, Paged<QueueItem> unassigned, Paged<QueueItem> assignedNotDispatched,
+                                Paged<InProgressItem> inProgress, Paged<StaleOrder> stale) {
+    }
+
+    public record DriverRow(String driverId, String name, String status, String vehiclePlate, String vehicleStatus,
+                            String activeOrderId, long queueSize, Instant lastSeenAt, boolean pingStale) {
+    }
+
+    public record FleetStatus(Meta meta, Map<String, Long> driversByStatus, Map<String, Long> vehiclesByStatus,
+                              long waitingOrders, long availableDrivers, List<DriverRow> drivers,
+                              List<DriverRow> availableDriversList) {
+    }
 }

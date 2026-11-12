@@ -189,7 +189,12 @@ public class RouteService {
     }
 
     public Integer liveEta(Order order) {
-        return routes.findByOrder(order).map(route -> eta(order, route)).orElse(null);
+        return liveEta(order, routes.findByOrder(order).orElse(null));
+    }
+
+    // rota já carregada pelo chamador (lista de pedidos); sem rota não há ETA
+    public Integer liveEta(Order order, Route route) {
+        return route == null ? null : eta(order, route);
     }
 
     private Integer eta(Order order, Route route) {

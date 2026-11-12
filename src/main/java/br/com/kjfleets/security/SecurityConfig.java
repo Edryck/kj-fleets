@@ -98,6 +98,9 @@ public class SecurityConfig {
                         .requestMatchers("/dashboard/orders/summary")
                         .hasAnyRole("ADMIN", "DISPATCHER", "FLEET_MANAGER", "CUSTOMER")
                         .requestMatchers("/dashboard/orders/funnel").hasAnyRole("ADMIN", "DISPATCHER")
+                        .requestMatchers("/dashboard/dispatch/queue").hasAnyRole("ADMIN", "DISPATCHER")
+                        .requestMatchers("/dashboard/fleet/status")
+                        .hasAnyRole("ADMIN", "DISPATCHER", "FLEET_MANAGER")
                         .anyRequest().authenticated())
                 .build();
     }
