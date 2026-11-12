@@ -93,10 +93,12 @@ public interface OrderRepository extends JpaRepository<Order, UUID>, JpaSpecific
     @EntityGraph(attributePaths = {"driver", "payload"})
     List<Order> findByCustomerIdAndStatusInOrderByCreatedAtAsc(UUID customerId, Collection<OrderStatus> statuses);
 
+    @EntityGraph(attributePaths = "payload")
     List<Order> findByCustomerIdAndStatusAndCreatedAtGreaterThanEqualOrderByCreatedAtDesc(UUID customerId,
                                                                                          OrderStatus status,
                                                                                          Instant from);
 
+    @EntityGraph(attributePaths = "payload")
     List<Order> findTop10ByCustomerIdAndStatusOrderByFinishedAtDesc(UUID customerId, OrderStatus status);
 
     @EntityGraph(attributePaths = {"driver", "payload.pickup", "payload.dropoff"})
