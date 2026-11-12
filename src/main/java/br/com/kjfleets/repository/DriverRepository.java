@@ -33,6 +33,10 @@ public interface DriverRepository extends JpaRepository<Driver, UUID> {
     @Query("select d from Driver d where d.id = :id")
     Optional<Driver> lockById(UUID id);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select d from Driver d where d.user.username = :username and d.active = true")
+    Optional<Driver> lockByUsername(String username);
+
     Optional<Driver> findByUserUsernameAndActiveTrue(String username);
 
     Optional<Driver> findByVehicleAndActiveTrue(Vehicle vehicle);

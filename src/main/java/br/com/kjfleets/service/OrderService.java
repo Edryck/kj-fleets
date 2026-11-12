@@ -145,6 +145,30 @@ public class OrderService {
     }
 
     @Transactional
+    public DriverOrderResponse accept(String publicId, String username) {
+        // o lock do pedido serializa os aceites: quem chega depois já vê o motorista gravado e leva 409
+        Order order = lockOrder(publicId);
+        // o vencedor já despacha, então o perdedor vê DISPATCHED: motorista gravado tem que vir antes do status
+        if (order.getDriver() != null) {
+            throw BusinessException.conflict("ORDER_ALREADY_TAKEN", "Pedido já foi aceito por outro motorista");
+        }
+        requireCreated(order);
+        Driver driver = drivers.lockByUsername(username).orElseThrow(() -> BusinessException.notFound("Motorista"));
+        if (driver.getVehicle() == null) {
+            throw new BusinessException("ORDER_DISPATCH_REQUIRES_VEHICLE", HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Motorista sem veículo");
+        }
+        checkDriver(driver);
+        Vehicle vehicle = vehicles.lockById(driver.getVehicle().getId()).orElseThrow();
+        checkVehicle(vehicle);
+        order.setDriver(driver);
+        order.setVehicle(vehicle);
+        track(order, "assigned", driver.getName() + " (" + vehicle.getPlate() + ")", null, null);
+        startDelivery(order);
+        return DriverOrderResponse.from(order);
+    }
+
+    @Transactional
     public OrderDetailResponse advance(String publicId, ActivityRequest request, String actorUsername,
                                        boolean actorIsDriver) {
         Order order = lockOrder(publicId);

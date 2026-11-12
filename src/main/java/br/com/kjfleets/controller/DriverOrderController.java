@@ -58,4 +58,9 @@ public class DriverOrderController {
         service.registerPod(publicId, request, authentication.getName(), true);
         return service.driverOrder(publicId, authentication.getName());
     }
+
+    @PostMapping("/driver/orders/{publicId}/accept")
+    DriverOrderResponse accept(@PathVariable String publicId, Authentication authentication) {
+        return service.accept(publicId, authentication.getName());
+    }
 }
