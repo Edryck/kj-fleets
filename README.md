@@ -63,6 +63,8 @@ Pré-requisitos: JDK 21, PostgreSQL (para rodar a aplicação) e Docker (para os
    | `DASHBOARD_STALE_ARRIVED_MIN` | minutos no ponto sem começar a operação (padrão 20) |
    | `DASHBOARD_STALE_IN_PROGRESS_MIN` | minutos em andamento sem concluir (padrão 90) |
    | `DASHBOARD_MAINTENANCE_ALERT_DAYS` | dias em manutenção até o alerta de veículo parado (padrão 7) |
+   | `WS_LOCATION_MIN_INTERVAL_S` | intervalo mínimo, em segundos, entre posições de um motorista no WebSocket (padrão 5, de 1 a 300) |
+   | `WS_LOCATION_MIN_DISTANCE_M` | distância mínima, em metros, que o motorista precisa andar para a posição sair no WebSocket (padrão 20, de 0 a 1000) |
 
 3. Suba a aplicação:
 
@@ -110,10 +112,54 @@ Erros de regra de negócio voltam como `422` (ou `409`) com um código estável,
 
 ## WebSocket
 
-- Endpoint STOMP: `/ws` (o JWT vai no header `Authorization` do frame `CONNECT`)
-- `/topic/orders/{publicId}`: mudanças do pedido (`order.updated`)
-- `/topic/drivers/{publicId}/location`: posição do motorista
-- A equipe assina qualquer tópico; o cliente só os dos próprios pedidos. O motorista não usa WebSocket.
+STOMP sobre WebSocket puro (sem SockJS) em `ws://localhost:8080/ws`. Não é preciso login separado: o JWT vai no header `Authorization` do frame `CONNECT`, e o token vale 8 horas. Quando ele vencer, a conexão é fechada e o cliente deve logar de novo e recarregar o estado por REST (não há replay).
+
+Tópicos:
+
+| Tópico | Quem assina | O que chega |
+|---|---|---|
+| `/topic/fleet/locations` | ADMIN, DISPATCHER, FLEET_MANAGER | posição e status dos motoristas (com throttle) |
+| `/topic/orders` | ADMIN, DISPATCHER, FLEET_MANAGER | mudanças de pedido, para atualizar a fila |
+| `/topic/orders/{publicId}` | equipe, ou o CUSTOMER dono do pedido | status, ETA e paradas do pedido (sem posição do motorista) |
+
+O cliente só envia `SUBSCRIBE`. Qualquer outro comando, inclusive `SEND`, é recusado. Cada assinatura é checada no banco, e o payload de cada tópico está em [ARCHITECTURE.md](ARCHITECTURE.md#websocket).
+
+Exemplo com `@stomp/stompjs` (cliente do navegador ou Node):
+
+```js
+import { Client } from '@stomp/stompjs';
+
+const client = new Client({
+  brokerURL: 'ws://localhost:8080/ws',
+  connectHeaders: { Authorization: `Bearer ${token}` },
+  onConnect: () => {
+    client.subscribe('/topic/orders/order_abc123', (msg) => console.log(JSON.parse(msg.body)));
+  },
+});
+client.activate();
+```
+
+Para a equipe, troque o destino por `/topic/fleet/locations` ou `/topic/orders`. O `publicId` do pedido vem na resposta de `POST /orders`.
+
+## Simulador de motoristas
+
+`scripts/DriverSimulator.java` faz motoristas andarem pelos pedidos deles, pela mesma API do app do motorista (Basic Auth). Serve para a apresentação e não tem dependência além do JDK.
+
+Antes de rodar, a equipe precisa atribuir motorista e veículo e despachar o pedido (ou o motorista aceita um pedido da fila). O simulador só toca os pedidos ativos do motorista (`DISPATCHED`, `DRIVER_ENROUTE`, `ARRIVED`, `IN_PROGRESS`). Com a API no ar:
+
+```bash
+java scripts/DriverSimulator.java --drivers motorista1:senha1,motorista2:senha2 --speed 40 --tick 2
+```
+
+| Opção | Padrão | Para quê |
+|---|---|---|
+| `--base` | `http://localhost:8080` | URL da API |
+| `--drivers` | obrigatório | `usuario:senha` de cada motorista, separados por vírgula |
+| `--speed` | 40 | velocidade em km/h |
+| `--tick` | 2 | segundos entre um ping e outro |
+| `--help` | | mostra a ajuda |
+
+Cada motorista roda numa thread virtual. Ele envia posições em linha reta até os pontos da rota, conclui a parada quando chega a 50 m do ponto e finaliza o pedido (com um POD de texto, se for exigido). Pedido sem rota gravada vai direto de coleta para entrega. Para ver o mapa se mover, abra uma conexão STOMP como equipe em paralelo. Ctrl+C encerra.
 
 ## Documentação
 

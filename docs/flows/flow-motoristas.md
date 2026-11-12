@@ -21,7 +21,7 @@ sequenceDiagram
         F->>C: segue a requisição com o motorista como principal
         C->>S: updateLocation(motorista, lat, lng)
         S->>DB: UPDATE driver (lat, lng, lastSeenAt)
-        S->>WS: convertAndSend /topic/drivers/id/location
+        S->>WS: publica em /topic/fleet/locations depois do commit, com throttle (fluxo 23)
         S-->>D: 204
     end
 ```

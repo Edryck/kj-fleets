@@ -99,7 +99,7 @@ flowchart TD
     H -- sim --> M{"Veículo ativo, fora de MAINTENANCE e sem pedido ativo?"}
     M -- não --> E6["422 VEHICLE_NOT_AVAILABLE"]
     M -- sim --> T["Transação: status = DISPATCHED, dispatchedAt = agora, motorista BUSY, veículo IN_USE, INSERT tracking_status (code dispatched)"]
-    T --> P["Após o commit: publica order.updated"]
+    T --> P["Após o commit: publica em /topic/orders e /topic/orders/id (fluxo 23)"]
     P --> OK["200 com pedido atualizado"]
 ```
 
@@ -139,7 +139,7 @@ sequenceDiagram
             S->>DB: UPDATE orders.finishedAt, driver.status = AVAILABLE e vehicle.status = AVAILABLE
         end
         S->>DB: COMMIT
-        S->>WS: convertAndSend /topic/orders/id (order.updated)
+        S->>WS: publica /topic/orders e /topic/orders/id, depois do commit (fluxo 23)
         S-->>A: 200
     end
 ```
@@ -169,7 +169,7 @@ sequenceDiagram
             S->>DB: UPDATE driver.status = AVAILABLE e vehicle.status = AVAILABLE
         end
         S->>DB: COMMIT
-        S->>WS: convertAndSend /topic/orders/id (order.updated)
+        S->>WS: publica /topic/orders e /topic/orders/id, depois do commit (fluxo 23)
         S-->>A: 200
     end
 ```

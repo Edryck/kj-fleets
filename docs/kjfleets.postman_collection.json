@@ -1970,6 +1970,11 @@
           }
         }
       ]
+    },
+    {
+      "name": "WebSocket (não testável aqui)",
+      "description": "O Postman não faz o handshake STOMP com o JWT no frame CONNECT, então o WebSocket não entra nesta collection. Exemplo de conexão e tópicos no README, na seção WebSocket. Regras de assinatura e payloads em ARCHITECTURE.md.",
+      "item": []
     }
   ]
 }

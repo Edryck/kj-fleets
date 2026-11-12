@@ -57,6 +57,7 @@ Nada de segredo no repositório: o `application.properties` lê tudo de variáve
 - Segurança: `JWT_SECRET` (mínimo 32 bytes; abaixo disso a aplicação nem sobe), `ADMIN_USERNAME`, `ADMIN_PASSWORD`
 - Roteirização: `ROUTING_MODE`, `ROUTING_DETOUR_FACTOR`, `ROUTING_AVG_SPEED_KMH`, `ROUTING_ARRIVAL_RADIUS_M` (raio para concluir parada, padrão 200), `ROUTING_POSITION_MAX_AGE_S` (idade máxima da posição do motorista, padrão 300), `ROUTING_GRAPH_NODES`, `ROUTING_GRAPH_EDGES` (os dois últimos só no modo `road`, subprojeto 6)
 - Dashboard: `DASHBOARD_TIMEZONE` (padrão `America/Sao_Paulo`), `DASHBOARD_STALE_UNASSIGNED_MIN` (30), `DASHBOARD_STALE_ASSIGNED_MIN` (15), `DASHBOARD_STALE_DISPATCHED_MIN` (15), `DASHBOARD_STALE_ENROUTE_MIN` (60), `DASHBOARD_STALE_ARRIVED_MIN` (20), `DASHBOARD_STALE_IN_PROGRESS_MIN` (90) e `DASHBOARD_MAINTENANCE_ALERT_DAYS` (7). Limites de parado: 1 a 1440 min; dias de manutenção: 1 a 365
+- WebSocket: `WS_LOCATION_MIN_INTERVAL_S` (5, de 1 a 300 s) e `WS_LOCATION_MIN_DISTANCE_M` (20, de 0 a 1000 m): throttle de posição por motorista. Valor fora da faixa impede a aplicação de subir.
 ## Decisões de modelagem
 
 - Chave primária `UUID` + `publicId` legível (ex.: `order_x7k2m9`), como no Fleetbase. A API só expõe o `publicId`.
@@ -120,7 +121,7 @@ Regras (as quatro primeiras vêm da spec de terceiros, ver [CREDITS.md](CREDITS.
 3. Payload precisa de pelo menos 1 pickup e 1 dropoff, e aceita até 50 waypoints.
 4. Se `podRequired`, não completa sem prova de entrega (`POST /orders/{id}/pod`, só em `IN_PROGRESS`).
 5. Cada transição, **inclusive a criação**, grava um `TrackingStatus` (status, código, detalhes, lat/lng) **na mesma transação** da mudança de status. Estados terminais preenchem `finishedAt`.
-6. Cada transição publica o evento `order.updated` no WebSocket depois do commit.
+6. Cada transição é publicada no WebSocket depois do commit (`/topic/orders` e `/topic/orders/{publicId}`, ver WebSocket).
 7. Proposta própria: um motorista só pode ter 1 pedido ativo por vez. Ele vira `BUSY` no despacho e volta a `AVAILABLE` quando o pedido chega a um estado terminal.
 8. Diferencial (opcional): modo ad hoc, em que o primeiro motorista que aceita (`POST /driver/orders/{id}/accept`) leva o pedido. O aceite trava a linha do pedido (`PESSIMISTIC_WRITE`). Se ele já tem motorista, responde 409 `ORDER_ALREADY_TAKEN`. Senão, exige pedido em `CREATED` (422 `ORDER_INVALID_TRANSITION`), trava o motorista e o veículo dele e aplica as validações de `assign` (sem veículo: 422 `ORDER_DISPATCH_REQUIRES_VEHICLE`). Por fim despacha, tudo numa transação.
 9. Cancelar e marcar como `FAILED` exigem `reason`.
@@ -289,11 +290,55 @@ Mesmo formato em todas as respostas de erro: `{ "status", "code", "message", "ti
 - Segredo do JWT e credenciais do banco em variáveis de ambiente, nunca no repositório.
 ## WebSocket
 
-- STOMP sobre WebSocket, endpoint `/ws`. O motorista não usa WebSocket (só REST).
-- Tópicos: `/topic/orders/{publicId}` (mudanças do pedido) e `/topic/drivers/{publicId}/location` (posição).
-- Equipe (ADMIN, DISPATCHER, FLEET_MANAGER) assina qualquer tópico. CUSTOMER só assina os tópicos dos próprios pedidos.
-- Validar o JWT e a permissão de assinatura com um `ChannelInterceptor` (nos frames `CONNECT` e `SUBSCRIBE`).
-- Publicar via `SimpMessagingTemplate` a partir do service que muda o status ou a posição.
+STOMP sobre WebSocket puro (sem SockJS) no endpoint `/ws`. O broker é simples e em memória, com destinos em `/topic`: uma instância só. O motorista não usa WebSocket; ele só envia posição por REST.
+
+### Conexão
+
+- `CONNECT` precisa do header `Authorization: Bearer <JWT>`. Sem token, com token inválido, usuário inativo ou role `DRIVER`, a conexão é recusada. Um segundo `CONNECT` (ou `STOMP`) na mesma sessão também é recusado.
+- Sessão que não fez `CONNECT` válido é fechada pela mesma varredura de 30 s, assim que passa de 10 s aberta (na prática, entre 10 e 40 s).
+- Sessão cujo JWT venceu (`exp`, 8 h) é fechada com código 1008 e motivo "Sessão expirada". A varredura roda a cada 30 s (fixo, não configurável), então a sessão pode durar até 30 s além do `exp`.
+- Não há refresh: o cliente faz login de novo, reconecta e recarrega o estado por REST.
+- O cliente não envia nada: `SEND` para qualquer destino é recusado. Passam só `SUBSCRIBE`, `UNSUBSCRIBE` e `DISCONNECT`.
+- Origem liberada (`*`). A autenticação é o token no `CONNECT`, não cookie, então restringir a origem não protegeria nada.
+
+### Assinatura
+
+Cada `SUBSCRIBE` relê o usuário no banco: se ele estiver inativo, a assinatura é recusada na hora. Destino fora desta lista também é recusado.
+
+| Tópico | Quem assina | Payload |
+|---|---|---|
+| `/topic/fleet/locations` | ADMIN, DISPATCHER, FLEET_MANAGER | `{driverId, name, status, lat, lng, at}` (`lat` e `lng` são null para motorista que nunca enviou posição) |
+| `/topic/orders` | ADMIN, DISPATCHER, FLEET_MANAGER | `{orderId, code, status, driverId, at}` |
+| `/topic/orders/{publicId}` | equipe, ou o CUSTOMER dono do pedido | `{orderId, code, status, etaMinutes, stopsDone, stopsTotal, at}` |
+
+- `driverId` e `orderId` são os `publicId`. `status` vem em maiúsculas (enum) e `code` em minúsculas, como no histórico do pedido.
+- Nenhum tópico traz `details` ou `reason`. Em `/topic/orders/{publicId}` também não há posição do motorista: é uma decisão de privacidade, o cliente acompanha status, ETA e paradas, e o mapa de acompanhamento para o cliente fica para v2.
+- `/topic/orders/{publicId}` não recebe `assigned`, `unassigned` e `route_failed` (os mesmos códigos que o `GET /track` esconde). Esses três saem só em `/topic/orders`, para a equipe.
+- `stop_completed` vai para o tópico do pedido com `stopsDone`, `stopsTotal` e `etaMinutes`, para o cliente ver o progresso ao vivo.
+- `etaMinutes` segue a regra do ETA vivo: em `CREATED` é o estimado gravado; em pedido terminal ou sem rota é null. Ele só é recalculado quando há evento do pedido. Ping de posição não gera mensagem para o cliente.
+
+### Publicação
+
+- Tudo sai depois do commit (`@TransactionalEventListener(AFTER_COMMIT)`). Transação com rollback não chega a nenhum assinante.
+- Eventos de pedido vêm de `OrderService.track` (ponto único) e da parada concluída (`RouteService`). Posição vem de `DriverService.updateLocation`, da atividade do pedido e da conclusão de parada. Mudança de status do motorista vem de `StatusHistoryService`.
+- Falha na publicação só gera log. Ela não derruba a requisição, que já foi commitada.
+- Posição passa pelo throttle por motorista: no máximo uma mensagem a cada `WS_LOCATION_MIN_INTERVAL_S`, e só se o motorista andou mais de `WS_LOCATION_MIN_DISTANCE_M`. O primeiro ping sempre sai. Cada ping continua gravado no banco; o throttle só decide o que vai para o socket.
+- Mudança de status do motorista sai na hora e não passa pelo throttle. Ela conta como última mensagem enviada, então os pings seguintes respeitam o intervalo a partir dela.
+- O ping não consulta o banco: o evento já traz nome, status e coordenadas. O estado do throttle fica em memória (`ConcurrentHashMap` por motorista); reiniciar a aplicação zera o estado, sem prejuízo.
+- Exclusão de motorista limpa a entrada dele no throttle.
+
+### Sem replay
+
+O socket não reenvia o que passou. Ao (re)conectar, o cliente recarrega o estado por REST: a equipe em `GET /dashboard/fleet/status` e `GET /dashboard/dispatch/queue`, e o cliente em `GET /orders/{id}` ou `GET /track/{trackingNumber}`. Mensagem perdida numa queda não volta.
+
+### Comparação com o Fleetbase
+
+Pelo que foi lido na pesquisa da spec: no Fleetbase a autorização de canal é opcional (`SOCKETCLUSTER_AUTH_MODE`) e está desligada no Fleetbase Cloud, não há throttle de localização documentado, e o payload de localização traz telefone. Aqui a autorização é sempre ligada, há throttle e o payload não tem telefone. O restante do Fleetbase não foi verificado.
+
+### Fora de escopo
+
+Posição no tópico do cliente, replay, webhooks, broker externo, WebSocket para o motorista e números do dashboard pelo socket.
+
 ## Dashboard
 
 Somente leitura. Há dois tipos de consulta: **tópicos** (um número ou uma lista) e **painéis** (um agregado por perfil que reúne os tópicos certos). Tudo é agregado no banco (`GROUP BY`, `FILTER`, `LATERAL`, `date_trunc`); nada soma lista inteira em Java. Sem cache na v1: cada chamada refaz as consultas.
@@ -384,6 +429,14 @@ ADMIN recebe contagem e lista dos 8 tipos. DISPATCHER e FLEET_MANAGER veem conta
 | Tendência anual por coorte de criação | Taxa, ciclo e economia de um pedido caem no mês em que ele foi criado | Pedido criado num mês e concluído no seguinte só aparece no mês de criação; o mês atual mostra número parcial |
 | `status_changes` separado de `tracking_statuses` | Motorista e veículo não têm pedido, e o histórico do pedido fica só com eventos do pedido | Duas tabelas de histórico para manter |
 | Alerta de sinal ignora quem nunca enviou posição | Evita alerta permanente para quem ainda não usou o app | Motorista que nunca enviou posição não aparece como sem sinal |
+| Broker simples em memória | Sem infraestrutura extra; basta uma instância | Não escala para várias instâncias; relay externo (RabbitMQ ou Redis) fica para v2 |
+| Throttle de posição por tempo e distância | Mapa não vira ruído a cada ping; a posição continua gravada | A posição na tela pode ficar até `WS_LOCATION_MIN_INTERVAL_S` atrás |
+| Cliente não recebe posição do motorista | Privacidade: o cliente vê status, ETA e paradas, não onde o motorista está | Sem mapa de acompanhamento para o cliente (v2) |
+| Autorização em todo `SUBSCRIBE` | Desativar um usuário vale na hora | Uma consulta ao banco por assinatura (nunca por ping) |
+| Sem replay no socket | O estado é sempre o do banco; reconectar é recarregar por REST | Evento perdido numa queda não volta |
+| Publicar só depois do commit | Rollback nunca chega ao socket | Se o envio falhar, só há log (sem outbox) |
+| Expiração por varredura de 30 s | Não valida o token a cada mensagem | Sessão pode durar até 30 s além do `exp` |
+| Origem `*` no endpoint | A auth é o token no `CONNECT`, não cookie | A origem não protege nada; depende do token |
 
 ## Fonte das regras
 

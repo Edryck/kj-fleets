@@ -1,17 +1,14 @@
 # Fluxos — Autenticação
 
-Cadastro, login e conexão WebSocket. Índice em [flow-index.md](flow-index.md).
+Cadastro e login. A conexão WebSocket está nos fluxos 22 a 24, em [flow-websocket.md](flow-websocket.md). Índice em [flow-index.md](flow-index.md).
 
-## 7. Cadastro, login e WebSocket
+## 7. Cadastro e login
 
 ```mermaid
 sequenceDiagram
     actor U as Usuário
     participant A as AuthController
     participant DB as PostgreSQL
-    participant I as ChannelInterceptor
-    participant B as Broker STOMP
-
     U->>A: POST /auth/register (username, senha, dados do cliente)
     alt username já existe
         A-->>U: 409 USERNAME_TAKEN
@@ -28,18 +25,4 @@ sequenceDiagram
         A-->>U: 200 com JWT e role
     end
 
-    U->>I: STOMP CONNECT (header Authorization Bearer)
-    I->>I: valida assinatura e expiração
-    alt JWT inválido
-        I-->>U: conexão recusada
-    else JWT válido
-        I->>B: libera a sessão
-        U->>I: SUBSCRIBE /topic/orders/id
-        alt cliente assinando pedido de outra pessoa
-            I-->>U: assinatura recusada
-        else equipe ou dono do pedido
-            I->>B: libera a assinatura
-            B-->>U: eventos order.updated
-        end
-    end
 ```
