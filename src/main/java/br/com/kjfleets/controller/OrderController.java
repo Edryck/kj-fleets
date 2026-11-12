@@ -1,10 +1,13 @@
 package br.com.kjfleets.controller;
 
+import br.com.kjfleets.dto.OrderDtos.ActivityRequest;
 import br.com.kjfleets.dto.OrderDtos.AssignRequest;
+import br.com.kjfleets.dto.OrderDtos.CancelRequest;
 import br.com.kjfleets.dto.OrderDtos.CreateOrderRequest;
 import br.com.kjfleets.dto.OrderDtos.OrderDetailResponse;
 import br.com.kjfleets.dto.OrderDtos.OrderFilter;
 import br.com.kjfleets.dto.OrderDtos.OrderSummaryResponse;
+import br.com.kjfleets.dto.OrderDtos.PodRequest;
 import br.com.kjfleets.dto.OrderDtos.TrackingResponse;
 import br.com.kjfleets.dto.PageResponse;
 import br.com.kjfleets.entity.OrderStatus;
@@ -46,6 +49,24 @@ public class OrderController {
     @PostMapping("/orders/{publicId}/dispatch")
     OrderDetailResponse dispatch(@PathVariable String publicId) {
         return service.dispatch(publicId);
+    }
+
+    @PostMapping("/orders/{publicId}/activity")
+    OrderDetailResponse activity(@PathVariable String publicId, @Valid @RequestBody ActivityRequest request,
+                                 Authentication authentication) {
+        return service.advance(publicId, request, authentication.getName(), false);
+    }
+
+    @PostMapping("/orders/{publicId}/pod")
+    OrderDetailResponse pod(@PathVariable String publicId, @Valid @RequestBody PodRequest request,
+                            Authentication authentication) {
+        return service.registerPod(publicId, request, authentication.getName(), false);
+    }
+
+    @PostMapping("/orders/{publicId}/cancel")
+    OrderDetailResponse cancel(@PathVariable String publicId, @Valid @RequestBody CancelRequest request,
+                               Authentication authentication) {
+        return service.cancel(publicId, request, authentication);
     }
 
     @GetMapping("/orders")

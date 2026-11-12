@@ -43,6 +43,16 @@ public final class OrderDtos {
     public record AssignRequest(@NotBlank String driverId, String vehicleId) {
     }
 
+    public record ActivityRequest(@NotNull OrderStatus code, @DecimalMin("-90") @DecimalMax("90") Double lat,
+                                  @DecimalMin("-180") @DecimalMax("180") Double lng, String reason) {
+    }
+
+    public record PodRequest(@NotBlank @Size(max = 255) String value) {
+    }
+
+    public record CancelRequest(@NotBlank String reason) {
+    }
+
     public record OrderFilter(List<OrderStatus> status, String driverId, String customerId, Boolean active,
                               Instant from, Instant to) {
     }

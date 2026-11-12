@@ -1,12 +1,15 @@
 package br.com.kjfleets.service;
 
 import br.com.kjfleets.config.BusinessException;
+import br.com.kjfleets.dto.OrderDtos.ActivityRequest;
 import br.com.kjfleets.dto.OrderDtos.AssignRequest;
+import br.com.kjfleets.dto.OrderDtos.CancelRequest;
 import br.com.kjfleets.dto.OrderDtos.CreateOrderRequest;
 import br.com.kjfleets.dto.OrderDtos.ItemDto;
 import br.com.kjfleets.dto.OrderDtos.OrderDetailResponse;
 import br.com.kjfleets.dto.OrderDtos.OrderFilter;
 import br.com.kjfleets.dto.OrderDtos.OrderSummaryResponse;
+import br.com.kjfleets.dto.OrderDtos.PodRequest;
 import br.com.kjfleets.dto.OrderDtos.PointRequest;
 import br.com.kjfleets.dto.OrderDtos.TrackingResponse;
 import br.com.kjfleets.dto.PageResponse;
@@ -138,6 +141,117 @@ public class OrderService {
         return OrderDetailResponse.from(order);
     }
 
+    @Transactional
+    public OrderDetailResponse advance(String publicId, ActivityRequest request, String actorUsername,
+                                       boolean actorIsDriver) {
+        Order order = lockOrder(publicId);
+        if (actorIsDriver) {
+            requireOwnDriver(order, actorUsername);
+        }
+        return applyActivity(order, request, actorUsername, actorIsDriver);
+    }
+
+    // motorista que não é o dono recebe 404, igual cliente de outro dono
+    private void requireOwnDriver(Order order, String username) {
+        Driver driver = order.getDriver();
+        if (driver == null || !driver.isActive() || !driver.getUser().getUsername().equals(username)) {
+            throw BusinessException.notFound("Pedido");
+        }
+    }
+
+    private OrderDetailResponse applyActivity(Order order, ActivityRequest request, String actorUsername,
+                                              boolean actorIsDriver) {
+        OrderStatus target = request.code();
+        if ((request.lat() == null) != (request.lng() == null)) {
+            throw new BusinessException("VALIDATION_ERROR", HttpStatus.BAD_REQUEST, "informe lat e lng juntos");
+        }
+        boolean hasReason = request.reason() != null && !request.reason().isBlank();
+        if (target == OrderStatus.FAILED && !hasReason) {
+            throw new BusinessException("VALIDATION_ERROR", HttpStatus.BAD_REQUEST, "FAILED exige reason");
+        }
+        // CANCELLED e DISPATCHED têm rota própria, mesmo que a tabela deixasse passar
+        if (target == OrderStatus.DISPATCHED || target == OrderStatus.CANCELLED
+                || !order.getStatus().canGoTo(target)) {
+            throw invalidTransition(order);
+        }
+        if (target == OrderStatus.COMPLETED && order.isPodRequired() && order.getPodValue() == null) {
+            throw new BusinessException("ORDER_POD_REQUIRED", HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Pedido exige prova de entrega antes de concluir");
+        }
+        order.setStatus(target);
+        if (target == OrderStatus.FAILED) {
+            order.setReason(request.reason());
+        }
+        if (actorIsDriver && request.lat() != null) {
+            Driver driver = drivers.lockById(order.getDriver().getId()).orElseThrow();
+            driver.setLat(request.lat());
+            driver.setLng(request.lng());
+            driver.setLastSeenAt(Instant.now());
+        }
+        String details = hasReason ? request.reason() : null;
+        if (!actorIsDriver) {
+            details = details == null ? "por " + actorUsername : details + " (por " + actorUsername + ")";
+        }
+        track(order, target.name().toLowerCase(), details, request.lat(), request.lng());
+        if (target.isTerminal()) {
+            finish(order);
+        }
+        return OrderDetailResponse.from(order);
+    }
+
+    @Transactional
+    public OrderDetailResponse registerPod(String publicId, PodRequest request, String actorUsername,
+                                           boolean actorIsDriver) {
+        Order order = lockOrder(publicId);
+        if (actorIsDriver) {
+            requireOwnDriver(order, actorUsername);
+        }
+        if (order.getStatus() != OrderStatus.IN_PROGRESS) {
+            throw invalidTransition(order);
+        }
+        order.setPodValue(request.value());
+        order.setPodAt(Instant.now());
+        track(order, "pod_registered", request.value(), null, null);
+        return OrderDetailResponse.from(order);
+    }
+
+    @Transactional
+    public OrderDetailResponse cancel(String publicId, CancelRequest request, Authentication auth) {
+        Order order = lockOrder(publicId);
+        checkVisible(order, auth);
+        boolean allowed = isCustomer(auth) ? order.getStatus() == OrderStatus.CREATED
+                : order.getStatus().canGoTo(OrderStatus.CANCELLED);
+        if (!allowed) {
+            throw invalidTransition(order);
+        }
+        order.setStatus(OrderStatus.CANCELLED);
+        order.setReason(request.reason());
+        track(order, "cancelled", request.reason(), null, null);
+        finish(order);
+        return OrderDetailResponse.from(order);
+    }
+
+    // só libera quem foi ocupado por este pedido; ordem de trava igual à do dispatch
+    private void finish(Order order) {
+        order.setFinishedAt(Instant.now());
+        if (order.getDispatchedAt() == null) {
+            return;
+        }
+        Driver driver = drivers.lockById(order.getDriver().getId()).orElseThrow();
+        Vehicle vehicle = vehicles.lockById(order.getVehicle().getId()).orElseThrow();
+        if (driver.getStatus() == DriverStatus.BUSY) {
+            driver.setStatus(DriverStatus.AVAILABLE);
+        }
+        if (vehicle.getStatus() == VehicleStatus.IN_USE) {
+            vehicle.setStatus(VehicleStatus.AVAILABLE);
+        }
+    }
+
+    private BusinessException invalidTransition(Order order) {
+        return new BusinessException("ORDER_INVALID_TRANSITION", HttpStatus.UNPROCESSABLE_ENTITY,
+                "Pedido em " + order.getStatus() + " não aceita esta ação");
+    }
+
     // motorista e veículo já chegam travados; a ordem das checagens é a da spec
     void validateCandidate(Driver driver, Vehicle vehicle) {
         checkDriver(driver);
@@ -209,13 +323,17 @@ public class OrderService {
     // cliente de outro dono recebe 404, não 403, para não confirmar que o pedido existe
     Order findVisible(String publicId, Authentication auth) {
         Order order = findOrder(publicId);
+        checkVisible(order, auth);
+        return order;
+    }
+
+    private void checkVisible(Order order, Authentication auth) {
         if (isCustomer(auth)) {
             Customer own = resolveCustomer(null, auth);
             if (order.getCustomer() == null || !own.getPublicId().equals(order.getCustomer().getPublicId())) {
                 throw BusinessException.notFound("Pedido");
             }
         }
-        return order;
     }
 
     Order findOrder(String publicId) {
