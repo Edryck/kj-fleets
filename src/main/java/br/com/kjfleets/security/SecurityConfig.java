@@ -92,7 +92,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/orders/**")
                         .hasAnyRole("ADMIN", "DISPATCHER", "FLEET_MANAGER", "CUSTOMER")
                         .requestMatchers(HttpMethod.POST, "/orders/*/cancel").hasAnyRole("ADMIN", "DISPATCHER", "CUSTOMER")
-                        .requestMatchers("/orders/**").hasAnyRole("ADMIN", "DISPATCHER")
+                        .requestMatchers("/orders/**", "/dispatch/**").hasAnyRole("ADMIN", "DISPATCHER")
                         .requestMatchers(HttpMethod.GET, "/customers/**").hasAnyRole("ADMIN", "DISPATCHER", "FLEET_MANAGER")
                         .anyRequest().authenticated())
                 .build();

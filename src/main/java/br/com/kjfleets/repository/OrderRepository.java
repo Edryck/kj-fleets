@@ -78,4 +78,10 @@ public interface OrderRepository extends JpaRepository<Order, UUID>, JpaSpecific
             where o.status = br.com.kjfleets.entity.OrderStatus.CREATED and o.driver is null
             """)
     Page<Order> findAvailable(Pageable pageable);
+
+    @EntityGraph(attributePaths = {"payload.pickup"})
+    List<Order> findByStatusAndDriverIsNullOrderByPublicIdAsc(OrderStatus status);
+
+    @EntityGraph(attributePaths = {"payload.pickup"})
+    List<Order> findByPublicIdIn(Collection<String> publicIds);
 }

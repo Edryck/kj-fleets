@@ -2,6 +2,7 @@ package br.com.kjfleets.repository;
 
 import br.com.kjfleets.entity.Driver;
 import br.com.kjfleets.entity.DriverStatus;
+import br.com.kjfleets.entity.OrderStatus;
 import br.com.kjfleets.entity.Vehicle;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -12,6 +13,7 @@ import org.springframework.data.jpa.repository.Query;
 
 import jakarta.persistence.LockModeType;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -44,4 +46,17 @@ public interface DriverRepository extends JpaRepository<Driver, UUID> {
     List<Driver> findByVehicleInAndActiveTrue(Collection<Vehicle> vehicles);
 
     List<Driver> findByActiveTrueAndStatusAndLatNotNullAndLngNotNull(DriverStatus status);
+
+    // quem só tem pedido CREATED na fila continua candidato
+    @EntityGraph(attributePaths = {"vehicle"})
+    @Query("""
+            select d from Driver d
+            where d.active = true and d.status = br.com.kjfleets.entity.DriverStatus.AVAILABLE
+              and d.lat is not null and d.lng is not null and d.lastSeenAt >= :freshSince
+              and d.vehicle is not null and d.vehicle.active = true
+              and d.vehicle.status <> br.com.kjfleets.entity.VehicleStatus.MAINTENANCE
+              and not exists (select 1 from Order o where o.driver = d and o.status in :activeStatuses)
+            order by d.publicId
+            """)
+    List<Driver> findDispatchCandidates(Instant freshSince, Collection<OrderStatus> activeStatuses);
 }
