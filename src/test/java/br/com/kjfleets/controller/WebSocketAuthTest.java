@@ -16,6 +16,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
+import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
@@ -251,14 +252,24 @@ class WebSocketAuthTest extends IntegrationTest {
         assertEquals("CLOSED", event);
     }
 
-    private String rawFrame(String frame) throws Exception {
-        BlockingQueue<String> received = new LinkedBlockingQueue<>();
-        var socket = new StandardWebSocketClient().execute(new TextWebSocketHandler() {
+    // frames recebidos e "CLOSED" quando o servidor fecha a conexão
+    private WebSocketSession openRaw(BlockingQueue<String> events) throws Exception {
+        return new StandardWebSocketClient().execute(new TextWebSocketHandler() {
             @Override
             protected void handleTextMessage(WebSocketSession session, TextMessage message) {
-                received.add(message.getPayload());
+                events.add(message.getPayload());
+            }
+
+            @Override
+            public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
+                events.add("CLOSED");
             }
         }, "ws://localhost:" + port + "/ws").get(5, TimeUnit.SECONDS);
+    }
+
+    private String rawFrame(String frame) throws Exception {
+        BlockingQueue<String> received = new LinkedBlockingQueue<>();
+        var socket = openRaw(received);
         try {
             socket.sendMessage(new TextMessage(frame + "\0"));
             String reply = received.poll(5, TimeUnit.SECONDS);
@@ -298,6 +309,36 @@ class WebSocketAuthTest extends IntegrationTest {
     @Test
     void stompFrameWithoutTokenRefused() throws Exception {
         assertTrue(rawFrame("STOMP\naccept-version:1.2\nhost:x\n\n").startsWith("ERROR"));
+    }
+
+    @Test
+    void unauthenticatedSocketClosedAfterTenSeconds() throws Exception {
+        BlockingQueue<String> events = new LinkedBlockingQueue<>();
+        openRaw(events);
+        clock.offset = Duration.ofSeconds(5);
+        interceptor.closeExpired();
+        assertNull(events.poll(1, TimeUnit.SECONDS));
+        clock.offset = Duration.ofSeconds(11);
+        interceptor.closeExpired();
+        assertEquals("CLOSED", events.poll(5, TimeUnit.SECONDS));
+    }
+
+    @Test
+    void secondConnectRefused() throws Exception {
+        BlockingQueue<String> events = new LinkedBlockingQueue<>();
+        var socket = openRaw(events);
+        try {
+            String connect = "CONNECT\naccept-version:1.2\nhost:x\nAuthorization:Bearer " + tokenFor(Role.DISPATCHER)
+                    + "\n\n\0";
+            socket.sendMessage(new TextMessage(connect));
+            assertTrue(events.poll(5, TimeUnit.SECONDS).startsWith("CONNECTED"));
+            socket.sendMessage(new TextMessage(connect));
+            String reply = events.poll(5, TimeUnit.SECONDS);
+            assertNotNull(reply);
+            assertTrue(reply.startsWith("ERROR"), reply);
+        } finally {
+            socket.close();
+        }
     }
 
     @Test
