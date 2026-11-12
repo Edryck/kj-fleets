@@ -76,10 +76,13 @@ public class OrderController {
                                             @RequestParam(required = false) Boolean active,
                                             @RequestParam(required = false) Instant from,
                                             @RequestParam(required = false) Instant to,
+                                            @RequestParam(required = false) String q,
+                                            @RequestParam(required = false) String sort,
+                                            @RequestParam(required = false) String dir,
                                             @RequestParam(required = false) Integer limit,
                                             @RequestParam(required = false) Integer offset,
                                             Authentication authentication) {
-        OrderFilter filter = new OrderFilter(status, driverId, customerId, active, from, to);
+        OrderFilter filter = new OrderFilter(status, driverId, customerId, active, from, to, q, sort, dir);
         return service.list(filter, limit, offset, authentication);
     }
 

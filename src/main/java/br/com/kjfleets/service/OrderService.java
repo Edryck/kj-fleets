@@ -40,6 +40,8 @@ import br.com.kjfleets.repository.PlaceRepository;
 import br.com.kjfleets.repository.TrackingStatusRepository;
 import br.com.kjfleets.repository.VehicleRepository;
 import br.com.kjfleets.security.CurrentActor;
+import jakarta.persistence.criteria.JoinType;
+import jakarta.persistence.criteria.Path;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Pageable;
@@ -434,6 +436,18 @@ public class OrderService {
                                                    Authentication auth) {
         Pageable pageable = PageResponse.pageable(limit, offset);
         OrderFilter scoped = isCustomer(auth) ? ownOnly(filter, auth) : filter;
+        String q = filter.q() == null ? "" : filter.q().trim();
+        if (q.length() > 100) {
+            throw new BusinessException("VALIDATION_ERROR", HttpStatus.BAD_REQUEST, "q deve ter até 100 caracteres");
+        }
+        boolean byStatus = "status".equals(filter.sort());
+        if (filter.sort() != null && !byStatus && !"createdAt".equals(filter.sort())
+                || filter.dir() != null && !filter.dir().equals("asc") && !filter.dir().equals("desc")) {
+            throw new BusinessException("VALIDATION_ERROR", HttpStatus.BAD_REQUEST,
+                    "sort deve ser createdAt ou status e dir asc ou desc");
+        }
+        scoped = new OrderFilter(scoped.status(), scoped.driverId(), scoped.customerId(), scoped.active(),
+                scoped.from(), scoped.to(), q, byStatus ? "status" : "createdAt", filter.dir());
         return PageResponse.of(orders.findAll(matching(scoped), pageable), OrderSummaryResponse::from,
                 pageable.getPageSize(), (int) pageable.getOffset());
     }
@@ -497,7 +511,8 @@ public class OrderService {
 
     private OrderFilter ownOnly(OrderFilter filter, Authentication auth) {
         String customerId = resolveCustomer(null, auth).getPublicId();
-        return new OrderFilter(filter.status(), null, customerId, filter.active(), filter.from(), filter.to());
+        return new OrderFilter(filter.status(), null, customerId, filter.active(), filter.from(), filter.to(),
+                filter.q(), filter.sort(), filter.dir());
     }
 
     private static Specification<Order> matching(OrderFilter filter) {
@@ -523,9 +538,21 @@ public class OrderService {
             if (filter.to() != null) {
                 predicates.add(cb.lessThanOrEqualTo(root.get("createdAt"), filter.to()));
             }
+            if (!filter.q().isEmpty()) {
+                // joins to-one: não duplicam linhas, então count e paginação seguem corretos
+                var payload = root.join("payload", JoinType.LEFT);
+                String pattern = "%" + filter.q().toLowerCase().replace("\\", "\\\\").replace("%", "\\%")
+                        .replace("_", "\\_") + "%";
+                predicates.add(cb.or(
+                        cb.like(cb.lower(root.get("trackingNumber")), pattern, '\\'),
+                        cb.like(cb.lower(payload.join("pickup", JoinType.LEFT).get("name")), pattern, '\\'),
+                        cb.like(cb.lower(payload.join("dropoff", JoinType.LEFT).get("name")), pattern, '\\')));
+            }
             // count não aceita ORDER BY sem GROUP BY no Postgres
             if (query.getResultType() != Long.class) {
-                query.orderBy(cb.desc(root.get("createdAt")), cb.desc(root.get("publicId")));
+                Path<?> primary = root.get(filter.sort());
+                query.orderBy(filter.dir() == null || filter.dir().equals("desc") ? cb.desc(primary) : cb.asc(primary),
+                        cb.desc(root.get("createdAt")), cb.desc(root.get("publicId")));
             }
             return cb.and(predicates.toArray(Predicate[]::new));
         };

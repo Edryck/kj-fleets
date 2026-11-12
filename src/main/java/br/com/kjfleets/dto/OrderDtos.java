@@ -55,7 +55,7 @@ public final class OrderDtos {
     }
 
     public record OrderFilter(List<OrderStatus> status, String driverId, String customerId, Boolean active,
-                              Instant from, Instant to) {
+                              Instant from, Instant to, String q, String sort, String dir) {
     }
 
     public record CustomerRef(String publicId, String name) {
