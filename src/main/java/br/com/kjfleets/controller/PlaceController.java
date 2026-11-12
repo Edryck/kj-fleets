@@ -29,7 +29,7 @@ public class PlaceController {
     @PostMapping("/places")
     @ResponseStatus(HttpStatus.CREATED)
     PlaceResponse create(@Valid @RequestBody PlaceRequest request) {
-        return service.create(request);
+        return service.create(request, null);
     }
 
     @GetMapping("/places")
@@ -37,17 +37,17 @@ public class PlaceController {
                                      @RequestParam(defaultValue = "false") boolean includeInactive,
                                      @RequestParam(required = false) Integer limit,
                                      @RequestParam(required = false) Integer offset, Authentication auth) {
-        return service.list(q, includeInactive, limit, offset, auth);
+        return service.list(q, includeInactive, limit, offset, auth, null);
     }
 
     @GetMapping("/places/{publicId}")
     PlaceResponse get(@PathVariable String publicId) {
-        return service.get(publicId);
+        return service.get(publicId, null);
     }
 
     @PutMapping("/places/{publicId}")
     PlaceResponse update(@PathVariable String publicId, @Valid @RequestBody PlaceRequest request) {
-        return service.update(publicId, request);
+        return service.update(publicId, request, null);
     }
 
     @PostMapping("/places/{publicId}/reactivate")
@@ -58,6 +58,6 @@ public class PlaceController {
     @DeleteMapping("/places/{publicId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     void delete(@PathVariable String publicId) {
-        service.delete(publicId);
+        service.delete(publicId, null);
     }
 }

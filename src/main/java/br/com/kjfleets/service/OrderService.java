@@ -104,10 +104,11 @@ public class OrderService {
 
         Payload payload = new Payload();
         payload.setOrder(order);
-        payload.setPickup(resolvePoint(request.pickup()));
-        payload.setDropoff(resolvePoint(request.dropoff()));
+        Customer owner = isCustomer(auth) ? order.getCustomer() : null;
+        payload.setPickup(resolvePoint(request.pickup(), owner));
+        payload.setDropoff(resolvePoint(request.dropoff(), owner));
         if (request.waypoints() != null) {
-            request.waypoints().forEach(point -> payload.getWaypoints().add(resolvePoint(point)));
+            request.waypoints().forEach(point -> payload.getWaypoints().add(resolvePoint(point, owner)));
         }
         if (request.items() != null) {
             for (ItemDto dto : request.items()) {
@@ -576,7 +577,7 @@ public class OrderService {
         return customers.findByPublicId(customerId).orElseThrow(() -> BusinessException.notFound("Cliente"));
     }
 
-    private Place resolvePoint(PointRequest point) {
+    private Place resolvePoint(PointRequest point, Customer owner) {
         boolean hasPlaceId = point.placeId() != null && !point.placeId().isBlank();
         boolean hasNew = point.name() != null || point.address() != null || point.lat() != null
                 || point.lng() != null;
@@ -585,7 +586,10 @@ public class OrderService {
                     "ponto: informe placeId ou um lugar novo (name, lat, lng), nunca os dois");
         }
         if (hasPlaceId) {
+            // cliente usa os próprios lugares ou os da equipe; o de outro cliente some (404)
             return places.findByPublicIdAndActiveTrue(point.placeId())
+                    .filter(found -> owner == null || found.getCustomer() == null
+                            || found.getCustomer().getId().equals(owner.getId()))
                     .orElseThrow(() -> BusinessException.notFound("Lugar"));
         }
         if (point.name() == null || point.name().isBlank() || point.lat() == null || point.lng() == null) {
@@ -597,6 +601,7 @@ public class OrderService {
         place.setAddress(point.address());
         place.setLat(point.lat());
         place.setLng(point.lng());
+        place.setCustomer(owner);
         return places.save(place);
     }
 }

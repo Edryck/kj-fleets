@@ -91,9 +91,12 @@ class OrderCreateTest extends IntegrationTest {
                 .andReturn().getResponse().getContentAsString();
 
         String pickupId = json.readTree(response).get("pickup").get("publicId").asString();
-        mvc.perform(get("/places/" + pickupId).header("Authorization", bearer(Role.ADMIN)))
+        // lugar novo criado por cliente fica dele, fora da lista compartilhada da equipe
+        mvc.perform(get("/customer/places/" + pickupId).header("Authorization", customer.bearer()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value(pickupName));
+        mvc.perform(get("/places/" + pickupId).header("Authorization", bearer(Role.ADMIN)))
+                .andExpect(status().isNotFound());
     }
 
     @Test
