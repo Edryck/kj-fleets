@@ -43,7 +43,7 @@ Poucas pastas e poucas classes, no padrão da aula. Ajustar conforme o código f
 |---|---|
 | `entity` | Entidades JPA e enums |
 | `repository` | Interfaces Spring Data (com as queries do dashboard) |
-| `service` | `OrderService` (fluxo e regras), `DispatchService`, `RoutingService`, `DashboardService`, cadastros |
+| `service` | `OrderService` (fluxo e regras), `DispatchService`, `RouteService`, `DistanceService`, `DashboardService`, cadastros |
 | `controller` | Um controller por grupo da API (auth, pedidos, motorista, cadastros, roteirização, dashboard) |
 | `dto` | Records de entrada e saída, só onde a entidade não deve vazar |
 | `routing` | `RouteOptimizer`, `AssignmentSolver`, `RoadGraph` (puras) |
@@ -55,7 +55,7 @@ Poucas pastas e poucas classes, no padrão da aula. Ajustar conforme o código f
 Nada de segredo no repositório: o `application.properties` lê tudo de variáveis de ambiente.
 - Banco: `DB_URL`, `DB_USER`, `DB_PASSWORD`
 - Segurança: `JWT_SECRET` (mínimo 32 bytes; abaixo disso a aplicação nem sobe), `ADMIN_USERNAME`, `ADMIN_PASSWORD`
-- Roteirização: `ROUTING_MODE`, `ROUTING_DETOUR_FACTOR`, `ROUTING_AVG_SPEED_KMH`, `ROUTING_GRAPH_NODES`, `ROUTING_GRAPH_EDGES` (os dois últimos só no modo `road`)
+- Roteirização: `ROUTING_MODE`, `ROUTING_DETOUR_FACTOR`, `ROUTING_AVG_SPEED_KMH`, `ROUTING_ARRIVAL_RADIUS_M` (raio para concluir parada, padrão 200), `ROUTING_POSITION_MAX_AGE_S` (idade máxima da posição do motorista, padrão 300), `ROUTING_GRAPH_NODES`, `ROUTING_GRAPH_EDGES` (os dois últimos só no modo `road`, subprojeto 6)
 ## Decisões de modelagem
 
 - Chave primária `UUID` + `publicId` legível (ex.: `order_x7k2m9`), como no Fleetbase. A API só expõe o `publicId`.
@@ -65,7 +65,7 @@ Nada de segredo no repositório: o `application.properties` lê tudo de variáve
 - Datas em `Instant` (UTC).
 - Enums gravados como string (`@Enumerated(EnumType.STRING)`).
 - Todos os perfis ficam na mesma tabela `users`. Motorista e cliente são entidades próprias ligadas 1:1 a um `AppUser`.
-- As demais tabelas são no plural, como as entidades do código (`drivers`, `vehicles`, `fleets`, `places`, `customers`, `payloads`, `payload_items`, `payload_waypoints`, `tracking_statuses`). Rotas e grafo viário (`routes`, `route_stops`, `road_nodes`, `road_edges`) entram no subprojeto 3.
+- As demais tabelas são no plural, como as entidades do código (`drivers`, `vehicles`, `fleets`, `places`, `customers`, `payloads`, `payload_items`, `payload_waypoints`, `tracking_statuses`). Rotas (`routes`, `route_stops`) entram no subprojeto 3; grafo viário (`road_nodes`, `road_edges`), no subprojeto 6.
 ## Modelo de domínio
 
 Diagrama ER, tipos das colunas, índices e restrições em [docs/domain.md](docs/domain.md). Abaixo, o resumo das entidades.
@@ -85,7 +85,7 @@ Nomes e campos abaixo são a proposta do projeto. Os campos reais do Fleetbase *
 | Contact | name, phone, email | opcional em Place |
 | TrackingStatus | status, code, details, lat, lng, createdAt | N:1 Order |
 | Route | algorithm, mode, totalKm, baselineKm, savingsPct, etaMinutes, computedAt | 1:1 Order, N RouteStop |
-| RouteStop | seq, type (START, PICKUP, WAYPOINT, DROPOFF), lat, lng, legKm | N:1 Route, Place opcional |
+| RouteStop (`route_stops`) | seq, type (START, PICKUP, WAYPOINT, DROPOFF), lat, lng, legKm, visitedAt, distanceM, completedBy | N:1 Route, Place opcional (nulo no START) |
 | RoadNode | id, lat, lng | — |
 | RoadEdge | fromNode, toNode, lengthM | N:1 RoadNode (origem e destino); via de mão dupla = 2 arestas |
 
@@ -105,7 +105,7 @@ Criar um motorista (`POST /drivers`) cria também o `AppUser` com role DRIVER (u
 
 Estados: `CREATED → DISPATCHED → DRIVER_ENROUTE → ARRIVED → IN_PROGRESS → COMPLETED`. Terminais: `COMPLETED`, `CANCELLED`, `FAILED`. "Pedido ativo" = de `DISPATCHED` até `IN_PROGRESS`.
 
-Cada linha do histórico (`tracking_statuses`) tem dois campos: `status` é o estado do pedido depois do evento (enum em maiúsculas) e `code` é o evento em minúsculas: `created`, `assigned`, `unassigned`, `dispatched`, `driver_enroute`, `arrived`, `in_progress`, `pod_registered`, `completed`, `failed`, `cancelled`. `assigned`, `unassigned` e `pod_registered` não mudam o status. No corpo do `activity`, `code` é outra coisa: o estado de destino pedido, em maiúsculas (`"code": "ARRIVED"`).
+Cada linha do histórico (`tracking_statuses`) tem dois campos: `status` é o estado do pedido depois do evento (enum em maiúsculas) e `code` é o evento em minúsculas: `created`, `assigned`, `unassigned`, `dispatched`, `driver_enroute`, `arrived`, `in_progress`, `pod_registered`, `completed`, `failed`, `cancelled`, `stop_completed` e `route_failed` (estes dois da roteirização). `assigned`, `unassigned`, `pod_registered`, `stop_completed` e `route_failed` não mudam o status. No corpo do `activity`, `code` é outra coisa: o estado de destino pedido, em maiúsculas (`"code": "ARRIVED"`).
 
 Transições (centralizadas em **um** lugar, um mapa ou enum com `canGoTo`):
 - `CREATED → DISPATCHED` (só por `dispatch` ou `accept`)
@@ -125,6 +125,7 @@ Regras (as quatro primeiras vêm da spec de terceiros, ver [CREDITS.md](CREDITS.
 9. Cancelar e marcar como `FAILED` exigem `reason`.
 10. CUSTOMER só enxerga e cancela os próprios pedidos. DRIVER só enxerga os atribuídos a ele, mais os pedidos `CREATED` sem motorista na listagem `?available=true`, que servem para o aceite. Em ambos os casos, pedido de outra pessoa responde 404 (não vaza que existe).
 11. O payload não é editável depois da criação (não existe `PUT` de payload).
+12. Atribuir motorista e veículo em `CREATED` (inclusive trocar) e soltar o pedido num cadastro desativado apagam a rota gravada, porque o `START` era de outro motorista. O despacho calcula de novo.
 
 Cadastros x pedidos:
 - Desativar motorista ou veículo com pedido ativo responde 409 `RESOURCE_IN_USE`. Com pedidos só em `CREATED`, os pedidos são soltos (motorista e/ou veículo viram `null`) com evento `unassigned` e motivo ("motorista desativado" ou "veículo desativado").
@@ -132,35 +133,45 @@ Cadastros x pedidos:
 - Pedido e histórico nunca são apagados (não existe `DELETE /orders`).
 
 Erros de regra:
-- **422:** `ORDER_INVALID_TRANSITION`, `ORDER_PAYLOAD_INCOMPLETE`, `ORDER_DISPATCH_REQUIRES_DRIVER`, `ORDER_DISPATCH_REQUIRES_VEHICLE`, `ORDER_POD_REQUIRED`, `DRIVER_NOT_AVAILABLE`, `DRIVER_HAS_ACTIVE_ORDER`, `VEHICLE_NOT_AVAILABLE`, `ROUTE_TOO_LARGE_FOR_EXACT`, `GRAPH_NOT_LOADED`, `GRAPH_IMPORT_FAILED`, `NO_PATH_FOUND`
+- **422:** `ORDER_INVALID_TRANSITION`, `ORDER_PAYLOAD_INCOMPLETE`, `ORDER_DISPATCH_REQUIRES_DRIVER`, `ORDER_DISPATCH_REQUIRES_VEHICLE`, `ORDER_POD_REQUIRED`, `DRIVER_NOT_AVAILABLE`, `DRIVER_HAS_ACTIVE_ORDER`, `VEHICLE_NOT_AVAILABLE`, `STOP_TOO_FAR`, `ROUTE_TOO_LARGE_FOR_EXACT`, `GRAPH_NOT_LOADED`, `GRAPH_IMPORT_FAILED`, `NO_PATH_FOUND`
 - **409:** `ORDER_ALREADY_TAKEN`, `USERNAME_TAKEN`
 - **404:** `ROUTE_NOT_FOUND` (e recurso inexistente ou de outra pessoa)
 - 400 para validação de campos; 401 sem credencial; 403 sem permissão.
 ## Roteirização
 
 Tudo roda sobre uma **matriz de distâncias (km)** entre pontos. Dois modos (`ROUTING_MODE`):
-- `haversine` (padrão): grafo completo, peso = distância Haversine × `ROUTING_DETOUR_FACTOR` (padrão 1.3, aproxima a distância por rua).
-- `road`: grafo viário (`road_node`, `road_edge`) importado de CSV. Cada ponto é "colado" no nó mais próximo e a distância é o menor caminho. Sem grafo carregado, 422 `GRAPH_NOT_LOADED`.
+- `haversine` (padrão): peso = distância Haversine × `ROUTING_DETOUR_FACTOR` (padrão 1.3, aproxima a distância por rua).
+- `road`: aceito na configuração, mas toda chamada que mede distância responde 422 `GRAPH_NOT_LOADED` até o subprojeto 6, que traz o grafo viário (`road_nodes`, `road_edges`) importado de CSV.
 
-ETA = km / `ROUTING_AVG_SPEED_KMH` (padrão 40).
+ETA = km / `ROUTING_AVG_SPEED_KMH` (padrão 40) × 60, arredondado para o inteiro mais próximo.
 
-Prioridade: o modo `haversine` é essencial e precisa funcionar sozinho. O modo `road` (com Dijkstra e A*) vem depois ("Importante" no [PRODUCT.md](PRODUCT.md)).
+Prioridade: o modo `haversine` é essencial e precisa funcionar sozinho. O modo `road` (com Dijkstra e A*) vem no subprojeto 6 ("Importante" no [PRODUCT.md](PRODUCT.md)).
 
 | Problema | Onde | Algoritmos |
 |---|---|---|
 | Ordem das paradas de um pedido: caminho mínimo por todos os waypoints, com pickup (início) e dropoff (fim) fixos | `POST /orders/{id}/route`, `POST /routes/optimize` | `NEAREST_NEIGHBOR` (baseline), `TWO_OPT`, `HELD_KARP` (exato, até 15 waypoints), `SIMULATED_ANNEALING` |
 | Atribuir pedidos a motoristas: casamento bipartido de custo mínimo, custo = distância motorista → pickup | `POST /dispatch/plan` | `HUNGARIAN` (ótimo), `GREEDY` (baseline) |
-| Menor caminho no grafo viário | `GET /graph/shortest-path` e matriz do modo `road` | `DIJKSTRA`, `ASTAR` (heurística Haversine) |
+| Menor caminho no grafo viário (subprojeto 6) | `GET /graph/shortest-path` e matriz do modo `road` | `DIJKSTRA`, `ASTAR` (heurística Haversine) |
 
 Regras da roteirização:
-- Algoritmo padrão da ordem das paradas: `HELD_KARP` com até 15 waypoints, senão `TWO_OPT`. `HELD_KARP` com mais de 15 responde 422 `ROUTE_TOO_LARGE_FOR_EXACT`.
-- A rota do pedido é `START` (posição do motorista, se houver) → `PICKUP` → waypoints → `DROPOFF`. Só os waypoints são reordenados; o trecho `START → PICKUP` entra nos totais.
-- `baselineKm` = mesma rota com os waypoints na ordem de cadastro. `savingsPct = (baselineKm - totalKm) / baselineKm × 100` (0 se `baselineKm` for 0). Sem waypoints não há o que ordenar: a rota sai com `savingsPct` 0.
+- Algoritmo padrão da ordem das paradas: `HELD_KARP` com até 15 waypoints pendentes, senão `TWO_OPT`. `HELD_KARP` com mais de 15 responde 422 `ROUTE_TOO_LARGE_FOR_EXACT`.
+- Ordem da rota: início fixo (`START` se o motorista tiver posição; senão o pickup), depois o pickup (quando há `START`), os waypoints e o dropoff. Só os waypoints são reordenados. Um lugar repetido nos waypoints continua sendo duas paradas.
+- Recálculo mantém o que já foi feito: as paradas concluídas (`visited_at`) ficam no início, na ordem em que foram feitas, com a perna original. Depois vêm o `START`, o pickup se ainda estiver pendente, os waypoints pendentes reordenados e o dropoff. O `START` só entra se o motorista tiver posição; sem posição, não nasce linha `START` nova.
+- `baselineKm` = mesma base com os waypoints pendentes na ordem de cadastro. `totalKm` inclui as pernas já feitas. `savingsPct = (baselineKm - totalKm) / baselineKm × 100` (0 se `baselineKm` for 0), com duas casas. Sem waypoints pendentes, `savingsPct` sai 0.
+- `POST /orders/{id}/route` (ADMIN, DISPATCHER) trava o pedido e substitui a rota gravada. Pedido terminal responde 422 `ORDER_INVALID_TRANSITION`.
+- Cálculo automático: no despacho e no aceite ad hoc, na mesma transação, com o algoritmo padrão. Se falhar (por exemplo, `GRAPH_NOT_LOADED`), o despacho segue sem rota e grava `route_failed` no histórico, com o código no `details`.
+- ETA vivo: calculado em cada leitura de rota e no `GET /track`, nunca gravado. Com posição recente do motorista (até `ROUTING_POSITION_MAX_AGE_S`), é a distância pelo ponto único (com o fator de desvio) da posição até a próxima parada pendente (menor `seq`), somada às pernas das pendentes seguintes. Sem posição recente, soma as pernas pendentes. Se a medição falhar (modo `road` com rota antiga gravada), também vale a soma das pernas. Pedido em `CREATED` usa o `etaMinutes` gravado no cálculo; pedido terminal ou sem rota, `null`.
+- Concluir parada: `POST /orders/{id}/stops/{seq}/complete` (equipe) e `POST /driver/orders/{id}/stops/{seq}/complete` (motorista). Só `WAYPOINT` é concluída por esse endpoint. `PICKUP` é marcada pelo `ARRIVED` e `DROPOFF` pelo `COMPLETED`; `START` não é concluível (422 `ORDER_INVALID_TRANSITION`). O pedido precisa estar ativo, de `DISPATCHED` a `IN_PROGRESS`. Concluir de novo uma parada já concluída responde 200 sem mudar nada. Os waypoints podem ser concluídos fora da ordem.
+- Checagem de proximidade, só para o motorista: a posição vem do corpo (`lat` e `lng`, confiados como enviados, sem validação contra GPS; também atualizam a posição do motorista) ou, sem corpo, da gravada, se tiver no máximo `ROUTING_POSITION_MAX_AGE_S` segundos. A distância é em linha reta, sem fator de desvio. Acima de `ROUTING_ARRIVAL_RADIUS_M` (padrão 200 m), ou sem posição válida, responde 422 `STOP_TOO_FAR` com a distância na mensagem, e nada é marcado. A equipe não tem essa checagem; grava `distanceM` se houver posição.
+- `COMPLETED` do motorista usa a mesma checagem contra o dropoff, com ou sem rota calculada. Waypoints pendentes não bloqueiam o `COMPLETED`.
+- Concluir grava `visitedAt`, `distanceM` e `completedBy` na parada e o evento `stop_completed` no histórico (`details`: tipo e `seq`, com "por <usuário>" quando é a equipe).
+- Despacho em lote (`POST /dispatch/plan`): candidatos são motoristas ativos e `AVAILABLE`, com posição recente, veículo ativo fora de `MAINTENANCE` e sem pedido ativo. Quem já tem pedido `CREATED` na fila também entra (inspirado no Fleetbase, ver a decisão na spec); o custo é medido da posição atual dele. Cada motorista recebe no máximo um pedido por plano. O húngaro é retangular (completa com custo zero). A resposta traz `comparison` com o `totalKm` dos dois algoritmos.
+- Com `apply=true` o lote só atribui (não despacha) e é tudo ou nada: trava pedidos, motoristas e veículos, nessa ordem, e aplica um `assign` por par, numa transação. Se um par falhar, nada é gravado e a resposta é 422 com o código da regra. Sobras ficam em `unassigned`.
+- Otimização avulsa (`POST /routes/optimize`) não grava nada. `compare=true` roda os algoritmos e devolve `totalKm` e `ms` de cada um; `HELD_KARP` entra só até 15 waypoints. Mais de 50 waypoints responde 400.
 - `SIMULATED_ANNEALING` aceita `seed` opcional para resultado reproduzível.
-- Dijkstra e A* devolvem também `nodesExpanded` e `ms`, para comparar os dois.
-- Despacho em lote (`POST /dispatch/plan`): candidatos são motoristas `AVAILABLE`, com posição conhecida, com veículo e sem pedido ativo. O Hungarian é retangular (completa com custo zero). A resposta traz `comparison` com o `totalKm` dos dois algoritmos. Com `apply=true`, aplica tudo numa única transação, revalidando as regras; se alguma falhar, nada é aplicado. Sobras ficam em `unassigned`.
-- Grafo viário: `nodes.csv` com `id,lat,lng` e `edges.csv` com `from_id,to_id,length_m,oneway` (`oneway=false` cria a aresta inversa). Os arquivos são gerados fora do repo (ex.: script Python com osmnx) e apontados por `ROUTING_GRAPH_NODES` e `ROUTING_GRAPH_EDGES`. `POST /graph/import` lê os dois, grava no banco e monta as listas de adjacência em memória.
-- Código dos algoritmos em classes **puras, sem Spring**: `RouteOptimizer`, `AssignmentSolver` e `RoadGraph`. Testes esperados: Held-Karp = força bruta (até 8 paradas), 2-opt nunca pior que nearest neighbor, Hungarian nunca pior que greedy, A* com o mesmo custo do Dijkstra.
+- Código dos algoritmos em classes **puras, sem Spring**: `RouteOptimizer` e `AssignmentSolver` (e `RoadGraph`, no subprojeto 6). Testes: Held-Karp = força bruta (até 8 paradas), 2-opt nunca pior que nearest neighbor, Hungarian nunca pior que greedy. A* com o mesmo custo do Dijkstra, no subprojeto 6.
+- Grafo viário (subprojeto 6, ainda não implementado): `nodes.csv` com `id,lat,lng` e `edges.csv` com `from_id,to_id,length_m,oneway` (`oneway=false` cria a aresta inversa). Os arquivos são gerados fora do repo (ex.: script Python com osmnx) e apontados por `ROUTING_GRAPH_NODES` e `ROUTING_GRAPH_EDGES`. `POST /graph/import` lê os dois, grava no banco e monta as listas de adjacência em memória. Dijkstra e A* devolvem também `nodesExpanded` e `ms`, para comparar os dois.
+
 ## API REST
 
 Convenção: `{id}` é o `publicId`.
@@ -187,14 +198,15 @@ Listagens paginadas por `limit` e `offset`: padrão 20, máximo 100 (acima disso
 - `POST /orders/{id}/activity`: avança o fluxo (`FAILED` exige `reason`)
 - `POST /orders/{id}/pod`: só em `IN_PROGRESS`
 - `POST /orders/{id}/cancel`: exige `reason`; cliente só nos próprios, em `CREATED`
-- `POST /orders/{id}/route`: calcula e grava a rota (`algorithm` e `seed` opcionais)
-- `GET /orders/{id}/route`: rota gravada, 404 `ROUTE_NOT_FOUND` se não houver
+- `POST /orders/{id}/route`: calcula e grava a rota (`algorithm` e `seed` opcionais); substitui a anterior e mantém as paradas concluídas
+- `GET /orders/{id}/route`: rota gravada com `etaMinutes` vivo e paradas com `visitedAt`; 404 `ROUTE_NOT_FOUND` se não houver
+- `POST /orders/{id}/stops/{seq}/complete`: conclui uma parada `WAYPOINT` (equipe, sem checagem de distância)
 
 **Clientes**
 - `GET /customers`: paginado, filtro `q` (nome ou e-mail, sem diferenciar maiúsculas). Só leitura (ADMIN, DISPATCHER, FLEET_MANAGER)
 
 **Rastreio público**
-- `GET /track/{trackingNumber}`: status, `createdAt`, `finishedAt`, linha do tempo (sem `assigned` e `unassigned`) e `etaMinutes`, que fica `null` até a roteirização (subprojeto 3). Sem dados pessoais, coordenadas, `details` nem `reason`
+- `GET /track/{trackingNumber}`: status, `createdAt`, `finishedAt`, linha do tempo (sem `assigned`, `unassigned`, `stop_completed` e `route_failed`) e `etaMinutes` vivo (`null` sem rota ou em pedido terminal). Sem dados pessoais, coordenadas, `details` nem `reason`
 
 **API do motorista (Basic Auth, só pedidos dele)**
 - `GET /driver/me`: dados do próprio motorista
@@ -204,7 +216,8 @@ Listagens paginadas por `limit` e `offset`: padrão 20, máximo 100 (acima disso
 - `POST /driver/orders/{id}/accept` (modo ad hoc, opcional)
 - `POST /driver/orders/{id}/activity`
 - `POST /driver/orders/{id}/pod`
-- `GET /driver/orders/{id}/route` (subprojeto 3)
+- `GET /driver/orders/{id}/route`: rota do pedido dele, com ETA vivo
+- `POST /driver/orders/{id}/stops/{seq}/complete`: conclui uma parada `WAYPOINT` perto dela (ver Roteirização)
 - `POST /driver/location`: ping de posição
 
 **Cadastros (CRUD: `GET`, `GET /{id}`, `POST`, `PUT /{id}`, `DELETE /{id}`)**
@@ -227,8 +240,8 @@ Mesmo formato em todas as respostas de erro: `{ "status", "code", "message", "ti
 | 500 | `INTERNAL_ERROR` | erro inesperado; a resposta não traz stack trace, o log fica no servidor |
 
 **Roteirização**
-- `POST /routes/optimize`: sem gravar nada (início opcional, pickup, waypoints, dropoff, `algorithm`)
-- `POST /dispatch/plan`: `algorithm` (`HUNGARIAN` ou `GREEDY`), `orderIds` opcional, `apply`
+- `POST /routes/optimize`: sem gravar nada (início opcional, pickup, waypoints, dropoff, `algorithm`, `seed`, `compare`)
+- `POST /dispatch/plan`: `algorithm` (`HUNGARIAN` ou `GREEDY`), `orderIds` opcional, `apply` (só atribui, não despacha)
 - `GET /graph/shortest-path`: `fromLat`, `fromLng`, `toLat`, `toLng`, `algorithm`
 - `POST /graph/import`: só ADMIN
 
@@ -247,6 +260,7 @@ Mesmo formato em todas as respostas de erro: `{ "status", "code", "message", "ti
 | Listar, detalhar e ver histórico de pedidos | sim | sim | sim | só os próprios | não |
 | `GET /customers` | sim | sim | sim | não | não |
 | Ver a rota gravada do pedido | sim | sim | sim | não | não |
+| Concluir parada da rota (`POST /orders/{id}/stops/{seq}/complete`) | sim | sim | não | não | não |
 | Atribuir, despachar, avançar, POD e calcular a rota do pedido | sim | sim | não | não | não |
 | Cancelar pedido | sim | sim | não | o próprio, só em `CREATED` | não |
 | API do motorista `/driver/**` | não | não | não | não | só os atribuídos a ele (e os sem motorista, em `?available=true`) |
@@ -284,7 +298,7 @@ Opcional: uma página estática (`src/main/resources/static/dashboard.html`, Cha
 ## Banco (PostgreSQL)
 
 - Dev: `spring.jpa.hibernate.ddl-auto=update`. Manter um `schema.sql` exportado do pgAdmin como snapshot para a entrega (`docs/schema.sql`).
-- Índices: `orders(status)`, `orders(created_at)`, `orders(finished_at)`, `tracking_statuses(order_id, created_at)`, `drivers(status)`, `routes(order_id)` único e `road_edges(from_node)` (subprojeto 3).
+- Índices: `orders(status)`, `orders(created_at)`, `orders(finished_at)`, `tracking_statuses(order_id, created_at)`, `drivers(status)`, `routes(order_id)` único e `road_edges(from_node)` (subprojeto 6).
 - Evitar N+1 nas listagens (`@EntityGraph` ou fetch join onde fizer sentido).
 - Testes: Testcontainers sobe um PostgreSQL 17 descartável (`postgres:17-alpine`). Precisa de Docker rodando e nunca usa o banco de desenvolvimento.
 
@@ -301,7 +315,11 @@ Opcional: uma página estática (`src/main/resources/static/dashboard.html`, Cha
 | Basic Auth só no motorista | Cumpre o requisito da disciplina com um caso de uso real (dispositivo simples) | Credencial viaja a cada requisição: exigir HTTPS fora de dev |
 | STOMP só para saída | Mantém o motorista simples (REST) | Motorista não recebe push; consulta `GET /driver/orders` |
 | `ddl-auto=update` em dev | Rápido para iterar | Sem migrations versionadas; ver "Banco" |
-| Ordem fixa de trava: pedido, motorista, veículo (`PESSIMISTIC_WRITE`) | Evita deadlock entre `assign`, `dispatch`, `accept` e a soltura nos cadastros | Operações concorrentes sobre o mesmo motorista esperam uma à outra |
+| Ordem fixa de trava: pedido, motorista, veículo (`PESSIMISTIC_WRITE`) | Evita deadlock entre `assign`, `dispatch`, `accept`, o lote e a soltura nos cadastros | Operações concorrentes sobre o mesmo motorista esperam uma à outra |
+| ETA calculado na leitura, não gravado | Reflete a última posição sem escrever nada a mais a cada ping | Cada leitura refaz a conta (são poucas pernas) |
+| Conclusão de parada por ação explícita, com raio rígido | Prova que o motorista esteve perto, não só que o GPS passou ali | Motorista sem posição recente não conclui; a equipe conclui sem checagem |
+| Recálculo congela as paradas concluídas | Não reordena o que já foi feito e mantém a economia medida sobre a mesma base | A rota nova pode não ser a ótima global |
+| Lote só atribui (`apply`) e é tudo ou nada | A equipe confere o plano antes de despachar; nada fica pela metade | Não despacha sozinho: o operador ainda chama `dispatch` por pedido |
 
 ## Fonte das regras
 

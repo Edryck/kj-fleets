@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "KJ Fleets",
-    "description": "Cadastros, autenticação e pedidos já seguem os DTOs. Rota e dashboard ainda são rascunho: ajustar quando existirem. Importa no Postman e no Insomnia.",
+    "description": "Cadastros, autenticação, pedidos, rotas e despacho já seguem os DTOs. Dashboard e grafo viário (subprojetos 4 e 6) ainda são rascunho: ajustar quando existirem. Importa no Postman e no Insomnia.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -66,6 +66,10 @@
     {
       "key": "trackingNumber",
       "value": ""
+    },
+    {
+      "key": "stopSeq",
+      "value": "1"
     }
   ],
   "item": [
@@ -509,7 +513,8 @@
                   "language": "json"
                 }
               }
-            }
+            },
+            "description": "Recalcula e substitui a rota gravada, mantendo as paradas concluídas. Sem corpo, usa o padrão (HELD_KARP até 15 waypoints pendentes, senão TWO_OPT). Pedido terminal responde 422."
           }
         },
         {
@@ -527,7 +532,29 @@
                 "{{orderId}}",
                 "route"
               ]
-            }
+            },
+            "description": "Paradas, totais e etaMinutes vivo (recalculado a cada leitura). 404 ROUTE_NOT_FOUND se o pedido ainda não tem rota."
+          }
+        },
+        {
+          "name": "Concluir parada (equipe)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/orders/{{orderId}}/stops/{{stopSeq}}/complete",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders",
+                "{{orderId}}",
+                "stops",
+                "{{stopSeq}}",
+                "complete"
+              ]
+            },
+            "description": "Conclui uma parada WAYPOINT (stopSeq) sem checagem de distância. Se o motorista tiver posição recente, grava distanceM. PICKUP e DROPOFF não passam por aqui (use activity). Repetir não muda nada."
           }
         }
       ]
@@ -840,7 +867,52 @@
                   "value": "{{driverPass}}"
                 }
               ]
-            }
+            },
+            "description": "Mesma rota de Ver rota gravada, só do motorista dono. Pedido de outro motorista responde 404."
+          }
+        },
+        {
+          "name": "Concluir parada",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/driver/orders/{{orderId}}/stops/{{stopSeq}}/complete",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "driver",
+                "orders",
+                "{{orderId}}",
+                "stops",
+                "{{stopSeq}}",
+                "complete"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"lat\": -24.866,\n  \"lng\": -54.335\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "{{driverUser}}"
+                },
+                {
+                  "key": "password",
+                  "value": "{{driverPass}}"
+                }
+              ]
+            },
+            "description": "Conclui a parada WAYPOINT (stopSeq) só dentro de ROUTING_ARRIVAL_RADIUS_M (padrão 200 m) da posição do corpo. Sem posição recente, ou longe, responde 422 STOP_TOO_FAR. Ajuste lat/lng para perto da parada."
           }
         },
         {
@@ -1341,13 +1413,41 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"start\": {\n    \"lat\": -24.86,\n    \"lng\": -54.34\n  },\n  \"pickup\": {\n    \"name\": \"Depósito Central\",\n    \"address\": \"Rua A, 100\",\n    \"lat\": -24.862,\n    \"lng\": -54.337\n  },\n  \"waypoints\": [\n    {\n      \"name\": \"Parada 1\",\n      \"address\": \"Av. B, 200\",\n      \"lat\": -24.866,\n      \"lng\": -54.335\n    },\n    {\n      \"name\": \"Parada 2\",\n      \"address\": \"Rua C, 30\",\n      \"lat\": -24.868,\n      \"lng\": -54.332\n    }\n  ],\n  \"dropoff\": {\n    \"name\": \"Cliente Final\",\n    \"address\": \"Rua das Flores, 45\",\n    \"lat\": -24.87,\n    \"lng\": -54.33\n  },\n  \"algorithm\": \"TWO_OPT\"\n}",
+              "raw": "{\n  \"start\": {\n    \"lat\": -24.86,\n    \"lng\": -54.34\n  },\n  \"pickup\": {\n    \"lat\": -24.862,\n    \"lng\": -54.337\n  },\n  \"waypoints\": [\n    {\n      \"lat\": -24.866,\n      \"lng\": -54.335\n    },\n    {\n      \"lat\": -24.868,\n      \"lng\": -54.332\n    }\n  ],\n  \"dropoff\": {\n    \"lat\": -24.87,\n    \"lng\": -54.33\n  },\n  \"algorithm\": \"TWO_OPT\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
                 }
               }
-            }
+            },
+            "description": "Só pontos (lat/lng), sem pedido. Nada é gravado. start é opcional."
+          }
+        },
+        {
+          "name": "Otimizar paradas (comparar algoritmos)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/routes/optimize",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "routes",
+                "optimize"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"start\": {\n    \"lat\": -24.86,\n    \"lng\": -54.34\n  },\n  \"pickup\": {\n    \"lat\": -24.862,\n    \"lng\": -54.337\n  },\n  \"waypoints\": [\n    {\n      \"lat\": -24.866,\n      \"lng\": -54.335\n    },\n    {\n      \"lat\": -24.868,\n      \"lng\": -54.332\n    }\n  ],\n  \"dropoff\": {\n    \"lat\": -24.87,\n    \"lng\": -54.33\n  },\n  \"seed\": 42,\n  \"compare\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "compare = true roda os algoritmos e devolve totalKm e ms de cada um em comparison. HELD_KARP só entra com até 15 waypoints."
           }
         },
         {
@@ -1373,7 +1473,8 @@
                   "language": "json"
                 }
               }
-            }
+            },
+            "description": "apply = false: só devolve o plano, sem gravar nada."
           }
         },
         {
@@ -1399,7 +1500,8 @@
                   "language": "json"
                 }
               }
-            }
+            },
+            "description": "apply = true: só atribui os pares (não despacha), numa transação. Se um par falhar, nada é gravado e a resposta é 422 com o código da regra."
           }
         },
         {

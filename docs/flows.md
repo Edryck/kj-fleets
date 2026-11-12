@@ -77,7 +77,7 @@ Lugares criados no pedido viram `Place` comum e aparecem em `GET /places`. A equ
 
 ### Códigos do histórico (`tracking_status.code`)
 
-`status` é o estado do pedido depois do evento (enum em maiúsculas). `code` é o evento, em minúsculas: `created`, `assigned`, `dispatched`, `driver_enroute`, `arrived`, `in_progress`, `pod_registered`, `completed`, `failed`, `cancelled`, `unassigned`. `assigned`, `unassigned` e `pod_registered` não mudam o status. `unassigned` aparece quando um motorista ou veículo é desativado e solto de pedidos `CREATED`. O `code` do corpo de `activity` é outra coisa: o estado de destino pedido, em maiúsculas (`"code": "ARRIVED"`).
+`status` é o estado do pedido depois do evento (enum em maiúsculas). `code` é o evento, em minúsculas: `created`, `assigned`, `dispatched`, `driver_enroute`, `arrived`, `in_progress`, `pod_registered`, `completed`, `failed`, `cancelled`, `unassigned`, `stop_completed` e `route_failed` (roteirização). `assigned`, `unassigned`, `pod_registered`, `stop_completed` e `route_failed` não mudam o status. `route_failed` traz o código da falha em `details`. `unassigned` aparece quando um motorista ou veículo é desativado e solto de pedidos `CREATED`. O `code` do corpo de `activity` é outra coisa: o estado de destino pedido, em maiúsculas (`"code": "ARRIVED"`).
 
 ## 4. Despachar pedido (validações)
 
@@ -123,9 +123,14 @@ sequenceDiagram
         S-->>A: 400
     else próximo = COMPLETED e podRequired sem prova
         S-->>A: 422 ORDER_POD_REQUIRED
+    else ator é motorista e próximo = COMPLETED fora do raio do dropoff
+        S-->>A: 422 STOP_TOO_FAR
     else ok
         S->>DB: UPDATE orders.status
         S->>DB: INSERT tracking_status (status novo, code do evento em minúsculas, lat, lng)
+        opt próximo = ARRIVED ou COMPLETED
+            S->>DB: marca a parada PICKUP ou DROPOFF como visitada
+        end
         opt ator é motorista e veio lat e lng
             S->>DB: UPDATE driver (lat, lng, lastSeenAt)
         end
@@ -138,7 +143,7 @@ sequenceDiagram
     end
 ```
 
-O motorista só pede `DRIVER_ENROUTE`, `ARRIVED`, `IN_PROGRESS`, `COMPLETED` ou `FAILED`. Quando a equipe avança em nome dele, o `details` registra quem fez (ex.: `por operador1`).
+O motorista só pede `DRIVER_ENROUTE`, `ARRIVED`, `IN_PROGRESS`, `COMPLETED` ou `FAILED`. Quando a equipe avança em nome dele, o `details` registra quem fez (ex.: `por operador1`). `ARRIVED` marca a parada de coleta como visitada, sem checagem de distância. `COMPLETED` marca a de entrega e, para o motorista, só vale dentro do raio do dropoff (ver fluxo 18).
 
 ## 6. Ping de localização do motorista
 
@@ -318,34 +323,40 @@ flowchart LR
     D --> E["200 com lista e distanceKm"]
 ```
 
-## 13. Otimizar a rota de um pedido
+## 13. Calcular a rota de um pedido
 
 ```mermaid
 sequenceDiagram
     actor Op as Operador (JWT)
-    participant C as OrderController
+    participant C as RouteController
     participant R as RouteService
     participant O as RouteOptimizer
     participant DB as PostgreSQL
 
     Op->>C: POST /orders/id/route (algorithm e seed opcionais)
-    C->>R: optimize(id, algorithm, seed)
-    R->>DB: carrega payload e posição do motorista, se houver
-    R->>R: monta a matriz de distâncias (Haversine com fator, ou menor caminho no grafo)
-    alt modo road sem grafo carregado
-        R-->>Op: 422 GRAPH_NOT_LOADED
-    else modo road sem caminho entre dois pontos
-        R-->>Op: 422 NO_PATH_FOUND
-    else HELD_KARP com mais de 15 waypoints
-        R-->>Op: 422 ROUTE_TOO_LARGE_FOR_EXACT
+    C->>R: computeManual(id, algorithm, seed)
+    R->>DB: trava o pedido e lê a rota gravada, se houver
+    alt pedido terminal
+        R-->>Op: 422 ORDER_INVALID_TRANSITION
     else ok
-        R->>O: ordena os waypoints (início no pickup, fim no dropoff)
-        O-->>R: ordem e totalKm
-        R->>R: calcula baselineKm na ordem de cadastro, savingsPct e ETA
-        R->>DB: UPSERT route e route_stop
-        R-->>Op: 200 com paradas, totais e economia
+        R->>R: paradas concluídas ficam no início, com as pernas originais
+        R->>R: START é a posição do motorista, se houver
+        R->>R: só os waypoints pendentes entram na reordenação
+        R->>DB: matriz de distâncias (Haversine com fator, ou grafo no modo road)
+        alt modo road sem grafo carregado
+            R-->>Op: 422 GRAPH_NOT_LOADED
+        else HELD_KARP com mais de 15 waypoints
+            R-->>Op: 422 ROUTE_TOO_LARGE_FOR_EXACT
+        else ok
+            R->>O: ordena os waypoints (padrão: HELD_KARP até 15, senão TWO_OPT)
+            O-->>R: ordem
+            R->>R: totalKm, baselineKm na ordem de cadastro, savingsPct e etaMinutes
+            R->>DB: apaga a rota anterior e grava route e route_stops
+            R-->>Op: 200 com paradas, totais e ETA vivo
+        end
     end
-    Note over Op,DB: POST /routes/optimize segue o mesmo caminho, mas recebe os pontos no corpo e não grava route nem route_stop
+    Note over R,DB: No despacho e no aceite a mesma rotina roda sozinha. Se falhar, o pedido segue e grava route_failed no histórico.
+    Note over Op,DB: POST /routes/optimize usa o mesmo cálculo, mas recebe os pontos no corpo e não grava nada. Com compare = true roda os quatro algoritmos.
 ```
 
 ## 14. Despacho em lote (plano e aplicação)
@@ -356,23 +367,30 @@ sequenceDiagram
     participant D as DispatchController
     participant S as DispatchService
     participant A as AssignmentSolver
+    participant OS as OrderService
     participant DB as PostgreSQL
 
     Op->>D: POST /dispatch/plan (algorithm, orderIds opcional, apply)
-    D->>S: plan(algorithm, orderIds, apply)
-    S->>DB: pedidos CREATED sem motorista
-    S->>DB: motoristas AVAILABLE com posição, veículo e sem pedido ativo
+    D->>S: plan(request)
+    S->>DB: pedidos CREATED sem motorista (ou os de orderIds, que têm que estar nesse critério)
+    S->>DB: motoristas AVAILABLE, ativos, com posição recente, veículo ativo fora de MAINTENANCE e sem pedido ativo
     S->>S: matriz de custo = distância do motorista até o pickup
-    S->>A: resolve com HUNGARIAN ou GREEDY
+    S->>A: resolve com HUNGARIAN ou GREEDY, e também com o outro para comparison
     A-->>S: pares, sobras e totalKm
-    S->>A: resolve também o outro algoritmo para comparar
-    opt apply = true
-        S->>DB: UPDATE orders (driver e vehicle) em uma transação, revalidando as regras
-        alt alguma regra falha
-            S-->>Op: 422 com o código da regra violada, nada aplicado
+    alt apply = true
+        S->>DB: trava pedidos, motoristas e veículos, nessa ordem
+        loop cada par
+            S->>OS: assign (mesmas validações e travas do assign)
         end
+        alt algum par falha
+            S-->>Op: 422 com o código da regra, nada gravado
+        else todos atribuídos
+            S-->>Op: 200 com pares, unassigned, totalKm e comparison
+        end
+    else apply = false
+        S-->>Op: 200 com pares, unassigned, totalKm e comparison
     end
-    S-->>Op: 200 com pares, unassigned, totalKm e comparison
+    Note over S,DB: apply = true só atribui. O despacho continua sendo uma ação por pedido.
 ```
 
 ## 15. Menor caminho no grafo viário e importação
@@ -415,6 +433,34 @@ flowchart TD
     A["GET /track/{trackingNumber}"] --> B{"Pedido com esse código existe?"}
     B -- não --> E["404"]
     B -- sim --> C["Lê o histórico em tracking_statuses"]
-    C --> X["Remove eventos assigned e unassigned, details, reason e coordenadas"]
-    X --> H["200 com status e linha do tempo, etaMinutes null até o subprojeto 3"]
+    C --> X["Remove eventos assigned, unassigned, stop_completed e route_failed, details, reason e coordenadas"]
+    X --> H["200 com status, linha do tempo e etaMinutes vivo (null sem rota ou em pedido terminal)"]
 ```
+
+## 18. Concluir parada
+
+```mermaid
+flowchart TD
+    A["POST /orders/id/stops/seq/complete (equipe) ou POST /driver/orders/id/stops/seq/complete (motorista, lat e lng opcionais)"] --> A1{"Se for motorista, é o dono do pedido?"}
+    A1 -- não --> E0["404, como em todo /driver"]
+    A1 -- sim --> B{"Pedido ativo, de DISPATCHED a IN_PROGRESS?"}
+    B -- não --> E1["422 ORDER_INVALID_TRANSITION"]
+    B -- sim --> C{"Pedido tem rota?"}
+    C -- não --> E2["404 ROUTE_NOT_FOUND"]
+    C -- sim --> D{"Parada existe e é WAYPOINT?"}
+    D -- não existe --> E3["404"]
+    D -- START, PICKUP ou DROPOFF --> E4["422 ORDER_INVALID_TRANSITION"]
+    D -- sim --> F{"Parada já concluída?"}
+    F -- sim --> OK0["200 sem mudar nada"]
+    F -- não --> G{"Quem chama?"}
+    G -- equipe --> H["Grava visitedAt, completedBy e distanceM se houver posição, e stop_completed no histórico"]
+    G -- motorista --> I{"Posição do corpo, ou a gravada com idade até ROUTING_POSITION_MAX_AGE_S?"}
+    I -- não --> E5["422 STOP_TOO_FAR, sem posição recente"]
+    I -- sim --> J{"Distância em linha reta até a parada até ROUTING_ARRIVAL_RADIUS_M?"}
+    J -- não --> E6["422 STOP_TOO_FAR com a distância"]
+    J -- sim --> K["Se veio posição no corpo, atualiza a posição do motorista"]
+    K --> H
+    H --> OK["200 com a rota e o ETA vivo"]
+```
+
+`ARRIVED` marca o `PICKUP` e `COMPLETED` marca o `DROPOFF`, pelo fluxo 5. O `COMPLETED` do motorista usa a mesma checagem de raio, mas contra o dropoff, com ou sem rota calculada.

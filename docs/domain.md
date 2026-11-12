@@ -23,7 +23,7 @@ erDiagram
     PAYLOADS ||--o{ PAYLOAD_ITEMS : "itens"
     CONTACTS |o--o| PLACES : "contato"
     ORDERS ||--o{ TRACKING_STATUSES : "histórico"
-    ORDERS ||--o| ROUTES : "rota (subprojeto 3)"
+    ORDERS ||--o| ROUTES : "rota"
     ROUTES ||--|{ ROUTE_STOPS : "paradas"
     PLACES |o--o{ ROUTE_STOPS : "local"
     ROAD_NODES ||--o{ ROAD_EDGES : "from_node"
@@ -155,6 +155,9 @@ erDiagram
         double lat
         double lng
         double leg_km
+        timestamptz visited_at
+        double distance_m
+        string completed_by
     }
     ROAD_NODES {
         bigint id PK
@@ -179,9 +182,9 @@ erDiagram
 | `orders.status` e `tracking_statuses.status` | `CREATED`, `DISPATCHED`, `DRIVER_ENROUTE`, `ARRIVED`, `IN_PROGRESS`, `COMPLETED`, `CANCELLED`, `FAILED` |
 | `drivers.status` | `AVAILABLE`, `BUSY`, `OFFLINE` |
 | `vehicles.status` | `AVAILABLE`, `IN_USE`, `MAINTENANCE` `*` |
-| `routes.algorithm` (subprojeto 3) | `NEAREST_NEIGHBOR`, `TWO_OPT`, `HELD_KARP`, `SIMULATED_ANNEALING` |
-| `routes.mode` (subprojeto 3) | `HAVERSINE`, `ROAD` |
-| `route_stops.type` (subprojeto 3) | `START`, `PICKUP`, `WAYPOINT`, `DROPOFF` |
+| `routes.algorithm` | `NEAREST_NEIGHBOR`, `TWO_OPT`, `HELD_KARP`, `SIMULATED_ANNEALING` |
+| `routes.mode` | `HAVERSINE`, `ROAD` |
+| `route_stops.type` | `START`, `PICKUP`, `WAYPOINT`, `DROPOFF` |
 
 ### Tabelas
 
@@ -201,15 +204,15 @@ Motorista, veículo, frota e lugar são excluídos por soft delete: a coluna `ac
 | `places` | Local reutilizável. Lugar novo criado dentro de um pedido também vira linha aqui. `contact_id` é opcional. |
 | `contacts` | Pessoa de contato de um local. |
 | `tracking_statuses` | Uma linha por evento, **inclusive a criação**. `status` é o estado do pedido depois do evento; `code` é o evento em texto, minúsculas (lista em [ARCHITECTURE.md](../ARCHITECTURE.md#fluxo-e-regras-do-pedido)). Nunca é alterada nem apagada. Guarda a posição quando houver. |
-| `routes` | Subprojeto 3, ainda não existe. 1:1 com `orders` (`order_id` único). Recalcular substitui a rota anterior. |
-| `route_stops` | Subprojeto 3, ainda não existe. Paradas já na ordem final (`seq`). `place_id` é nulo no `START` (posição do motorista). |
-| `road_nodes` | Subprojeto 3. Vem de `nodes.csv`. O `id` é o do arquivo, não um UUID. |
-| `road_edges` | Subprojeto 3. Vem de `edges.csv`. Via de mão dupla vira duas linhas. |
+| `routes` | 1:1 com `orders` (`order_id` único). Recalcular substitui a rota anterior. `eta_minutes` é o do cálculo; o ETA vivo não é gravado. |
+| `route_stops` | Paradas já na ordem final (`seq`). `place_id` é nulo no `START` (posição do motorista). `visited_at` marca a conclusão; `distance_m` é a distância do motorista até a parada (nulo se a equipe concluiu sem posição); `completed_by` é o username de quem concluiu. |
+| `road_nodes` | Subprojeto 6. Vem de `nodes.csv`. O `id` é o do arquivo, não um UUID. |
+| `road_edges` | Subprojeto 6. Vem de `edges.csv`. Via de mão dupla vira duas linhas. |
 
 ### Índices e restrições
 
-- Índices de desempenho: `orders(status)`, `orders(created_at)`, `orders(finished_at)`, `tracking_statuses(order_id, created_at)`, `drivers(status)`, `road_edges(from_node)` (subprojeto 3).
-- Únicos: `users.username`, `orders.public_id`, `orders.tracking_number`, `routes.order_id` (subprojeto 3), `vehicles.plate`, `drivers.vehicle_id`, `drivers.user_id`, `customers.user_id`, `payloads.order_id`.
+- Índices de desempenho: `orders(status)`, `orders(created_at)`, `orders(finished_at)`, `tracking_statuses(order_id, created_at)`, `drivers(status)`, `road_edges(from_node)` (subprojeto 6).
+- Únicos: `users.username`, `orders.public_id`, `orders.tracking_number`, `routes.order_id`, `vehicles.plate`, `drivers.vehicle_id`, `drivers.user_id`, `customers.user_id`, `payloads.order_id`.
 - Chaves estrangeiras sem `ON DELETE CASCADE` nos dados de pedido: o histórico não é apagado. Excluir motorista ou veículo com pedidos associados deve falhar (ou desativar em vez de excluir).
 
 ### Regras que o banco não garante sozinho
@@ -219,4 +222,5 @@ Ficam no `service` e têm teste (ver [SYSTEM.md](../SYSTEM.md#10-testes)):
 - a transição de status ser permitida;
 - o máximo de 50 waypoints e de 100 itens;
 - `pod_value` preenchido antes de `COMPLETED` quando `pod_required`;
-- `reason` obrigatório em cancelamento e falha.
+- `reason` obrigatório em cancelamento e falha;
+- parada `WAYPOINT` concluída uma vez só (repetir não muda nada) e conclusão pelo motorista só dentro do raio (`STOP_TOO_FAR`).

@@ -52,6 +52,8 @@ Pré-requisitos: JDK 21, PostgreSQL (para rodar a aplicação) e Docker (para os
    | `ROUTING_MODE` | `haversine` (padrão) ou `road` |
    | `ROUTING_DETOUR_FACTOR` | fator sobre a distância em linha reta no modo `haversine` (padrão 1.3) |
    | `ROUTING_AVG_SPEED_KMH` | velocidade média para o ETA (padrão 40) |
+   | `ROUTING_ARRIVAL_RADIUS_M` | raio, em metros, para o motorista concluir uma parada (padrão 200) |
+   | `ROUTING_POSITION_MAX_AGE_S` | idade máxima, em segundos, da posição do motorista para contar como atual (padrão 300) |
    | `ROUTING_GRAPH_NODES` / `ROUTING_GRAPH_EDGES` | caminhos dos CSVs do grafo viário (só no modo `road`) |
 
 3. Suba a aplicação:
@@ -90,9 +92,9 @@ Erros de regra de negócio voltam como `422` (ou `409`) com um código estável,
 | Grupo | Rotas |
 |---|---|
 | Auth e usuários | `POST /auth/register`, `POST /auth/login`, `POST /users`, `GET /users` |
-| Pedidos | `POST /orders`, `GET /orders` (filtros `status`, `driverId`, `customerId`, `active`, `from`, `to`), `GET /orders/{id}`, `GET /orders/{id}/tracking`, `POST /orders/{id}/assign`, `dispatch`, `activity`, `pod`, `cancel`, `route`, `GET /orders/{id}/route` |
+| Pedidos | `POST /orders`, `GET /orders` (filtros `status`, `driverId`, `customerId`, `active`, `from`, `to`), `GET /orders/{id}`, `GET /orders/{id}/tracking`, `POST /orders/{id}/assign`, `dispatch`, `activity`, `pod`, `cancel`, `route`, `GET /orders/{id}/route`, `POST /orders/{id}/stops/{seq}/complete` |
 | Rastreio público | `GET /track/{trackingNumber}` |
-| Motorista (Basic Auth) | `GET /driver/me`, `GET /driver/orders` (`?available=true` lista os pedidos sem motorista), `GET /driver/orders/{id}`, `POST /driver/orders/{id}/accept`, `activity`, `pod`, `GET /driver/orders/{id}/route`, `POST /driver/location` |
+| Motorista (Basic Auth) | `GET /driver/me`, `GET /driver/orders` (`?available=true` lista os pedidos sem motorista), `GET /driver/orders/{id}`, `POST /driver/orders/{id}/accept`, `activity`, `pod`, `GET /driver/orders/{id}/route`, `POST /driver/orders/{id}/stops/{seq}/complete`, `POST /driver/location` |
 | Cadastros | CRUD de `/drivers`, `/vehicles`, `/fleets`, `/places` (`DELETE` desativa, não apaga); `GET /drivers/nearest`; `GET /customers` (só leitura) |
 | Roteirização | `POST /routes/optimize`, `POST /dispatch/plan`, `GET /graph/shortest-path`, `POST /graph/import` |
 | Dashboard | `GET /dashboard/summary`, `orders-timeseries`, `drivers-performance`, `routing-savings`, `live` |
