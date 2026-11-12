@@ -1,5 +1,7 @@
 package br.com.kjfleets.controller;
 
+import br.com.kjfleets.dto.RouteDtos.OptimizeRequest;
+import br.com.kjfleets.dto.RouteDtos.OptimizeResponse;
 import br.com.kjfleets.dto.RouteDtos.RouteRequest;
 import br.com.kjfleets.dto.RouteDtos.RouteResponse;
 import br.com.kjfleets.dto.RouteDtos.StopCompleteRequest;
@@ -29,6 +31,11 @@ public class RouteController {
     @GetMapping("/orders/{publicId}/route")
     RouteResponse get(@PathVariable String publicId) {
         return service.get(publicId);
+    }
+
+    @PostMapping("/routes/optimize")
+    OptimizeResponse optimize(@Valid @RequestBody OptimizeRequest request) {
+        return service.optimize(request);
     }
 
     @PostMapping("/orders/{publicId}/stops/{seq}/complete")

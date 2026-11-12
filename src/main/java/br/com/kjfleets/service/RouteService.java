@@ -2,6 +2,11 @@ package br.com.kjfleets.service;
 
 import br.com.kjfleets.config.BusinessException;
 import br.com.kjfleets.config.RoutingProperties;
+import br.com.kjfleets.dto.RouteDtos.AlgorithmResult;
+import br.com.kjfleets.dto.RouteDtos.OptimizeRequest;
+import br.com.kjfleets.dto.RouteDtos.OptimizeResponse;
+import br.com.kjfleets.dto.RouteDtos.OptimizedStop;
+import br.com.kjfleets.dto.RouteDtos.PointDto;
 import br.com.kjfleets.dto.RouteDtos.RouteRequest;
 import br.com.kjfleets.dto.RouteDtos.RouteResponse;
 import br.com.kjfleets.dto.RouteDtos.StopCompleteRequest;
@@ -29,8 +34,11 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.IntStream;
 
 @Service
 public class RouteService {
@@ -57,6 +65,10 @@ public class RouteService {
 
         static Point of(StopType type, Place place) {
             return new Point(type, place, place.getLat(), place.getLng(), null);
+        }
+
+        static Point at(StopType type, PointDto point) {
+            return new Point(type, null, point.lat(), point.lng(), null);
         }
     }
 
@@ -107,19 +119,10 @@ public class RouteService {
         for (int i = 0; i < visitedCount; i++) {
             visitedKm += visited.get(i).getLegKm();
         }
-        double baselineKm = visitedKm;
-        for (int i = Math.max(visitedCount, 1); i < points.size(); i++) {
-            baselineKm += km[i - 1][i];
-        }
+        double baselineKm = visitedKm + legsKm(km, IntStream.range(0, points.size()).boxed().toList(), visitedCount);
 
         RouteAlgorithm chosen = algorithm != null ? algorithm : RouteOptimizer.defaultFor(pendingWaypoints.size());
-        Plan plan;
-        try {
-            plan = RouteOptimizer.solve(km, fixedPrefix, chosen, seed);
-        } catch (RouteOptimizer.TooLargeForExactException e) {
-            throw new BusinessException("ROUTE_TOO_LARGE_FOR_EXACT", HttpStatus.UNPROCESSABLE_ENTITY,
-                    "Held-Karp aceita no máximo " + RouteOptimizer.HELD_KARP_MAX + " waypoints pendentes");
-        }
+        Plan plan = solveOrder(km, fixedPrefix, chosen, seed);
 
         // apaga e dá flush antes: order_id é único e o insert novo viria antes do delete
         if (previous != null) {
@@ -131,13 +134,10 @@ public class RouteService {
         route.setOrder(order);
         route.setAlgorithm(chosen);
         route.setMode(distance.props().mode().name());
-        double totalKm = visitedKm;
-        for (int seq = Math.max(visitedCount, 1); seq < plan.order().size(); seq++) {
-            totalKm += km[plan.order().get(seq - 1)][plan.order().get(seq)];
-        }
+        double totalKm = visitedKm + legsKm(km, plan.order(), visitedCount);
         route.setTotalKm(totalKm);
         route.setBaselineKm(baselineKm);
-        route.setSavingsPct(baselineKm == 0 ? 0 : round2((baselineKm - totalKm) / baselineKm * 100));
+        route.setSavingsPct(savingsPct(baselineKm, totalKm));
         route.setEtaMinutes(distance.etaMinutes(totalKm));
         route.setComputedAt(Instant.now());
         for (int seq = 0; seq < plan.order().size(); seq++) {
@@ -318,6 +318,73 @@ public class RouteService {
         Route route = routes.findByOrder(order).orElseThrow(() -> new BusinessException("ROUTE_NOT_FOUND",
                 HttpStatus.NOT_FOUND, "Pedido sem rota calculada"));
         return RouteResponse.from(route, eta(order, route));
+    }
+
+    // avulsa: mesma matriz, mesmos totais e economia de compute, mas sem pedido nem gravação
+    public OptimizeResponse optimize(OptimizeRequest request) {
+        List<PointDto> waypoints = request.waypoints() == null ? List.of() : request.waypoints();
+        List<Point> points = new ArrayList<>();
+        if (request.start() != null) {
+            points.add(Point.at(StopType.START, request.start()));
+        }
+        int fixedPrefix = points.size() + 1;
+        points.add(Point.at(StopType.PICKUP, request.pickup()));
+        waypoints.forEach(w -> points.add(Point.at(StopType.WAYPOINT, w)));
+        points.add(Point.at(StopType.DROPOFF, request.dropoff()));
+
+        double[][] km = distance.matrix(points.stream().map(p -> new double[]{p.lat(), p.lng()}).toList());
+        RouteAlgorithm chosen = request.algorithm() != null ? request.algorithm()
+                : RouteOptimizer.defaultFor(waypoints.size());
+        Plan plan = solveOrder(km, fixedPrefix, chosen, request.seed());
+        double totalKm = legsKm(km, plan.order(), 0);
+        double baselineKm = legsKm(km, IntStream.range(0, points.size()).boxed().toList(), 0);
+
+        List<OptimizedStop> stops = new ArrayList<>();
+        for (int seq = 0; seq < plan.order().size(); seq++) {
+            int index = plan.order().get(seq);
+            Point point = points.get(index);
+            stops.add(new OptimizedStop(seq, point.type(), point.lat(), point.lng(),
+                    seq == 0 ? 0 : km[plan.order().get(seq - 1)][index],
+                    point.type() == StopType.WAYPOINT ? index - fixedPrefix : null));
+        }
+
+        Map<RouteAlgorithm, AlgorithmResult> comparison = null;
+        if (Boolean.TRUE.equals(request.compare())) {
+            comparison = new EnumMap<>(RouteAlgorithm.class);
+            for (RouteAlgorithm algorithm : RouteAlgorithm.values()) {
+                if (algorithm == RouteAlgorithm.HELD_KARP && waypoints.size() > RouteOptimizer.HELD_KARP_MAX) {
+                    continue;
+                }
+                long started = System.nanoTime();
+                Plan solved = solveOrder(km, fixedPrefix, algorithm, request.seed());
+                long ms = (System.nanoTime() - started) / 1_000_000;
+                comparison.put(algorithm, new AlgorithmResult(legsKm(km, solved.order(), 0), ms));
+            }
+        }
+        return new OptimizeResponse(chosen, stops, totalKm, baselineKm, savingsPct(baselineKm, totalKm),
+                distance.etaMinutes(totalKm), comparison);
+    }
+
+    private static Plan solveOrder(double[][] km, int fixedPrefix, RouteAlgorithm algorithm, Long seed) {
+        try {
+            return RouteOptimizer.solve(km, fixedPrefix, algorithm, seed);
+        } catch (RouteOptimizer.TooLargeForExactException e) {
+            throw new BusinessException("ROUTE_TOO_LARGE_FOR_EXACT", HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Held-Karp aceita no máximo " + RouteOptimizer.HELD_KARP_MAX + " waypoints pendentes");
+        }
+    }
+
+    // soma das pernas a partir da última concluída (visitedCount); sem concluídas, a partir da primeira
+    private static double legsKm(double[][] km, List<Integer> order, int visitedCount) {
+        double total = 0;
+        for (int seq = Math.max(visitedCount, 1); seq < order.size(); seq++) {
+            total += km[order.get(seq - 1)][order.get(seq)];
+        }
+        return total;
+    }
+
+    private static double savingsPct(double baselineKm, double totalKm) {
+        return baselineKm == 0 ? 0 : round2((baselineKm - totalKm) / baselineKm * 100);
     }
 
     private static double round2(double value) {

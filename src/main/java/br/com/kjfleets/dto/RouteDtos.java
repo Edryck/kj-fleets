@@ -5,11 +5,15 @@ import br.com.kjfleets.entity.RouteStop;
 import br.com.kjfleets.entity.StopType;
 import br.com.kjfleets.routing.RouteAlgorithm;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 public final class RouteDtos {
 
@@ -43,5 +47,27 @@ public final class RouteDtos {
                     route.getTotalKm(), route.getBaselineKm(), route.getSavingsPct(), etaMinutes,
                     route.getComputedAt(), route.getStops().stream().map(StopResponse::from).toList());
         }
+    }
+
+    public record PointDto(@NotNull @DecimalMin("-90") @DecimalMax("90") Double lat,
+                           @NotNull @DecimalMin("-180") @DecimalMax("180") Double lng) {
+    }
+
+    public record OptimizeRequest(@Valid PointDto start, @Valid @NotNull PointDto pickup,
+                                  @Valid @Size(max = 50) List<@NotNull @Valid PointDto> waypoints,
+                                  @Valid @NotNull PointDto dropoff, RouteAlgorithm algorithm, Long seed,
+                                  Boolean compare) {
+    }
+
+    public record OptimizedStop(int seq, StopType type, double lat, double lng, double legKm,
+                                Integer waypointIndex) {
+    }
+
+    public record AlgorithmResult(double totalKm, long ms) {
+    }
+
+    public record OptimizeResponse(RouteAlgorithm algorithm, List<OptimizedStop> stops, double totalKm,
+                                   double baselineKm, double savingsPct, int etaMinutes,
+                                   Map<RouteAlgorithm, AlgorithmResult> comparison) {
     }
 }
