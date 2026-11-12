@@ -11,7 +11,7 @@ import tools.jackson.databind.JsonNode;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -52,7 +52,7 @@ class TrackTest extends IntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.trackingNumber").value(trackingNumber))
                 .andExpect(jsonPath("$.status").value("DISPATCHED"))
-                .andExpect(jsonPath("$.etaMinutes").value(nullValue()))
+                .andExpect(jsonPath("$.etaMinutes").value(notNullValue()))
                 .andExpect(jsonPath("$.timeline[*].code").value(contains("created", "dispatched")));
     }
 

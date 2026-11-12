@@ -7,7 +7,9 @@ import br.com.kjfleets.dto.OrderDtos.DriverOrderSummaryResponse;
 import br.com.kjfleets.dto.OrderDtos.PodRequest;
 import br.com.kjfleets.dto.PageResponse;
 import br.com.kjfleets.entity.OrderStatus;
+import br.com.kjfleets.dto.RouteDtos.RouteResponse;
 import br.com.kjfleets.service.OrderService;
+import br.com.kjfleets.service.RouteService;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,9 +23,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class DriverOrderController {
 
     private final OrderService service;
+    private final RouteService routeService;
 
-    public DriverOrderController(OrderService service) {
+    public DriverOrderController(OrderService service, RouteService routeService) {
         this.service = service;
+        this.routeService = routeService;
     }
 
     @GetMapping(value = "/driver/orders", params = "available=true")
@@ -43,6 +47,11 @@ public class DriverOrderController {
     @GetMapping("/driver/orders/{publicId}")
     DriverOrderResponse get(@PathVariable String publicId, Authentication authentication) {
         return service.driverOrder(publicId, authentication.getName());
+    }
+
+    @GetMapping("/driver/orders/{publicId}/route")
+    RouteResponse route(@PathVariable String publicId, Authentication authentication) {
+        return routeService.driverRoute(publicId, authentication.getName());
     }
 
     @PostMapping("/driver/orders/{publicId}/activity")

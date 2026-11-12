@@ -57,12 +57,18 @@ public class OrderService {
     private final CustomerRepository customers;
     private final DriverRepository drivers;
     private final VehicleRepository vehicles;
+    private final RouteService routeService;
+
+    private static final List<String> HIDDEN_CODES = List.of("assigned", "unassigned", "stop_completed",
+            "route_failed");
 
     private static final List<OrderStatus> ACTIVE = Arrays.stream(OrderStatus.values())
             .filter(OrderStatus::isActive).toList();
 
     public OrderService(OrderRepository orders, TrackingStatusRepository trackings, PlaceRepository places,
-                        CustomerRepository customers, DriverRepository drivers, VehicleRepository vehicles) {
+                        CustomerRepository customers, DriverRepository drivers, VehicleRepository vehicles,
+                        RouteService routeService) {
+        this.routeService = routeService;
         this.drivers = drivers;
         this.vehicles = vehicles;
         this.orders = orders;
@@ -120,6 +126,8 @@ public class OrderService {
             vehicle = vehicles.lockById(vehicle.getId()).orElseThrow();
         }
         checkVehicle(vehicle);
+        // rota calculada antes da atribuição não vale mais (START muda)
+        routeService.discard(order);
         order.setDriver(driver);
         order.setVehicle(vehicle);
         track(order, "assigned", driver.getName() + " (" + vehicle.getPlate() + ")", null, null);
@@ -320,6 +328,7 @@ public class OrderService {
         order.getDriver().setStatus(DriverStatus.BUSY);
         order.getVehicle().setStatus(VehicleStatus.IN_USE);
         track(order, "dispatched", null, null, null);
+        routeService.computeOnDispatch(order).ifPresent(code -> track(order, "route_failed", code, null, null));
     }
 
     private void requireCreated(Order order) {
@@ -334,10 +343,10 @@ public class OrderService {
         Order order = orders.findByTrackingNumber(trackingNumber)
                 .orElseThrow(() -> BusinessException.notFound("Pedido"));
         List<PublicEvent> timeline = trackings.findByOrderOrderByCreatedAtAscIdAsc(order).stream()
-                .filter(t -> !t.getCode().equals("assigned") && !t.getCode().equals("unassigned"))
+                .filter(t -> !HIDDEN_CODES.contains(t.getCode()))
                 .map(t -> new PublicEvent(t.getCode(), t.getStatus(), t.getCreatedAt())).toList();
         return new PublicTrackingResponse(order.getTrackingNumber(), order.getStatus(), order.getCreatedAt(),
-                order.getFinishedAt(), null, timeline);
+                order.getFinishedAt(), routeService.liveEta(order), timeline);
     }
 
     // chamado pelo DriverService antes de tocar no motorista: a ordem de trava é pedido, motorista, veículo
@@ -366,6 +375,7 @@ public class OrderService {
 
     private void releaseOrdersOf(Driver driver) {
         for (Order order : orders.findByDriverAndStatus(driver, OrderStatus.CREATED)) {
+            routeService.discard(order);
             order.setDriver(null);
             order.setVehicle(null);
             track(order, "unassigned", "motorista desativado", null, null);
@@ -374,6 +384,7 @@ public class OrderService {
 
     private void releaseOrdersOf(Vehicle vehicle) {
         for (Order order : orders.findByVehicleAndStatus(vehicle, OrderStatus.CREATED)) {
+            routeService.discard(order);
             order.setVehicle(null);
             track(order, "unassigned", "veículo desativado", null, null);
         }

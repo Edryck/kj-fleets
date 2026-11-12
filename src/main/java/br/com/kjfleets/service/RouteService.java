@@ -1,10 +1,12 @@
 package br.com.kjfleets.service;
 
 import br.com.kjfleets.config.BusinessException;
+import br.com.kjfleets.config.RoutingProperties;
 import br.com.kjfleets.dto.RouteDtos.RouteRequest;
 import br.com.kjfleets.dto.RouteDtos.RouteResponse;
 import br.com.kjfleets.entity.Driver;
 import br.com.kjfleets.entity.Order;
+import br.com.kjfleets.entity.OrderStatus;
 import br.com.kjfleets.entity.Payload;
 import br.com.kjfleets.entity.Place;
 import br.com.kjfleets.entity.Route;
@@ -19,10 +21,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class RouteService {
@@ -30,11 +34,14 @@ public class RouteService {
     private final RouteRepository routes;
     private final OrderRepository orders;
     private final DistanceService distance;
+    private final RoutingProperties props;
 
-    public RouteService(RouteRepository routes, OrderRepository orders, DistanceService distance) {
+    public RouteService(RouteRepository routes, OrderRepository orders, DistanceService distance,
+                        RoutingProperties props) {
         this.routes = routes;
         this.orders = orders;
         this.distance = distance;
+        this.props = props;
     }
 
     // ponto da matriz: stop de origem (se já concluída) + dados para gravar a nova linha
@@ -155,7 +162,60 @@ public class RouteService {
                     "Pedido em " + order.getStatus() + " não aceita esta ação");
         }
         Route route = compute(order, request.algorithm(), request.seed());
-        return RouteResponse.from(route, route.getEtaMinutes());
+        return RouteResponse.from(route, eta(order, route));
+    }
+
+    // sem @Transactional de propósito: roda na transação do chamador, e um proxy que lança marcaria rollback-only
+    public Optional<String> computeOnDispatch(Order order) {
+        try {
+            compute(order, null, null);
+            return Optional.empty();
+        } catch (BusinessException e) {
+            return Optional.of(e.code());
+        }
+    }
+
+    public void discard(Order order) {
+        routes.findByOrder(order).ifPresent(routes::delete);
+    }
+
+    public Integer liveEta(Order order) {
+        return routes.findByOrder(order).map(route -> eta(order, route)).orElse(null);
+    }
+
+    private Integer eta(Order order, Route route) {
+        if (order.getStatus().isTerminal()) {
+            return null;
+        }
+        if (order.getStatus() == OrderStatus.CREATED) {
+            return route.getEtaMinutes();
+        }
+        List<RouteStop> pending = route.getStops().stream()
+                .filter(s -> s.getVisitedAt() == null && s.getType() != StopType.START).toList();
+        Driver driver = order.getDriver();
+        boolean fresh = driver != null && driver.getLat() != null && driver.getLng() != null
+                && driver.getLastSeenAt() != null
+                && Duration.between(driver.getLastSeenAt(), Instant.now()).toSeconds() <= props.positionMaxAgeS();
+        double km = pending.stream().mapToDouble(RouteStop::getLegKm).sum();
+        if (fresh && !pending.isEmpty()) {
+            RouteStop next = pending.get(0);
+            try {
+                km += distance.km(driver.getLat(), driver.getLng(), next.getLat(), next.getLng()) - next.getLegKm();
+            } catch (BusinessException e) {
+                // modo trocado para road com rota antiga gravada: leitura não pode falhar, vale a soma das pernas
+            }
+        }
+        return distance.etaMinutes(km);
+    }
+
+    @Transactional(readOnly = true)
+    public RouteResponse driverRoute(String orderPublicId, String username) {
+        Order order = orders.findByPublicId(orderPublicId).orElseThrow(() -> BusinessException.notFound("Pedido"));
+        Driver driver = order.getDriver();
+        if (driver == null || !driver.isActive() || !driver.getUser().getUsername().equals(username)) {
+            throw BusinessException.notFound("Pedido");
+        }
+        return get(orderPublicId);
     }
 
     @Transactional(readOnly = true)
@@ -163,7 +223,7 @@ public class RouteService {
         Order order = orders.findByPublicId(orderPublicId).orElseThrow(() -> BusinessException.notFound("Pedido"));
         Route route = routes.findByOrder(order).orElseThrow(() -> new BusinessException("ROUTE_NOT_FOUND",
                 HttpStatus.NOT_FOUND, "Pedido sem rota calculada"));
-        return RouteResponse.from(route, route.getEtaMinutes());
+        return RouteResponse.from(route, eta(order, route));
     }
 
     private static double round2(double value) {
