@@ -24,7 +24,7 @@ Mais detalhes em [PRODUCT.md](PRODUCT.md). Fluxos em [docs/flows/](docs/flows/ba
 | `ADMIN` | JWT | Tudo, inclusive usuários e importação do grafo |
 | `DISPATCHER` | JWT | Pedidos, despacho, roteirização |
 | `FLEET_MANAGER` | JWT | Motoristas, veículos, frotas, dashboard |
-| `CUSTOMER` | JWT | Cria e acompanha os próprios pedidos |
+| `CUSTOMER` | JWT | Cria e acompanha os próprios pedidos e gerencia os próprios endereços |
 | `DRIVER` | Basic Auth | Vê e atualiza os pedidos atribuídos a ele (`/driver/**`) |
 
 ## Stack
@@ -65,6 +65,7 @@ Pré-requisitos: JDK 21, PostgreSQL (para rodar a aplicação) e Docker (para os
    | `DASHBOARD_MAINTENANCE_ALERT_DAYS` | dias em manutenção até o alerta de veículo parado (padrão 7) |
    | `WS_LOCATION_MIN_INTERVAL_S` | intervalo mínimo, em segundos, entre posições de um motorista no WebSocket (padrão 5, de 1 a 300) |
    | `WS_LOCATION_MIN_DISTANCE_M` | distância mínima, em metros, que o motorista precisa andar para a posição sair no WebSocket (padrão 20, de 0 a 1000) |
+   | `CORS_ALLOWED_ORIGINS` | origens do front liberadas no REST, separadas por vírgula (ex.: `http://localhost:5173`); vazio (padrão) desliga o CORS |
 
 3. Suba a aplicação:
 
@@ -91,6 +92,7 @@ Aponte as variáveis `ROUTING_GRAPH_NODES` e `ROUTING_GRAPH_EDGES` para eles e c
 
 - `POST /auth/register` cria um CUSTOMER; `POST /auth/login` devolve um JWT. Envie em `Authorization: Bearer <token>`.
 - `/driver/**` usa **Basic Auth** com o usuário e a senha do motorista. O motorista não recebe JWT: `POST /auth/login` responde 401 para ele.
+- `PUT /me/password` troca a senha de quem está logado. Tokens já emitidos continuam válidos até expirar.
 - Rastreio público (`GET /track/{trackingNumber}`) e `/auth/**` não exigem login.
 
 ## Endpoints
@@ -101,11 +103,11 @@ Erros de regra de negócio voltam como `422` (ou `409`) com um código estável,
 
 | Grupo | Rotas |
 |---|---|
-| Auth e usuários | `POST /auth/register`, `POST /auth/login`, `POST /users`, `GET /users` |
-| Pedidos | `POST /orders`, `GET /orders` (filtros `status`, `driverId`, `customerId`, `active`, `from`, `to`), `GET /orders/{id}`, `GET /orders/{id}/tracking`, `POST /orders/{id}/assign`, `dispatch`, `activity`, `pod`, `cancel`, `route`, `GET /orders/{id}/route`, `POST /orders/{id}/stops/{seq}/complete` |
+| Auth e usuários | `POST /auth/register`, `POST /auth/login`, `GET /me`, `PUT /me/password`, `POST /users`, `GET /users`, `PUT /users/{id}`, `POST /users/{id}/deactivate`, `POST /users/{id}/reactivate` |
+| Pedidos | `POST /orders`, `GET /orders` (filtros `status`, `driverId`, `customerId`, `active`, `from`, `to`, busca `q`, `sort` e `dir`), `GET /orders/{id}`, `GET /orders/{id}/tracking`, `POST /orders/{id}/assign`, `dispatch`, `activity`, `pod`, `cancel`, `route`, `GET /orders/{id}/route`, `POST /orders/{id}/stops/{seq}/complete` |
 | Rastreio público | `GET /track/{trackingNumber}` |
 | Motorista (Basic Auth) | `GET /driver/me`, `GET /driver/orders` (`?available=true` lista os pedidos sem motorista), `GET /driver/orders/{id}`, `POST /driver/orders/{id}/accept`, `activity`, `pod`, `GET /driver/orders/{id}/route`, `POST /driver/orders/{id}/stops/{seq}/complete`, `POST /driver/location` |
-| Cadastros | CRUD de `/drivers`, `/vehicles`, `/fleets`, `/places` (`DELETE` desativa, não apaga); `GET /drivers/nearest`; `GET /customers` (só leitura) |
+| Cadastros | CRUD de `/drivers`, `/vehicles`, `/fleets`, `/places` (`DELETE` desativa, não apaga); busca `q`, `status` e `includeInactive` em motoristas e veículos; reativação com `POST /{id}/reactivate` (motoristas, veículos e lugares); `GET /drivers/nearest`; `GET /customers` e `GET /customers/{id}` (só leitura); `/customer/places` (meus endereços, CUSTOMER) |
 | Roteirização | `POST /routes/optimize`, `POST /dispatch/plan`, `GET /graph/shortest-path`, `POST /graph/import` |
 | Dashboard (tópicos) | `GET /dashboard/orders/summary`, `orders/funnel`, `dispatch/queue`, `fleet/status`, `drivers/performance`, `routing/savings`, `trends/yearly`, `alerts` (`period`: `today`, `7d`, `15d`, `1m`) |
 | Dashboard (painéis) | `GET /dashboard/admin`, `/dashboard/dispatch`, `/dashboard/fleet`, `/customer/dashboard` (CUSTOMER), `/driver/dashboard` (Basic Auth do motorista) |

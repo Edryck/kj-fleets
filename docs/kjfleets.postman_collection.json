@@ -70,6 +70,26 @@
     {
       "key": "stopSeq",
       "value": "1"
+    },
+    {
+      "key": "userId",
+      "value": ""
+    },
+    {
+      "key": "customerUser",
+      "value": "cliente1"
+    },
+    {
+      "key": "customerPass",
+      "value": "troque-esta-senha"
+    },
+    {
+      "key": "customerToken",
+      "value": ""
+    },
+    {
+      "key": "customerPlaceId",
+      "value": ""
     }
   ],
   "item": [
@@ -148,6 +168,92 @@
           ]
         },
         {
+          "name": "Login cliente",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{customerUser}}\",\n  \"password\": \"{{customerPass}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Guarda o token do cliente em customerToken, para as requisições de Meus endereços."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.token) pm.collectionVariables.set('customerToken', body.token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Meu usuário (/me)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "me"
+              ]
+            },
+            "description": "Dados do usuário logado. publicId é o do cliente (CUSTOMER) ou o do usuário (usr_...) para a equipe. name, email e phone só vêm para cliente."
+          }
+        },
+        {
+          "name": "Trocar minha senha",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/me/password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "me",
+                "password"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"troque-esta-senha\",\n  \"newPassword\": \"nova-senha-123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Responde 204. Senha atual errada responde 400. Tokens já emitidos continuam válidos até expirar."
+          }
+        },
+        {
           "name": "Criar usuário de equipe",
           "request": {
             "method": "POST",
@@ -170,7 +276,19 @@
                 }
               }
             }
-          }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.publicId) pm.collectionVariables.set('userId', body.publicId);"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Listar usuários",
@@ -186,6 +304,71 @@
                 "users"
               ]
             }
+          }
+        },
+        {
+          "name": "Alterar papel do usuário",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "{{userId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"FLEET_MANAGER\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Papel novo: ADMIN, DISPATCHER ou FLEET_MANAGER. CUSTOMER e DRIVER respondem 400. Rebaixar a si mesmo responde 409."
+          }
+        },
+        {
+          "name": "Desativar usuário",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/{{userId}}/deactivate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "{{userId}}",
+                "deactivate"
+              ]
+            },
+            "description": "Responde 204. Desativar a si mesmo responde 409. Vale na próxima requisição do usuário."
+          }
+        },
+        {
+          "name": "Reativar usuário",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/{{userId}}/reactivate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "{{userId}}",
+                "reactivate"
+              ]
+            },
+            "description": "Responde 204. Idempotente."
           }
         }
       ]
@@ -231,6 +414,24 @@
               }
             }
           ]
+        },
+        {
+          "name": "Detalhar cliente",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/customers/{{customerId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "customers",
+                "{{customerId}}"
+              ]
+            },
+            "description": "Só leitura, para equipe."
+          }
         },
         {
           "name": "Criar pedido",
@@ -299,6 +500,45 @@
                 }
               ]
             }
+          }
+        },
+        {
+          "name": "Buscar pedidos por texto e ordenar",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/orders?q=Casa&sort=status&dir=asc&limit=20&offset=0",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "Casa"
+                },
+                {
+                  "key": "sort",
+                  "value": "status"
+                },
+                {
+                  "key": "dir",
+                  "value": "asc"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            },
+            "description": "q é busca literal (código de rastreio, nome de origem ou destino), até 100 caracteres. sort aceita createdAt ou status; dir aceita asc ou desc. sort=status ordena pelo texto do enum."
           }
         },
         {
@@ -1061,6 +1301,64 @@
           }
         },
         {
+          "name": "Buscar motoristas (q, status, inativos)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/drivers?q=joao&status=AVAILABLE&includeInactive=true&limit=20&offset=0",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "drivers"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "joao"
+                },
+                {
+                  "key": "status",
+                  "value": "AVAILABLE"
+                },
+                {
+                  "key": "includeInactive",
+                  "value": "true"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            },
+            "description": "q pesquisa nome, username e CNH. includeInactive=true só para ADMIN e FLEET_MANAGER (outro papel responde 403)."
+          }
+        },
+        {
+          "name": "Reativar motorista",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/drivers/{{driverId}}/reactivate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "drivers",
+                "{{driverId}}",
+                "reactivate"
+              ]
+            },
+            "description": "Volta OFFLINE, sem veículo e sem frotas. Já ativo responde 200 sem mudança."
+          }
+        },
+        {
           "name": "Motoristas mais próximos",
           "request": {
             "method": "GET",
@@ -1105,6 +1403,56 @@
                 "vehicles"
               ]
             }
+          }
+        },
+        {
+          "name": "Buscar veículos (q, status, inativos)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/vehicles?q=ABC&status=AVAILABLE&includeInactive=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "vehicles"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "ABC"
+                },
+                {
+                  "key": "status",
+                  "value": "AVAILABLE"
+                },
+                {
+                  "key": "includeInactive",
+                  "value": "true"
+                }
+              ]
+            },
+            "description": "q pesquisa placa e tipo. includeInactive=true só para ADMIN e FLEET_MANAGER."
+          }
+        },
+        {
+          "name": "Reativar veículo",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/vehicles/{{vehicleId}}/reactivate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "vehicles",
+                "{{vehicleId}}",
+                "reactivate"
+              ]
+            },
+            "description": "Mantém o status que tinha e não recebe motorista de volta."
           }
         },
         {
@@ -1211,6 +1559,52 @@
                 "places"
               ]
             }
+          }
+        },
+        {
+          "name": "Buscar lugares (q, inativos)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/places?q=depósito&includeInactive=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "places"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "depósito"
+                },
+                {
+                  "key": "includeInactive",
+                  "value": "true"
+                }
+              ]
+            },
+            "description": "q pesquisa nome e endereço. Só lugares da equipe. includeInactive=true só para ADMIN e DISPATCHER."
+          }
+        },
+        {
+          "name": "Reativar lugar",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/places/{{placeId}}/reactivate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "places",
+                "{{placeId}}",
+                "reactivate"
+              ]
+            },
+            "description": "Só lugar da equipe. Lugar de cliente responde 404."
           }
         },
         {
@@ -1389,6 +1783,198 @@
                 "{{placeId}}"
               ]
             }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Meus endereços (CUSTOMER)",
+      "item": [
+        {
+          "name": "Criar endereço",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/customer/places",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "customer",
+                "places"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Casa\",\n  \"address\": \"Rua C, 30\",\n  \"lat\": -24.87,\n  \"lng\": -54.33\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Usa o token do cliente (customerToken). O endereço fica só com ele."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.publicId) pm.collectionVariables.set('customerPlaceId', body.publicId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar meus endereços",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/customer/places?q=Casa&limit=20&offset=0",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "customer",
+                "places"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "Casa"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Só os do cliente logado, sem os inativos."
+          }
+        },
+        {
+          "name": "Detalhar endereço",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/customer/places/{{customerPlaceId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "customer",
+                "places",
+                "{{customerPlaceId}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Lugar de outro cliente ou da equipe responde 404."
+          }
+        },
+        {
+          "name": "Atualizar endereço",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/customer/places/{{customerPlaceId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "customer",
+                "places",
+                "{{customerPlaceId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Casa\",\n  \"address\": \"Rua C, 31\",\n  \"lat\": -24.87,\n  \"lng\": -54.33\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Responde 409 RESOURCE_IN_USE se o endereço estiver em pedido não terminal."
+          }
+        },
+        {
+          "name": "Desativar endereço",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/customer/places/{{customerPlaceId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "customer",
+                "places",
+                "{{customerPlaceId}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Soft delete. Pedidos já criados continuam apontando para o lugar."
           }
         }
       ]
@@ -1935,7 +2521,17 @@
                 }
               ]
             },
-            "description": "Pedidos ativos (inclui CREATED), atenção (falhas no período e pedidos parados), resumo e últimas entregas. Bearer de um CUSTOMER (o {{token}} da coleção precisa ser de um cliente). period: today (padrão), 7d, 15d ou 1m. Fora disso responde 400."
+            "description": "Pedidos ativos (inclui CREATED), atenção (falhas no período e pedidos parados), resumo e últimas entregas. Bearer de um CUSTOMER (o {{token}} da coleção precisa ser de um cliente). period: today (padrão), 7d, 15d ou 1m. Fora disso responde 400.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         },
         {

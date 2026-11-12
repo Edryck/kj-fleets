@@ -58,6 +58,8 @@ Nada de segredo no repositório: o `application.properties` lê tudo de variáve
 - Roteirização: `ROUTING_MODE`, `ROUTING_DETOUR_FACTOR`, `ROUTING_AVG_SPEED_KMH`, `ROUTING_ARRIVAL_RADIUS_M` (raio para concluir parada, padrão 200), `ROUTING_POSITION_MAX_AGE_S` (idade máxima da posição do motorista, padrão 300), `ROUTING_GRAPH_NODES`, `ROUTING_GRAPH_EDGES` (os dois últimos só no modo `road`, subprojeto 6)
 - Dashboard: `DASHBOARD_TIMEZONE` (padrão `America/Sao_Paulo`), `DASHBOARD_STALE_UNASSIGNED_MIN` (30), `DASHBOARD_STALE_ASSIGNED_MIN` (15), `DASHBOARD_STALE_DISPATCHED_MIN` (15), `DASHBOARD_STALE_ENROUTE_MIN` (60), `DASHBOARD_STALE_ARRIVED_MIN` (20), `DASHBOARD_STALE_IN_PROGRESS_MIN` (90) e `DASHBOARD_MAINTENANCE_ALERT_DAYS` (7). Limites de parado: 1 a 1440 min; dias de manutenção: 1 a 365
 - WebSocket: `WS_LOCATION_MIN_INTERVAL_S` (5, de 1 a 300 s) e `WS_LOCATION_MIN_DISTANCE_M` (20, de 0 a 1000 m): throttle de posição por motorista. Valor fora da faixa impede a aplicação de subir.
+- CORS: `CORS_ALLOWED_ORIGINS` (origens separadas por vírgula). Vazio (padrão) = nenhuma origem cruzada no REST. Sem credenciais: o front manda o JWT no header `Authorization`. O `/ws` tem regra própria (ver WebSocket). Em dev o front usa o proxy do Vite e não precisa disto.
+
 ## Decisões de modelagem
 
 - Chave primária `UUID` + `publicId` legível (ex.: `order_x7k2m9`), como no Fleetbase. A API só expõe o `publicId`.
@@ -95,8 +97,13 @@ Criar um motorista (`POST /drivers`) cria também o `AppUser` com role DRIVER (u
 
 ### Regras dos cadastros
 
-- **Exclusão é soft delete:** `DELETE` marca `active = false` em motorista, veículo, frota e lugar. Inativo some das listagens e responde 404 em `GET`, `PUT` e `DELETE`. Não há reativação nesta fundação.
-- **Username e placa continuam ocupados** depois da desativação: o username do motorista desativado e a placa do veículo desativado não podem ser reaproveitados (409 `USERNAME_TAKEN` e `PLATE_TAKEN`).
+- **Exclusão é soft delete:** `DELETE` marca `active = false` em motorista, veículo, frota e lugar. Inativo some das listagens (salvo `includeInactive=true`) e responde 404 em `GET`, `PUT` e `DELETE`.
+- **Reativação:** `POST /drivers/{id}/reactivate`, `POST /vehicles/{id}/reactivate` e `POST /places/{id}/reactivate` (este só para lugar da equipe). Já ativo responde 200 sem mudar nada. O motorista volta `OFFLINE`, com usuário ativo, **sem veículo e sem frotas** (o que saiu na desativação não volta). O veículo volta com o status que tinha (um `MAINTENANCE` continua `MAINTENANCE`) e sem motorista. Motorista e veículo ganham linha no histórico de status com motivo `reactivate`.
+- **Username e placa continuam ocupados** depois da desativação: o username do motorista desativado e a placa do veículo desativado não podem ser reaproveitados (409 `USERNAME_TAKEN` e `PLATE_TAKEN`). Por isso a reativação não encontra colisão pela API; o check de placa na reativação do veículo é só salvaguarda.
+- **Lugares têm dono opcional** (`places.customer_id`). Lugar sem dono é da equipe: aparece em `GET /places` e é editado por ADMIN e DISPATCHER. Lugar com dono é do cliente: só aparece em `/customer/places`, e só o dono o vê ou edita (para os outros, 404).
+- Cliente cria lugar em `/customer/places` ou inline no pedido (lugar novo): o lugar inline é dele. Lugar novo criado pela equipe no pedido é da equipe.
+- No pedido, o cliente usa `placeId` dos próprios lugares ou dos da equipe. Lugar de outro cliente responde 404 (`NOT_FOUND`).
+- Editar lugar do cliente usado por pedido não terminal (de `CREATED` a `IN_PROGRESS`) responde 409 `RESOURCE_IN_USE`. Desativar sempre pode (soft delete); pedidos já criados continuam apontando para o lugar.
 - **Normalização:** username vira minúsculo, placa vira maiúscula, e os dois perdem espaços nas bordas. O login também normaliza o username.
 - **Motorista nasce `OFFLINE`.** `BUSY` é definido pelas rotas, não à mão: `PUT` com `BUSY` responde 400. Motorista `BUSY` não muda de status nem pode ser removido (409 `RESOURCE_IN_USE`).
 - **Vínculo motorista-veículo:** `vehicleId` é opcional. Veículo inativo, em `MAINTENANCE` ou já vinculado a outro motorista responde 409 `RESOURCE_IN_USE`. Excluir motorista o tira das frotas; excluir veículo solta o vínculo do motorista.
@@ -184,15 +191,24 @@ Listagens paginadas por `limit` e `offset`: padrão 20, máximo 100 (acima disso
 { "items": [], "total": 0, "limit": 20, "offset": 0 }
 ```
 
+**Busca (`q`)** nas listagens de pedidos, motoristas, veículos, lugares e clientes: texto literal, sem diferenciar maiúsculas. `%`, `_` e `\` valem como caractere comum, não como curinga. Depois de aparar espaços, até 100 caracteres (mais que isso responde 400 `VALIDATION_ERROR`; a busca de clientes não aplica esse limite). `q` vazio não filtra. Campos pesquisados: pedido (código de rastreio, nome da origem e do destino), motorista (nome, username e CNH), veículo (placa e tipo), lugar (nome e endereço) e cliente (nome e e-mail).
+
+**Ordenação de pedidos**: `sort` aceita `createdAt` (padrão) ou `status`, e `dir` aceita `asc` ou `desc` (padrão `desc`). O desempate é sempre `createdAt` e `publicId`, em ordem decrescente. `sort=status` ordena pelo texto do enum, não pela ordem do fluxo.
+
 **Auth e usuários**
 - `POST /auth/register`: cadastro público de CUSTOMER
 - `POST /auth/login`: devolve o JWT (recusa motorista e usuário inativo com 401)
+- `GET /me`: usuário logado. `publicId` é o do cliente (CUSTOMER) ou o do usuário (`usr_...`) para a equipe; `name`, `email` e `phone` vêm só para CUSTOMER
+- `PUT /me/password`: troca a senha (`currentPassword` e `newPassword`, com 8 ou mais caracteres). Responde 204; senha atual errada responde 400 `VALIDATION_ERROR`
 - `POST /users`: cria ADMIN, DISPATCHER ou FLEET_MANAGER (só ADMIN). Motorista nasce em `POST /drivers` e cliente em `POST /auth/register`
-- `GET /users`: lista todos os usuários, inclusive inativos (campo `active`), ordenados por username (só ADMIN)
+- `GET /users`: lista todos os usuários, inclusive inativos (campo `active`), ordenados por username, com `publicId` (só ADMIN)
+- `PUT /users/{id}`: troca o papel (ADMIN, DISPATCHER ou FLEET_MANAGER). Só ADMIN
+- `POST /users/{id}/deactivate` e `POST /users/{id}/reactivate`: desativa ou reativa (204, idempotente). Só ADMIN
+
 
 **Pedidos**
 - `POST /orders`: cria pedido (equipe ou cliente)
-- `GET /orders`: paginado, filtros `status` (repetível), `driverId`, `customerId`, `active=true`, `from` e `to` (ISO-8601 sobre `createdAt`). Cliente vê só os seus e ignora `driverId` e `customerId`
+- `GET /orders`: paginado, filtros `status` (repetível), `driverId`, `customerId`, `active=true`, `from` e `to` (ISO-8601 sobre `createdAt`), `q`, `sort` e `dir` (ver Busca e Ordenação acima). Cliente vê só os seus e ignora `driverId` e `customerId`
 - `GET /orders/{id}`: detalhe
 - `GET /orders/{id}/tracking`: histórico
 - `POST /orders/{id}/assign`: motorista (+ veículo opcional), só em `CREATED`; o motorista pode estar em vários pedidos `CREATED`
@@ -206,6 +222,11 @@ Listagens paginadas por `limit` e `offset`: padrão 20, máximo 100 (acima disso
 
 **Clientes**
 - `GET /customers`: paginado, filtro `q` (nome ou e-mail, sem diferenciar maiúsculas). Só leitura (ADMIN, DISPATCHER, FLEET_MANAGER)
+- `GET /customers/{id}`: detalhe, só leitura, com o mesmo acesso da listagem
+
+**Meus endereços (CUSTOMER)**
+- `GET /customer/places`: paginado, filtro `q`, só os lugares do cliente logado (inativos ficam de fora)
+- `POST /customer/places`, `GET /customer/places/{id}`, `PUT /customer/places/{id}` e `DELETE /customer/places/{id}` (soft delete)
 
 **Rastreio público**
 - `GET /track/{trackingNumber}`: status, `createdAt`, `finishedAt`, linha do tempo (sem `assigned`, `unassigned`, `stop_completed` e `route_failed`) e `etaMinutes` vivo (`null` sem rota ou em pedido terminal). Sem dados pessoais, coordenadas, `details` nem `reason`
@@ -223,7 +244,9 @@ Listagens paginadas por `limit` e `offset`: padrão 20, máximo 100 (acima disso
 - `POST /driver/location`: ping de posição
 
 **Cadastros (CRUD: `GET`, `GET /{id}`, `POST`, `PUT /{id}`, `DELETE /{id}`)**
-- `/drivers`, `/vehicles`, `/places`, `/fleets`
+- `/drivers`, `/vehicles`, `/places`, `/fleets`. `GET /drivers` aceita `q` e `status` (`AVAILABLE`, `BUSY`, `OFFLINE`); `GET /vehicles` aceita `q` e `status` (`AVAILABLE`, `IN_USE`, `MAINTENANCE`); `GET /places` aceita `q`. Todos aceitam `includeInactive`. Status inválido responde 400. As respostas trazem `active`; o motorista traz `fleets` (`publicId` e `name`) e o veículo traz `driverName`
+- `includeInactive=true`: em motorista e veículo só ADMIN e FLEET_MANAGER; em lugar só ADMIN e DISPATCHER. Outro papel responde 403
+- Reativação: `POST /drivers/{id}/reactivate`, `POST /vehicles/{id}/reactivate` e `POST /places/{id}/reactivate` (ver Regras dos cadastros)
 - `GET /drivers/nearest`: motoristas `AVAILABLE` por distância (`lat`, `lng`, `limit`). `limit` padrão 5, máximo 20 (acima disso vira 20), `< 1` responde 400
 
 **Erros**
@@ -255,18 +278,21 @@ Mesmo formato em todas as respostas de erro: `{ "status", "code", "message", "ti
 
 | Recurso | ADMIN | DISPATCHER | FLEET_MANAGER | CUSTOMER | DRIVER |
 |---|---|---|---|---|---|
-| `/users` | sim | não | não | não | não |
-| Criar pedido | sim | sim | não | sim | não |
+| `/users/**` (listar, criar, editar papel, desativar e reativar) | sim | não | não | não | não |
+| `/me` e `/me/password` | sim | sim | sim | sim | não |
+| Criar pedido (cliente usa lugares próprios ou da equipe) | sim | sim | não | sim | não |
 | Listar, detalhar e ver histórico de pedidos | sim | sim | sim | só os próprios | não |
-| `GET /customers` | sim | sim | sim | não | não |
+| `GET /customers` e `GET /customers/{id}` | sim | sim | sim | não | não |
+| `/customer/places` (meus endereços) | não | não | não | sim | não |
 | Ver a rota gravada do pedido | sim | sim | sim | não | não |
 | Concluir parada da rota (`POST /orders/{id}/stops/{seq}/complete`) | sim | sim | não | não | não |
 | Atribuir, despachar, avançar, POD e calcular a rota do pedido | sim | sim | não | não | não |
 | Cancelar pedido | sim | sim | não | o próprio, só em `CREATED` | não |
 | API do motorista `/driver/**` | não | não | não | não | só os atribuídos a ele (e os sem motorista, em `?available=true`) |
 | Motoristas, veículos e frotas (CRUD) | sim | só leitura | sim | não | não |
+| Reativar motorista ou veículo, e `includeInactive=true` em `/drivers` e `/vehicles` | sim | não | sim | não | não |
 | `GET /drivers/nearest` | sim | sim | sim | não | não |
-| Lugares (CRUD) | sim | sim | só leitura | não | não |
+| Lugares (CRUD, reativar e `includeInactive=true`) | sim | sim | só leitura (sem `includeInactive`) | não | não |
 | `POST /dispatch/plan` e `POST /routes/optimize` | sim | sim | não | não | não |
 | `GET /graph/shortest-path` | sim | sim | sim | não | não |
 | `POST /graph/import` | sim | não | não | não | não |
@@ -288,6 +314,15 @@ Mesmo formato em todas as respostas de erro: `{ "status", "code", "message", "ti
 - **Basic Auth:** só em `/driver/**`, com o username e a senha do motorista (BCrypt). O motorista é identificado pelo principal autenticado, nunca por id na URL.
 - O primeiro ADMIN é criado no startup a partir de `ADMIN_USERNAME` e `ADMIN_PASSWORD`, se ainda não existir nenhum usuário.
 - Segredo do JWT e credenciais do banco em variáveis de ambiente, nunca no repositório.
+
+### Perfil e usuários
+
+- `/me` e `/me/password` exigem JWT (o motorista não tem). Trocar a senha não derruba os tokens já emitidos: eles seguem válidos até expirar (sem revogação).
+- Só ADMIN **ativo** administra usuários. Usuário desativado leva 401 na próxima requisição (o `JwtFilter` nem o autentica); quem foi rebaixado leva 403 pela checagem de papel. A checagem interna de ADMIN ativo (403) cobre só a corrida entre duas mudanças.
+- Papel e desativação valem na próxima requisição: o `JwtFilter` relê o usuário (papel e `active`) do banco a cada chamada, e o STOMP relê no `SUBSCRIBE`. O papel dentro de um token antigo fica desatualizado, mas não é usado para autorizar.
+- CUSTOMER e DRIVER são geridos pelos próprios cadastros: como alvo ou como novo papel de `PUT /users/{id}`, respondem 400.
+- ADMIN não rebaixa nem desativa a si mesmo (409 `RESOURCE_IN_USE`). Como quem age é um ADMIN ativo que não pode tirar o próprio cargo, sempre sobra pelo menos um ADMIN ativo. As mutações travam os ADMINs ativos (ordem por id) antes de decidir, para duas mudanças simultâneas não zerarem a lista.
+
 ## WebSocket
 
 STOMP sobre WebSocket puro (sem SockJS) no endpoint `/ws`. O broker é simples e em memória, com destinos em `/topic`: uma instância só. O motorista não usa WebSocket; ele só envia posição por REST.
@@ -349,15 +384,15 @@ Somente leitura. Há dois tipos de consulta: **tópicos** (um número ou uma lis
 - `from` é o início do dia no fuso `DASHBOARD_TIMEZONE` e `to` é o instante da consulta. `7d` e `15d` contam o dia de hoje. `1m` são 30 dias corridos, não o mês civil.
 - `compare=true` em `/dashboard/orders/summary` (só ADMIN) devolve `previous`: a janela de mesmo tamanho logo antes de `from`.
 - Toda resposta traz `meta` (`generatedAt`, `timezone`, `period`, `from`, `to`). Blocos "agora" (fila, funil, frota, alertas) não têm janela: `period` vira `now` e `from` e `to` ficam nulos.
-- Taxas vêm como `{ "rate", "n" }`. `rate` é nulo quando `n` é 0, para não parecer 0%.
+- Taxas vêm como `{ "rate", "n" }`. `rate` vai de 0 a 1 (0,25 = 25%) e é nulo quando `n` é 0, para não parecer 0%.
 
 ### Tópicos
 
 - `GET /dashboard/orders/summary` (`period`, `compare`): pedidos criados no período e por status; cancelamentos por autor (cliente, equipe ou desconhecido); `successRate`, `failureRate` e `cancelRate` sobre os pedidos que terminaram; top 5 motivos de falha; espera média (criação até despacho) e ciclo médio (despacho até conclusão); `podRate` (só ADMIN).
 - `GET /dashboard/orders/funnel`: pedidos ativos por etapa e quantos estão parados em cada uma. As etapas são `UNASSIGNED` (criado, sem motorista), `ASSIGNED` (criado, com motorista), `DISPATCHED`, `DRIVER_ENROUTE`, `ARRIVED` e `IN_PROGRESS`.
 - `GET /dashboard/dispatch/queue`: quatro listas com total, até 50 itens cada: sem motorista, atribuídos sem despacho, em andamento (com ETA vivo e paradas concluídas de total) e parados.
-- `GET /dashboard/fleet/status` (`fleetId`, opcional, no formato `fleet_xxxxxx`): motoristas e veículos por status, pedidos esperando e motoristas disponíveis com posição recente. DISPATCHER não recebe `drivers` (lista completa). Frota inexistente responde 404.
-- `GET /dashboard/drivers/performance` (`period`, `fleetId`): por motorista, concluídos, falhos, taxa de sucesso, pedidos, despacho até chegada (média em minutos) e `busyPct` (tempo em `BUSY` sobre o tempo em `AVAILABLE` mais `BUSY`, no período). `idleDriverIds` lista quem não concluiu nada.
+- `GET /dashboard/fleet/status` (`fleetId`, opcional, no formato `fleet_xxxxxx`): motoristas e veículos por status, pedidos esperando e motoristas disponíveis com posição recente. DISPATCHER não recebe `drivers` (lista completa). Frota inexistente responde 404. As linhas de motorista (`DriverRow`) trazem `lat` e `lng` para o mapa inicial, nulos sem posição.
+- `GET /dashboard/drivers/performance` (`period`, `fleetId`): por motorista, concluídos, falhos, taxa de sucesso, pedidos, despacho até chegada (média em minutos) e `busyPct` (tempo em `BUSY` sobre o tempo em `AVAILABLE` mais `BUSY`, no período, de 0 a 100). `idleDriverIds` lista quem não concluiu nada.
 - `GET /dashboard/routing/savings` (`period`): rotas concluídas, km planejados e de base, km economizados, economia média no total e por algoritmo, e `batchDispatchPct` (percentual de despachos em lote).
 - `GET /dashboard/trends/yearly`: 13 meses (12 fechados e o atual) no fuso do painel, zerados quando vazios. `byDriver` traz os concluídos por motorista e mês, de todos os motoristas (inclusive desativados), sem filtro de frota. Cliente recebe só contagens e taxa de sucesso, sem km, economia, ciclo nem motorista.
 - `GET /dashboard/alerts`: alertas do perfil (ver abaixo).
@@ -436,6 +471,10 @@ ADMIN recebe contagem e lista dos 8 tipos. DISPATCHER e FLEET_MANAGER veem conta
 | Sem replay no socket | O estado é sempre o do banco; reconectar é recarregar por REST | Evento perdido numa queda não volta |
 | Publicar só depois do commit | Rollback nunca chega ao socket | Se o envio falhar, só há log (sem outbox) |
 | Expiração por varredura de 30 s | Não valida o token a cada mensagem | Sessão pode durar até 30 s além do `exp` |
+| Lugar com dono opcional (`places.customer_id`) em vez de só compartilhado | O cliente cadastra e edita os próprios endereços sem poluir nem alterar o cadastro da equipe | Duas visões da mesma tabela; toda consulta filtra pelo dono e o lugar alheio responde 404 |
+| Busca literal com `ILIKE`/`LIKE` sobre `lower()` (`q`), sem índice | Simples, sem extensão do Postgres e sem curinga surpresa (`%`, `_` e `\` são literais) | Varredura completa da tabela a cada busca; aceito na escala do projeto (`pg_trgm` fica para depois) |
+| Sem revogação de token na troca de senha ou desativação | Evita lista de tokens revogados; o `JwtFilter` e o STOMP relêem papel e `active` do banco a cada requisição, então desativar e rebaixar valem na hora | Token antigo continua válido até expirar depois de trocar a senha; custa uma consulta por requisição |
+| Nome reservado enquanto o cadastro está inativo (`username`, `plate`) | Reativar nunca colide e o histórico mantém a identidade | O nome de quem foi desativado não pode ser reaproveitado por outro cadastro |
 | Origem `*` no endpoint | A auth é o token no `CONNECT`, não cookie | A origem não protege nada; depende do token |
 
 ## Fonte das regras

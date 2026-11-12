@@ -35,3 +35,27 @@ flowchart LR
     C --> D["Ordena por distância e aplica limit (padrão 5, máximo 20)"]
     D --> E["200 com lista e distanceKm"]
 ```
+
+## 28. Reativação de motorista e veículo
+
+```mermaid
+sequenceDiagram
+    actor E as ADMIN ou FLEET_MANAGER (JWT)
+    participant C as DriverController
+    participant S as DriverService
+    participant DB as PostgreSQL
+
+    E->>C: POST /drivers/{id}/reactivate
+    C->>S: reactivate(publicId)
+    S->>DB: trava o motorista (PESSIMISTIC_WRITE)
+    alt motorista não existe
+        S-->>E: 404 NOT_FOUND
+    else já está ativo
+        S-->>E: 200 sem mudança
+    else inativo
+        S->>DB: active = true (motorista e usuário), status OFFLINE e linha de histórico reactivate
+        S-->>E: 200 com o motorista
+    end
+```
+
+O motorista volta `OFFLINE`, sem veículo e sem frotas. O veículo segue a mesma ideia com `POST /vehicles/{id}/reactivate`, mas mantém o status que tinha e não recebe motorista de volta. A reativação não colide com outro cadastro, porque `username` e `plate` continuam reservados enquanto o cadastro está inativo.

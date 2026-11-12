@@ -28,9 +28,11 @@ erDiagram
     PLACES |o--o{ ROUTE_STOPS : "local"
     ROAD_NODES ||--o{ ROAD_EDGES : "from_node"
     ROAD_NODES ||--o{ ROAD_EDGES : "to_node"
+    CUSTOMERS |o--o{ PLACES : "lugares próprios"
 
     USERS {
         uuid id PK
+        string public_id UK
         string username UK
         string password_hash
         string role
@@ -112,6 +114,7 @@ erDiagram
     PLACES {
         uuid id PK
         string public_id UK
+        uuid customer_id FK
         uuid contact_id FK
         string name
         string address
@@ -202,11 +205,11 @@ erDiagram
 
 ### Tabelas
 
-Motorista, veículo, frota e lugar são excluídos por soft delete: a coluna `active` vira `false` e o registro some das listagens. A linha continua no banco, então o `username` do motorista e a `plate` do veículo seguem ocupados. Não há reativação nesta fundação.
+Motorista, veículo, frota e lugar são excluídos por soft delete: a coluna `active` vira `false` e o registro some das listagens. A linha continua no banco, então o `username` do motorista e a `plate` do veículo seguem ocupados. Motorista, veículo e lugar podem ser reativados (`POST .../reactivate`): o motorista volta `OFFLINE` e sem veículo nem frotas.
 
 | Tabela | Observações |
 |---|---|
-| `users` | Todos os perfis na mesma tabela. `password_hash` em BCrypt. O primeiro ADMIN vem das variáveis de ambiente. |
+| `users` | Todos os perfis na mesma tabela. `public_id` (`usr_...`) é único; a coluna nasceu anulável, o startup preenche os antigos e o código passa a exigir. `password_hash` em BCrypt. O primeiro ADMIN vem das variáveis de ambiente. `active = false` bloqueia login e REST e STOMP na próxima requisição. |
 | `customers` | 1:1 com `users` (role `CUSTOMER`). Criado em `POST /auth/register`. Lista só leitura em `GET /customers`. |
 | `drivers` | 1:1 com `users` (role `DRIVER`), criado em `POST /drivers`. `vehicle_id` é único: um veículo por motorista e vice-versa `*`. `lat`, `lng` e `last_seen_at` guardam só a última posição. |
 | `vehicles` | `plate` único. |
@@ -215,7 +218,7 @@ Motorista, veículo, frota e lugar são excluídos por soft delete: a coluna `ac
 | `payloads` | 1:1 com `orders` e **imutável** depois da criação. Exige `pickup_id` e `dropoff_id`. |
 | `payload_waypoints` | Paradas intermediárias na ordem de cadastro (`position`), no máximo 50 por payload. Chave `(payload_id, position)`. |
 | `payload_items` | Itens transportados `*`: `name`, `quantity` e `position` (ordem de cadastro). No máximo 100 por payload. A FK `payload_id` fica aqui (relação unidirecional a partir de `payloads`). |
-| `places` | Local reutilizável. Lugar novo criado dentro de um pedido também vira linha aqui. `contact_id` é opcional. |
+| `places` | Local reutilizável. Lugar novo criado dentro de um pedido também vira linha aqui. `contact_id` é opcional. `customer_id` é opcional: nulo = lugar da equipe (listado em `/places`); preenchido = lugar do cliente (só em `/customer/places`, e usável nos pedidos dele). |
 | `contacts` | Pessoa de contato de um local. |
 | `tracking_statuses` | Uma linha por evento, **inclusive a criação**. `status` é o estado do pedido depois do evento; `code` é o evento em texto, minúsculas (lista em [ARCHITECTURE.md](../ARCHITECTURE.md#fluxo-e-regras-do-pedido)). Nunca é alterada nem apagada. Guarda a posição quando houver. `actor_username` e `actor_role` dizem quem gerou o evento (nulos em eventos do sistema). |
 | `status_changes` | Histórico de status de motorista e de veículo (`subject_type` escolhe a tabela de `subject_id`, sem FK). `changed_by` é o username ou `system`. Na subida da aplicação, quem ainda não tem histórico ganha uma linha `baseline` com o status atual. Excluir grava uma linha `delete` com `from_status` igual a `to_status`. É lida pelo painel de desempenho (tempo em `BUSY`) e pelos alertas de status e de manutenção. |
@@ -226,8 +229,8 @@ Motorista, veículo, frota e lugar são excluídos por soft delete: a coluna `ac
 
 ### Índices e restrições
 
-- Índices de desempenho: `orders(status)`, `orders(created_at)`, `orders(finished_at)`, `orders(status, created_at)`, `orders(driver_id, finished_at)`, `tracking_statuses(order_id, created_at)`, `status_changes(subject_type, subject_id, changed_at)`, `drivers(status)`, `routes(computed_at)`, `road_edges(from_node)` (subprojeto 6).
-- Únicos: `users.username`, `orders.public_id`, `orders.tracking_number`, `routes.order_id`, `vehicles.plate`, `drivers.vehicle_id`, `drivers.user_id`, `customers.user_id`, `payloads.order_id`.
+- Índices de desempenho: `orders(status)`, `orders(created_at)`, `orders(finished_at)`, `orders(status, created_at)`, `orders(driver_id, finished_at)`, `tracking_statuses(order_id, created_at)`, `status_changes(subject_type, subject_id, changed_at)`, `drivers(status)`, `routes(computed_at)`, `places(customer_id)` (`idx_places_customer`), `road_edges(from_node)` (subprojeto 6).
+- Únicos: `users.username`, `users.public_id`, `orders.public_id`, `orders.tracking_number`, `routes.order_id`, `vehicles.plate`, `drivers.vehicle_id`, `drivers.user_id`, `customers.user_id`, `payloads.order_id`.
 - Chaves estrangeiras sem `ON DELETE CASCADE` nos dados de pedido: o histórico não é apagado. Excluir motorista ou veículo com pedidos associados deve falhar (ou desativar em vez de excluir).
 
 ### Regras que o banco não garante sozinho

@@ -37,7 +37,7 @@ sequenceDiagram
         S-->>U: 422 ORDER_PAYLOAD_INCOMPLETE
     else mais de 50 waypoints, ponto com placeId e lugar novo juntos (ou nenhum), ou campo inválido
         S-->>U: 400
-    else placeId ou customerId inexistente ou inativo
+    else placeId inexistente, inativo ou de outro cliente, ou customerId inexistente ou inativo
         S-->>U: 404
     else payload válido
         S->>DB: INSERT place para cada lugar novo
@@ -54,7 +54,7 @@ sequenceDiagram
     end
 ```
 
-Lugares criados no pedido viram `Place` comum e aparecem em `GET /places`. A equipe acha o `customerId` em `GET /customers` (só leitura).
+Lugar novo criado pela equipe no pedido vira lugar da equipe e aparece em `GET /places`. Lugar novo criado pelo cliente é dele (fluxo 27, em [flow-lugares.md](flow-lugares.md)). A equipe acha o `customerId` em `GET /customers` (só leitura).
 
 ### Códigos do histórico (`tracking_status.code`)
 
