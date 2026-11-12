@@ -275,6 +275,30 @@ class DashboardPanelsTest extends IntegrationTest {
     }
 
     @Test
+    void driverPodPendingFollowsProof() throws Exception {
+        Driver driver = newDriver();
+        String required = fixtures.createOrder(bearer(Role.DISPATCHER));
+        jdbc.update("UPDATE orders SET pod_required = true WHERE public_id = ?", required);
+        assign(required, driver);
+        dispatch(required);
+        for (String code : List.of("DRIVER_ENROUTE", "ARRIVED", "IN_PROGRESS")) {
+            activity(required, driver, code);
+        }
+        assertTrue(driverPanel(driver).get("activeOrder").get("podPending").asBoolean());
+
+        mvc.perform(post("/driver/orders/" + required + "/pod").with(httpBasic(driver.username(), PASSWORD))
+                .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of("value", "ok"))))
+                .andExpect(status().isOk());
+        assertFalse(driverPanel(driver).get("activeOrder").get("podPending").asBoolean());
+
+        Driver other = newDriver();
+        String optional = fixtures.createOrder(bearer(Role.DISPATCHER));
+        assign(optional, other);
+        dispatch(optional);
+        assertFalse(driverPanel(other).get("activeOrder").get("podPending").asBoolean());
+    }
+
+    @Test
     void rolePermissionsMatrix() throws Exception {
         Customer customer = registerCustomer();
         Map<String, List<Role>> allowed = Map.of(
