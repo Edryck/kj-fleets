@@ -9,6 +9,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
@@ -24,7 +25,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Entity
-@Table(name = "routes")
+@Table(name = "routes", indexes = @Index(columnList = "computed_at"))
 @Getter
 @Setter
 @NoArgsConstructor

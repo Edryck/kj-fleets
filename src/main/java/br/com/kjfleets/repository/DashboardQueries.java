@@ -1,7 +1,14 @@
 package br.com.kjfleets.repository;
 
 import br.com.kjfleets.config.DashboardProperties;
+import br.com.kjfleets.dto.DashboardDtos.AlgorithmSavings;
+import br.com.kjfleets.dto.DashboardDtos.DriverMonth;
+import br.com.kjfleets.dto.DashboardDtos.DriverPerformance;
 import br.com.kjfleets.dto.DashboardDtos.DriverRow;
+import br.com.kjfleets.dto.DashboardDtos.DriversPerformance;
+import br.com.kjfleets.dto.DashboardDtos.MonthPoint;
+import br.com.kjfleets.dto.DashboardDtos.Rate;
+import br.com.kjfleets.dto.DashboardDtos.RoutingSavings;
 import br.com.kjfleets.dto.DashboardDtos.QueueItem;
 import br.com.kjfleets.dto.DashboardDtos.ReasonCount;
 import br.com.kjfleets.dto.DashboardDtos.StaleOrder;
@@ -221,5 +228,114 @@ public class DashboardQueries {
                     rs.getString("plate"), rs.getString("vehicle_status"), rs.getString("active_order"),
                     rs.getLong("queue_size"), seen == null ? null : seen.toInstant(), rs.getBoolean("ping_stale"));
         });
+    }
+
+    // tempo BUSY / (AVAILABLE + BUSY) do status_changes, cortado em [from, to]; a última linha antes de from
+    // entra como estado inicial porque o intervalo dela é recortado em from
+    public DriversPerformance driversPerformance(DashboardPeriod period, UUID fleetId) {
+        String sql = "WITH ord AS ("
+                + "  SELECT o.driver_id,"
+                + "   count(*) FILTER (WHERE o.status = 'COMPLETED' AND o.finished_at >= :from AND o.finished_at < :to) AS completed,"
+                + "   count(*) FILTER (WHERE o.status = 'FAILED' AND o.finished_at >= :from AND o.finished_at < :to) AS failed,"
+                + "   count(*) FILTER (WHERE o.dispatched_at >= :from AND o.dispatched_at < :to) AS orders"
+                + "  FROM orders o WHERE o.driver_id IS NOT NULL AND (o.finished_at >= :from OR o.dispatched_at >= :from)"
+                + "  GROUP BY o.driver_id),"
+                + " disp AS ("
+                + "  SELECT o.driver_id, avg(extract(epoch FROM a.t - d.t) / 60) AS minutes"
+                + "  FROM orders o"
+                + "  JOIN LATERAL (SELECT max(t.created_at) AS t FROM tracking_statuses t"
+                + "   WHERE t.order_id = o.id AND t.code = 'dispatched') d ON true"
+                + "  JOIN LATERAL (SELECT min(t.created_at) AS t FROM tracking_statuses t"
+                + "   WHERE t.order_id = o.id AND t.code = 'arrived' AND t.created_at >= d.t) a ON true"
+                + "  WHERE o.driver_id IS NOT NULL AND (o.finished_at >= :from OR o.finished_at IS NULL) AND a.t >= :from AND a.t < :to GROUP BY o.driver_id),"
+                + " spans AS ("
+                + "  SELECT s.subject_id, s.to_status, extract(epoch FROM (LEAST(COALESCE(s.next_at, :to), :to)"
+                + "   - GREATEST(s.changed_at, :from))) AS secs"
+                + "  FROM (SELECT c.subject_id, c.to_status, c.changed_at,"
+                + "   LEAD(c.changed_at) OVER (PARTITION BY c.subject_id ORDER BY c.changed_at, c.id) AS next_at"
+                + "   FROM status_changes c WHERE c.subject_type = 'DRIVER' AND c.changed_at < :to) s),"
+                + " busy AS ("
+                + "  SELECT subject_id,"
+                + "   sum(secs) FILTER (WHERE to_status = 'BUSY') AS busy_secs,"
+                + "   sum(secs) FILTER (WHERE to_status IN ('AVAILABLE', 'BUSY')) AS working_secs"
+                + "  FROM spans WHERE secs > 0 GROUP BY subject_id)"
+                + " SELECT d.public_id, d.name, COALESCE(ord.completed, 0) AS completed, COALESCE(ord.failed, 0) AS failed,"
+                + " COALESCE(ord.orders, 0) AS orders, disp.minutes,"
+                + " round(busy.busy_secs / NULLIF(busy.working_secs, 0) * 100, 1) AS busy_pct"
+                + " FROM drivers d LEFT JOIN ord ON ord.driver_id = d.id LEFT JOIN disp ON disp.driver_id = d.id"
+                + " LEFT JOIN busy ON busy.subject_id = d.id"
+                + " WHERE d.active" + driverFleetFilter(fleetId)
+                + " ORDER BY completed DESC, d.name, d.public_id";
+        MapSqlParameterSource params = window(period, null).addValue("fleetId", fleetId);
+        List<DriverPerformance> drivers = jdbc.query(sql, params, (rs, i) -> new DriverPerformance(
+                rs.getString("public_id"), rs.getString("name"), rs.getLong("completed"), rs.getLong("failed"),
+                Rate.of(rs.getLong("completed"), rs.getLong("completed") + rs.getLong("failed")),
+                minutes(rs.getBigDecimal("minutes")), minutes(rs.getBigDecimal("busy_pct")), rs.getLong("orders")));
+        List<String> idle = drivers.stream().filter(d -> d.completed() == 0).map(DriverPerformance::driverId).toList();
+        return new DriversPerformance(period.meta(Instant.now()), drivers, idle);
+    }
+
+    public RoutingSavings routingSavings(DashboardPeriod period) {
+        MapSqlParameterSource params = window(period, null);
+        Map<String, AlgorithmSavings> byAlgorithm = new LinkedHashMap<>();
+        double[] totals = new double[4]; // rotas, planejado, base, soma dos percentuais
+        jdbc.query("SELECT r.algorithm, count(*) AS routes, sum(r.total_km) AS planned, sum(r.baseline_km) AS baseline,"
+                        + " sum(r.savings_pct) AS pct FROM routes r JOIN orders o ON o.id = r.order_id"
+                        + " WHERE o.status = 'COMPLETED' AND o.finished_at >= :from AND o.finished_at < :to"
+                        + " GROUP BY r.algorithm ORDER BY r.algorithm", params, (RowCallbackHandler) rs -> {
+                    long routes = rs.getLong("routes");
+                    double planned = rs.getDouble("planned");
+                    double baseline = rs.getDouble("baseline");
+                    double pct = rs.getDouble("pct");
+                    byAlgorithm.put(rs.getString("algorithm"),
+                            new AlgorithmSavings(routes, baseline - planned, pct / routes));
+                    totals[0] += routes;
+                    totals[1] += planned;
+                    totals[2] += baseline;
+                    totals[3] += pct;
+                });
+        long[] batch = jdbc.queryForObject("SELECT count(*) AS n, count(*) FILTER (WHERE a.details LIKE '% lote') AS hits"
+                + " FROM orders o LEFT JOIN LATERAL (SELECT t.details FROM tracking_statuses t"
+                + "  WHERE t.order_id = o.id AND t.code = 'assigned' ORDER BY t.created_at DESC LIMIT 1) a ON true"
+                + " WHERE o.dispatched_at >= :from AND o.dispatched_at < :to", params,
+                (rs, i) -> new long[]{rs.getLong("n"), rs.getLong("hits")});
+        long routes = (long) totals[0];
+        return new RoutingSavings(period.meta(Instant.now()), routes, totals[1], totals[2], totals[2] - totals[1],
+                routes == 0 ? null : totals[3] / routes, byAlgorithm, Rate.of(batch[1], batch[0]));
+    }
+
+    // 13 meses (12 fechados + o atual) no fuso do painel, zerados quando vazios; coorte pela criação do pedido
+    private static final String MONTHS = "WITH m AS (SELECT to_char(g, 'YYYY-MM') AS month, g AT TIME ZONE :zone AS s,"
+            + " (g + interval '1 month') AT TIME ZONE :zone AS e FROM generate_series("
+            + " date_trunc('month', CAST(:now AS timestamptz) AT TIME ZONE :zone) - interval '12 months',"
+            + " date_trunc('month', CAST(:now AS timestamptz) AT TIME ZONE :zone), interval '1 month') g)";
+
+    public List<MonthPoint> yearly(Instant now, java.time.ZoneId zone, UUID customerId) {
+        String sql = MONTHS + " SELECT m.month, count(o.id) AS created,"
+                + " count(o.id) FILTER (WHERE o.status = 'COMPLETED') AS completed,"
+                + " count(o.id) FILTER (WHERE o.status = 'FAILED') AS failed,"
+                + " count(o.id) FILTER (WHERE o.status = 'CANCELLED') AS cancelled,"
+                + " avg(extract(epoch FROM o.finished_at - o.dispatched_at) / 60) FILTER (WHERE o.status = 'COMPLETED') AS cycle,"
+                + " sum(r.baseline_km - r.total_km) AS saved, avg(r.savings_pct) AS pct"
+                + " FROM m LEFT JOIN orders o ON o.created_at >= m.s AND o.created_at < m.e" + customerFilter(customerId)
+                + " LEFT JOIN routes r ON r.order_id = o.id AND o.status = 'COMPLETED'"
+                + " GROUP BY m.month ORDER BY m.month";
+        MapSqlParameterSource params = new MapSqlParameterSource("now", utc(now)).addValue("zone", zone.getId())
+                .addValue("customerId", customerId);
+        return jdbc.query(sql, params, (rs, i) -> new MonthPoint(rs.getString("month"), rs.getLong("created"),
+                rs.getLong("completed"), rs.getLong("failed"), rs.getLong("cancelled"),
+                Rate.of(rs.getLong("completed"), rs.getLong("completed") + rs.getLong("failed") + rs.getLong("cancelled")),
+                minutes(rs.getBigDecimal("cycle")), minutes(rs.getBigDecimal("saved")), minutes(rs.getBigDecimal("pct"))));
+    }
+
+    public List<DriverMonth> completedByDriverMonth(Instant now, java.time.ZoneId zone) {
+        String sql = MONTHS + " SELECT d.public_id, d.name, to_char(o.created_at AT TIME ZONE :zone, 'YYYY-MM') AS month,"
+                + " count(*) AS completed FROM orders o JOIN drivers d ON d.id = o.driver_id"
+                + " WHERE o.status = 'COMPLETED' AND o.created_at >= (SELECT min(s) FROM m)"
+                + " AND o.created_at < (SELECT max(e) FROM m)"
+                + " GROUP BY d.public_id, d.name, month ORDER BY month, d.name, d.public_id";
+        MapSqlParameterSource params = new MapSqlParameterSource("now", utc(now)).addValue("zone", zone.getId());
+        return jdbc.query(sql, params, (rs, i) -> new DriverMonth(rs.getString("public_id"), rs.getString("name"),
+                rs.getString("month"), rs.getLong("completed")));
     }
 }

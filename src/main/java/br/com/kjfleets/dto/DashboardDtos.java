@@ -61,4 +61,28 @@ public final class DashboardDtos {
                               long waitingOrders, long availableDrivers, List<DriverRow> drivers,
                               List<DriverRow> availableDriversList) {
     }
+
+    public record DriverPerformance(String driverId, String name, long completed, long failed, Rate successRate,
+                                    Double avgDispatchToArrivedMinutes, Double busyPct, long orders) {
+    }
+
+    public record DriversPerformance(Meta meta, List<DriverPerformance> drivers, List<String> idleDriverIds) {
+    }
+
+    public record AlgorithmSavings(long routes, double savedKm, Double avgSavingsPct) {
+    }
+
+    public record RoutingSavings(Meta meta, long routes, double plannedKm, double baselineKm, double savedKm,
+                                 Double avgSavingsPct, Map<String, AlgorithmSavings> byAlgorithm, Rate batchDispatchPct) {
+    }
+
+    public record MonthPoint(String month, long created, long completed, long failed, long cancelled, Rate successRate,
+                             Double avgCycleMinutes, Double savedKm, Double avgSavingsPct) {
+    }
+
+    public record DriverMonth(String driverId, String name, String month, long completed) {
+    }
+
+    public record YearlyTrends(Meta meta, List<MonthPoint> months, List<DriverMonth> byDriver) {
+    }
 }

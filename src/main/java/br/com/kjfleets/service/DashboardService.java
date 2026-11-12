@@ -4,6 +4,10 @@ import br.com.kjfleets.config.BusinessException;
 import br.com.kjfleets.config.DashboardProperties;
 import br.com.kjfleets.config.RoutingProperties;
 import br.com.kjfleets.dto.DashboardDtos.DispatchQueue;
+import br.com.kjfleets.dto.DashboardDtos.DriversPerformance;
+import br.com.kjfleets.dto.DashboardDtos.MonthPoint;
+import br.com.kjfleets.dto.DashboardDtos.RoutingSavings;
+import br.com.kjfleets.dto.DashboardDtos.YearlyTrends;
 import br.com.kjfleets.dto.DashboardDtos.DriverRow;
 import br.com.kjfleets.dto.DashboardDtos.FleetStatus;
 import br.com.kjfleets.dto.DashboardDtos.Funnel;
@@ -77,15 +81,19 @@ public class DashboardService {
         return auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_" + role));
     }
 
+    private UUID customerId(Authentication auth) {
+        if (!hasRole(auth, "CUSTOMER")) {
+            return null;
+        }
+        return customers.findByUserUsername(auth.getName()).map(Customer::getId)
+                .orElseThrow(() -> BusinessException.notFound("Cliente"));
+    }
+
     @Transactional(readOnly = true)
     public OrdersSummary ordersSummary(String periodName, boolean compare, Authentication auth) {
         DashboardPeriod period = DashboardPeriod.resolve(periodName, props.timezone(), clock);
         boolean admin = hasRole(auth, "ADMIN");
-        UUID customerId = null;
-        if (hasRole(auth, "CUSTOMER")) {
-            customerId = customers.findByUserUsername(auth.getName()).map(Customer::getId)
-                    .orElseThrow(() -> BusinessException.notFound("Cliente"));
-        }
+        UUID customerId = customerId(auth);
         OrdersSummary previous = compare && admin
                 ? summarize(period.previous(), customerId, true, null) : null;
         return summarize(period, customerId, admin, previous);
@@ -139,14 +147,21 @@ public class DashboardService {
                 new Paged<>(queries.staleTop(props, now, LIST_LIMIT), queries.staleCount(props, now)));
     }
 
-    @Transactional(readOnly = true)
-    public FleetStatus fleetStatus(String fleetId, Authentication auth) {
-        if (fleetId != null && !FLEET_ID.matcher(fleetId).matches()) {
+    private UUID fleetUuid(String fleetId) {
+        if (fleetId == null) {
+            return null;
+        }
+        if (!FLEET_ID.matcher(fleetId).matches()) {
             throw new BusinessException("VALIDATION_ERROR", HttpStatus.BAD_REQUEST, "fleetId inválido");
         }
-        Instant now = clock.instant();
-        UUID fleet = fleetId == null ? null : fleets.findByPublicIdAndActiveTrue(fleetId).map(Fleet::getId)
+        return fleets.findByPublicIdAndActiveTrue(fleetId).map(Fleet::getId)
                 .orElseThrow(() -> BusinessException.notFound("Frota"));
+    }
+
+    @Transactional(readOnly = true)
+    public FleetStatus fleetStatus(String fleetId, Authentication auth) {
+        Instant now = clock.instant();
+        UUID fleet = fleetUuid(fleetId);
         Instant freshSince = now.minusSeconds(routing.positionMaxAgeS());
 
         List<DriverRow> available = queries.driverRows(fleet, freshSince, true);
@@ -155,5 +170,30 @@ public class DashboardService {
         return new FleetStatus(Meta.now(now, props.timezone()), queries.driversByStatus(fleet),
                 queries.vehiclesByStatus(fleet), queries.countByStage().get("UNASSIGNED"), available.size(),
                 drivers, available);
+    }
+
+    @Transactional(readOnly = true)
+    public DriversPerformance driversPerformance(String periodName, String fleetId) {
+        DashboardPeriod period = DashboardPeriod.resolve(periodName, props.timezone(), clock);
+        return queries.driversPerformance(period, fleetUuid(fleetId));
+    }
+
+    @Transactional(readOnly = true)
+    public RoutingSavings routingSavings(String periodName) {
+        return queries.routingSavings(DashboardPeriod.resolve(periodName, props.timezone(), clock));
+    }
+
+    @Transactional(readOnly = true)
+    public YearlyTrends yearlyTrends(Authentication auth) {
+        Instant now = clock.instant();
+        UUID customerId = customerId(auth);
+        List<MonthPoint> months = queries.yearly(now, props.timezone(), customerId);
+        if (customerId != null) {
+            // cliente não vê km, economia nem ciclo, e nunca dados de motorista
+            months = months.stream().map(m -> new MonthPoint(m.month(), m.created(), m.completed(), m.failed(),
+                    m.cancelled(), m.successRate(), null, null, null)).toList();
+        }
+        return new YearlyTrends(Meta.now(now, props.timezone()), months,
+                customerId != null ? null : queries.completedByDriverMonth(now, props.timezone()));
     }
 }
