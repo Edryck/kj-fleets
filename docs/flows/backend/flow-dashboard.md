@@ -1,6 +1,6 @@
 # Fluxos — Dashboard
 
-Tópicos (um número ou lista por vez), painéis por perfil, alertas e histórico de status que alimenta os tempos. Índice em [flow-index.md](flow-index.md). Regras e tabelas em [ARCHITECTURE.md](../../ARCHITECTURE.md#dashboard).
+Tópicos (um número ou lista por vez), painéis por perfil, alertas e histórico de status que alimenta os tempos. Índice em [flow-index.md](flow-index.md). Regras e tabelas em [ARCHITECTURE.md](../../../ARCHITECTURE.md#dashboard).
 
 ## 16. Dashboard: tópicos e painéis
 

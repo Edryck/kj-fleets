@@ -123,6 +123,6 @@ Uma mudança está pronta quando:
 1. Compila e `mvn test` passa.
 2. Regra nova tem teste que falha sem ela.
 3. Endpoint novo está na tabela de [ARCHITECTURE.md](ARCHITECTURE.md#api-rest), na matriz de permissões, no [README.md](README.md) e na collection, com o código de erro quando houver.
-4. Fluxo novo ou alterado está em [docs/flows/](docs/flows/flow-index.md); tabela ou coluna nova está em [docs/domain.md](docs/domain.md).
+4. Fluxo novo ou alterado está em [docs/flows/](docs/flows/backend/flow-index.md); tabela ou coluna nova está em [docs/domain.md](docs/domain.md).
 5. Nenhum segredo, senha ou token no diff.
 6. Variável de ambiente nova está em `.env.example` e na tabela do README.

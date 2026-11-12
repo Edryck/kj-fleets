@@ -1,6 +1,6 @@
 # ARCHITECTURE.md — KJ Fleets
 
-Como o sistema é montado: camadas, stack, modelo de domínio, regras do pedido, roteirização, API, segurança, tempo real e banco. O **porquê** do produto está em [PRODUCT.md](PRODUCT.md); as **regras de código** em [SYSTEM.md](SYSTEM.md); os **fluxos** em [docs/flows/](docs/flows/flow-index.md).
+Como o sistema é montado: camadas, stack, modelo de domínio, regras do pedido, roteirização, API, segurança, tempo real e banco. O **porquê** do produto está em [PRODUCT.md](PRODUCT.md); as **regras de código** em [SYSTEM.md](SYSTEM.md); os **fluxos** em [docs/flows/](docs/flows/backend/flow-index.md).
 
 ## Visão geral
 
@@ -397,7 +397,7 @@ ADMIN recebe contagem e lista dos 8 tipos. DISPATCHER e FLEET_MANAGER veem conta
 
 - Cada painel deve responder em menos de 500 ms e com no máximo 20 consultas SQL. `DashboardBudgetTest` mede isso com 5 mil pedidos.
 - Sem cache na v1. Redis fica como evolução para a v2, se a carga pedir.
-- Não há página estática do dashboard nesta entrega; o frontend é outro projeto.
+- Não há página estática do dashboard na API; a interface fica em `frontend/`, no mesmo repositório, e consome os endpoints.
 
 ## Banco (PostgreSQL)
 

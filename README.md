@@ -15,7 +15,7 @@ API REST em Java/Spring Boot para gestão de frotas e entregas: pedidos com flux
 - Eventos em tempo real por WebSocket (STOMP)
 - Cinco perfis de usuário com JWT e Basic Auth
 
-Mais detalhes em [PRODUCT.md](PRODUCT.md). Fluxos em [docs/flows/](docs/flows/flow-index.md).
+Mais detalhes em [PRODUCT.md](PRODUCT.md). Fluxos em [docs/flows/](docs/flows/backend/flow-index.md).
 
 ## Perfis
 
@@ -170,7 +170,7 @@ Cada motorista roda numa thread virtual. Ele envia posições em linha reta até
 | [SYSTEM.md](SYSTEM.md) | Regras e padrões de código |
 | [DESIGN.md](DESIGN.md) | Design visual (a preencher quando o frontend começar) |
 | [docs/domain.md](docs/domain.md) | Diagrama ER e dicionário das tabelas |
-| [docs/flows/](docs/flows/flow-index.md) | Fluxos em Mermaid |
+| [docs/flows/](docs/flows/backend/flow-index.md) | Fluxos em Mermaid |
 | [docs/kjfleets.postman_collection.json](docs/kjfleets.postman_collection.json) | Collection para testar a API (importa no Postman e no Insomnia) |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Como contribuir |
 | [SECURITY.md](SECURITY.md) | Como reportar vulnerabilidade |
