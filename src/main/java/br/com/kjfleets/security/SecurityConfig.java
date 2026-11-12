@@ -95,6 +95,9 @@ public class SecurityConfig {
                         .requestMatchers("/orders/**", "/dispatch/**").hasAnyRole("ADMIN", "DISPATCHER")
                         .requestMatchers(HttpMethod.POST, "/routes/**").hasAnyRole("ADMIN", "DISPATCHER")
                         .requestMatchers(HttpMethod.GET, "/customers/**").hasAnyRole("ADMIN", "DISPATCHER", "FLEET_MANAGER")
+                        .requestMatchers("/dashboard/orders/summary")
+                        .hasAnyRole("ADMIN", "DISPATCHER", "FLEET_MANAGER", "CUSTOMER")
+                        .requestMatchers("/dashboard/orders/funnel").hasAnyRole("ADMIN", "DISPATCHER")
                         .anyRequest().authenticated())
                 .build();
     }
