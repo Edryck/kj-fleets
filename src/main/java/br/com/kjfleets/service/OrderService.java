@@ -36,6 +36,7 @@ import br.com.kjfleets.repository.OrderRepository;
 import br.com.kjfleets.repository.PlaceRepository;
 import br.com.kjfleets.repository.TrackingStatusRepository;
 import br.com.kjfleets.repository.VehicleRepository;
+import br.com.kjfleets.security.CurrentActor;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -114,6 +115,11 @@ public class OrderService {
 
     @Transactional
     public OrderDetailResponse assign(String publicId, AssignRequest request) {
+        return assign(publicId, request, false);
+    }
+
+    @Transactional
+    public OrderDetailResponse assign(String publicId, AssignRequest request, boolean fromBatch) {
         // ordem fixa de trava: pedido, motorista, veículo (evita deadlock e leitura velha)
         Order order = lockOrder(publicId);
         requireCreated(order);
@@ -131,7 +137,9 @@ public class OrderService {
         routeService.discard(order);
         order.setDriver(driver);
         order.setVehicle(vehicle);
-        track(order, "assigned", driver.getName() + " (" + vehicle.getPlate() + ")", null, null);
+        // o painel conta o despacho em lote por essa marca no details
+        track(order, "assigned", driver.getName() + " (" + vehicle.getPlate() + ")" + (fromBatch ? " lote" : ""),
+                null, null);
         return OrderDetailResponse.from(order);
     }
 
@@ -506,7 +514,8 @@ public class OrderService {
     }
 
     void track(Order order, String code, String details, Double lat, Double lng) {
-        trackings.save(TrackingStatus.of(order, code, details, lat, lng));
+        CurrentActor actor = CurrentActor.get();
+        trackings.save(TrackingStatus.of(order, code, details, lat, lng, actor.username(), actor.role()));
     }
 
     private Customer resolveCustomer(String customerId, Authentication auth) {

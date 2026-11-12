@@ -219,7 +219,7 @@ class OrderQueryTest extends IntegrationTest {
         String id = create(body(), bearer(Role.ADMIN));
         setStatus(id, OrderStatus.DISPATCHED);
         trackings.save(TrackingStatus.of(orders.findByPublicId(id).orElseThrow(), "dispatched",
-                "Saiu para entrega", -24.9, -54.4));
+                "Saiu para entrega", -24.9, -54.4, null, null));
 
         mvc.perform(get("/orders/" + id + "/tracking").header("Authorization", bearer(Role.FLEET_MANAGER)))
                 .andExpect(status().isOk())

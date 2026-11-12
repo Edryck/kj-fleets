@@ -114,7 +114,7 @@ public class DispatchService {
             });
             vehicleIds.stream().sorted().forEach(vehicles::lockById);
             for (PlannedAssignment pair : assignments) {
-                orderService.assign(pair.orderId(), new AssignRequest(pair.driverId(), null));
+                orderService.assign(pair.orderId(), new AssignRequest(pair.driverId(), null), true);
             }
         }
         return new PlanResponse(request.algorithm(), request.apply(), assignments, unassigned,

@@ -23,6 +23,7 @@ import br.com.kjfleets.repository.DriverRepository;
 import br.com.kjfleets.repository.OrderRepository;
 import br.com.kjfleets.repository.RouteRepository;
 import br.com.kjfleets.repository.TrackingStatusRepository;
+import br.com.kjfleets.security.CurrentActor;
 import br.com.kjfleets.routing.RouteAlgorithm;
 import br.com.kjfleets.routing.RouteOptimizer;
 import br.com.kjfleets.routing.RouteOptimizer.Plan;
@@ -255,7 +256,9 @@ public class RouteService {
             stop.setDistanceM(meters);
             stop.setCompletedBy(actorUsername);
             String details = "WAYPOINT #" + seq + (actorIsDriver ? "" : " por " + actorUsername);
-            trackings.save(TrackingStatus.of(order, "stop_completed", details, null, null));
+            CurrentActor actor = CurrentActor.get();
+            trackings.save(TrackingStatus.of(order, "stop_completed", details, null, null, actor.username(),
+                    actor.role()));
         }
         return RouteResponse.from(route, eta(order, route));
     }

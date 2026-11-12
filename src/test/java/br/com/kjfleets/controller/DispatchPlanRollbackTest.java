@@ -69,7 +69,7 @@ class DispatchPlanRollbackTest extends IntegrationTest {
                 throw new BusinessException("DRIVER_NOT_AVAILABLE", HttpStatus.UNPROCESSABLE_ENTITY, "simulado");
             }
             return invocation.callRealMethod();
-        }).when(orderService).assign(Mockito.anyString(), Mockito.any());
+        }).when(orderService).assign(Mockito.anyString(), Mockito.any(), Mockito.anyBoolean());
 
         mvc.perform(post("/dispatch/plan").contentType(MediaType.APPLICATION_JSON)
                 .content(json.writeValueAsString(Map.of("orderIds", List.of(first, second), "apply", true)))

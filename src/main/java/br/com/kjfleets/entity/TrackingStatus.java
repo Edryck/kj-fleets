@@ -47,7 +47,12 @@ public class TrackingStatus {
     @Column(nullable = false)
     private Instant createdAt;
 
-    public static TrackingStatus of(Order order, String code, String details, Double lat, Double lng) {
+    private String actorUsername;
+
+    private String actorRole;
+
+    public static TrackingStatus of(Order order, String code, String details, Double lat, Double lng,
+                                    String actorUsername, String actorRole) {
         TrackingStatus tracking = new TrackingStatus();
         tracking.order = order;
         tracking.status = order.getStatus();
@@ -56,6 +61,8 @@ public class TrackingStatus {
         tracking.lat = lat;
         tracking.lng = lng;
         tracking.createdAt = Instant.now();
+        tracking.actorUsername = actorUsername;
+        tracking.actorRole = actorRole;
         return tracking;
     }
 }
