@@ -1,5 +1,6 @@
 package br.com.kjfleets.controller;
 
+import br.com.kjfleets.dto.DashboardDtos.Alerts;
 import br.com.kjfleets.dto.DashboardDtos.DispatchQueue;
 import br.com.kjfleets.dto.DashboardDtos.DriversPerformance;
 import br.com.kjfleets.dto.DashboardDtos.FleetStatus;
@@ -7,6 +8,7 @@ import br.com.kjfleets.dto.DashboardDtos.Funnel;
 import br.com.kjfleets.dto.DashboardDtos.OrdersSummary;
 import br.com.kjfleets.dto.DashboardDtos.RoutingSavings;
 import br.com.kjfleets.dto.DashboardDtos.YearlyTrends;
+import br.com.kjfleets.service.AlertService;
 import br.com.kjfleets.service.DashboardService;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,9 +19,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class DashboardController {
 
     private final DashboardService service;
+    private final AlertService alerts;
 
-    public DashboardController(DashboardService service) {
+    public DashboardController(DashboardService service, AlertService alerts) {
         this.service = service;
+        this.alerts = alerts;
     }
 
     @GetMapping("/dashboard/orders/summary")
@@ -57,5 +61,10 @@ public class DashboardController {
     @GetMapping("/dashboard/trends/yearly")
     YearlyTrends yearlyTrends(Authentication auth) {
         return service.yearlyTrends(auth);
+    }
+
+    @GetMapping("/dashboard/alerts")
+    Alerts alerts(Authentication auth) {
+        return alerts.alerts(auth);
     }
 }

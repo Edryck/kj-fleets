@@ -1,6 +1,8 @@
 package br.com.kjfleets.repository;
 
 import br.com.kjfleets.config.DashboardProperties;
+import br.com.kjfleets.config.RoutingProperties;
+import br.com.kjfleets.dto.DashboardDtos.AlertType;
 import br.com.kjfleets.dto.DashboardDtos.AlgorithmSavings;
 import br.com.kjfleets.dto.DashboardDtos.DriverMonth;
 import br.com.kjfleets.dto.DashboardDtos.DriverPerformance;
@@ -30,6 +32,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Repository
 public class DashboardQueries {
@@ -126,7 +129,7 @@ public class DashboardQueries {
     }
 
     private static String staleRows(UUID customerId) {
-        return "SELECT s.public_id, s.tracking_number, s.stage, s.limit_min,"
+        return "SELECT s.public_id, s.tracking_number, s.stage, s.limit_min, s.seconds,"
                 + " floor(s.seconds / 60)::bigint AS minutes FROM ("
                 + "  SELECT o.public_id, o.tracking_number, stage.name AS stage, stage.limit_min,"
                 + "   extract(epoch FROM (:now - COALESCE(l.created_at, o.created_at))) AS seconds"
@@ -337,5 +340,94 @@ public class DashboardQueries {
         MapSqlParameterSource params = new MapSqlParameterSource("now", utc(now)).addValue("zone", zone.getId());
         return jdbc.query(sql, params, (rs, i) -> new DriverMonth(rs.getString("public_id"), rs.getString("name"),
                 rs.getString("month"), rs.getLong("completed")));
+    }
+
+    public record AlertRow(AlertType type, int severity, String subjectType, String subjectId, Instant since,
+                           Double n1, Double n2, String s1) {
+    }
+
+    private static final String DRIVER_ACTIVE_ORDER = "SELECT 1 FROM orders o WHERE o.driver_id = d.id"
+            + " AND o.status IN ('DISPATCHED', 'DRIVER_ENROUTE', 'ARRIVED', 'IN_PROGRESS')";
+
+    private static final String MAINTENANCE_SINCE = "SELECT max(c.changed_at) AS at FROM status_changes c"
+            + " WHERE c.subject_type = 'VEHICLE' AND c.subject_id = v.id AND c.to_status = 'MAINTENANCE'";
+
+    // colunas: type, sev (1 a 3), subject_type, subject_id, since, n1, n2, s1; uma ramificação por regra
+    private static String alertUnion() {
+        return "SELECT 'STALE_ORDER' AS type, CASE WHEN s.seconds > 2 * s.limit_min * 60 THEN 3 ELSE 2 END AS sev,"
+                + " 'ORDER' AS subject_type, s.public_id AS subject_id,"
+                + " CAST(:now AS timestamptz) - make_interval(secs => s.seconds) AS since,"
+                + " CAST(s.minutes AS double precision) AS n1, CAST(s.limit_min AS double precision) AS n2, s.stage AS s1"
+                + " FROM (" + staleRows(null) + ") s"
+                + " UNION ALL SELECT 'DRIVER_NO_SIGNAL', CASE WHEN EXISTS (" + DRIVER_ACTIVE_ORDER + ") THEN 3 ELSE 2 END,"
+                + " 'DRIVER', d.public_id, d.last_seen_at, NULL, NULL, NULL FROM drivers d"
+                + " WHERE d.active AND d.status IN ('BUSY', 'AVAILABLE') AND d.last_seen_at < :noSignalBefore"
+                + " UNION ALL SELECT 'STATUS_INCONSISTENT', 3, 'DRIVER', d.public_id,"
+                + " COALESCE((SELECT max(c.changed_at) FROM status_changes c WHERE c.subject_type = 'DRIVER'"
+                + "  AND c.subject_id = d.id), CAST(:now AS timestamptz)), NULL, NULL, d.status FROM drivers d"
+                + " WHERE d.active AND ((d.status = 'BUSY' AND NOT EXISTS (" + DRIVER_ACTIVE_ORDER + "))"
+                + "  OR (d.status = 'AVAILABLE' AND EXISTS (" + DRIVER_ACTIVE_ORDER + ")))"
+                + " UNION ALL SELECT 'VEHICLE_MAINTENANCE_ON_AVAILABLE_DRIVER', 2, 'DRIVER', d.public_id,"
+                + " COALESCE((" + MAINTENANCE_SINCE + "), CAST(:now AS timestamptz)), NULL, NULL, v.plate"
+                + " FROM drivers d JOIN vehicles v ON v.id = d.vehicle_id"
+                + " WHERE d.active AND d.status = 'AVAILABLE' AND v.status = 'MAINTENANCE'"
+                + " UNION ALL SELECT 'DEMAND_OVER_CAPACITY', 3, 'FLEET', NULL, x.oldest,"
+                + " CAST(x.waiting AS double precision), CAST(x.free AS double precision), NULL FROM ("
+                + "  SELECT (SELECT count(*) FROM orders o WHERE o.status = 'CREATED' AND o.driver_id IS NULL) AS waiting,"
+                + "   (SELECT min(o.created_at) FROM orders o WHERE o.status = 'CREATED' AND o.driver_id IS NULL) AS oldest,"
+                + "   (SELECT count(*) FROM drivers d JOIN vehicles v ON v.id = d.vehicle_id WHERE d.active AND "
+                + AVAILABLE_NOW + ") AS free) x WHERE x.waiting > x.free"
+                + " UNION ALL SELECT 'SUSPICIOUS_STOP', 1, 'ORDER', o.public_id, rs.visited_at, CAST(rs.seq AS double precision),"
+                + " rs.distancem, rs.type FROM route_stops rs JOIN routes r ON r.id = rs.route_id"
+                + " JOIN orders o ON o.id = r.order_id"
+                + " WHERE rs.type <> 'START' AND rs.visited_at >= :stopsSince"
+                + " AND (rs.distancem IS NULL OR rs.distancem > :suspiciousM)"
+                + " UNION ALL SELECT 'ROUTE_MISSING', 2, 'ORDER', o.public_id, f.at, NULL, NULL, f.details FROM orders o"
+                + " JOIN LATERAL (SELECT t.created_at AS at, t.details FROM tracking_statuses t"
+                + "  WHERE t.order_id = o.id AND t.code = 'route_failed' ORDER BY t.created_at DESC LIMIT 1) f ON true"
+                + " WHERE " + ACTIVE + " AND NOT EXISTS (SELECT 1 FROM routes r WHERE r.order_id = o.id)"
+                + " UNION ALL SELECT 'LONG_MAINTENANCE', 1, 'VEHICLE', v.public_id, m.at, NULL, NULL, v.plate"
+                + " FROM vehicles v JOIN LATERAL (" + MAINTENANCE_SINCE
+                + ") m ON true"
+                + " WHERE v.active AND v.status = 'MAINTENANCE' AND m.at < :maintenanceBefore";
+    }
+
+    private static MapSqlParameterSource alertParams(DashboardProperties p, RoutingProperties r, Instant now,
+                                                     double suspiciousRatio) {
+        return staleParams(p, now, null).addValue("freshSince", utc(now.minusSeconds(r.positionMaxAgeS())))
+                .addValue("noSignalBefore", utc(now.minusSeconds(2L * r.positionMaxAgeS())))
+                .addValue("stopsSince", utc(now.minus(java.time.Duration.ofHours(24))))
+                .addValue("suspiciousM", r.arrivalRadiusM() * suspiciousRatio)
+                .addValue("maintenanceBefore", utc(now.minus(java.time.Duration.ofDays(p.maintenanceAlertDays()))));
+    }
+
+    public Map<AlertType, Long> alertCounts(DashboardProperties p, RoutingProperties r, Instant now, double ratio) {
+        Map<AlertType, Long> result = new java.util.EnumMap<>(AlertType.class);
+        for (AlertType type : AlertType.values()) {
+            result.put(type, 0L);
+        }
+        jdbc.query("SELECT u.type, count(*) AS total FROM (" + alertUnion() + ") u GROUP BY u.type",
+                alertParams(p, r, now, ratio), (RowCallbackHandler) rs ->
+                        result.put(AlertType.valueOf(rs.getString("type")), rs.getLong("total")));
+        return result;
+    }
+
+    // ordem: mais grave primeiro, depois o mais antigo; id desempata
+    public List<AlertRow> alertRows(DashboardProperties p, RoutingProperties r, Instant now, double ratio,
+                                    java.util.Collection<AlertType> types, int limit) {
+        if (types.isEmpty()) {
+            return List.of();
+        }
+        String sql = "SELECT u.* FROM (" + alertUnion() + ") u WHERE u.type IN (:types)"
+                + " ORDER BY u.sev DESC, u.since, u.subject_id, u.type, u.n1 LIMIT :limit";
+        MapSqlParameterSource params = alertParams(p, r, now, ratio)
+                .addValue("types", types.stream().map(Enum::name).collect(Collectors.toList()))
+                .addValue("limit", limit);
+        return jdbc.query(sql, params, (rs, i) -> {
+            Timestamp since = rs.getTimestamp("since");
+            return new AlertRow(AlertType.valueOf(rs.getString("type")), rs.getInt("sev"),
+                    rs.getString("subject_type"), rs.getString("subject_id"), since.toInstant(),
+                    (Double) rs.getObject("n1"), (Double) rs.getObject("n2"), rs.getString("s1"));
+        });
     }
 }

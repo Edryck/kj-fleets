@@ -85,4 +85,18 @@ public final class DashboardDtos {
 
     public record YearlyTrends(Meta meta, List<MonthPoint> months, List<DriverMonth> byDriver) {
     }
+
+    public enum AlertType {
+        STALE_ORDER, DRIVER_NO_SIGNAL, STATUS_INCONSISTENT, VEHICLE_MAINTENANCE_ON_AVAILABLE_DRIVER,
+        DEMAND_OVER_CAPACITY, SUSPICIOUS_STOP, ROUTE_MISSING, LONG_MAINTENANCE
+    }
+
+    public enum Severity { LOW, MEDIUM, HIGH }
+
+    public record Alert(AlertType type, Severity severity, String subjectType, String subjectId, String message,
+                        String suggestedAction, Instant since) {
+    }
+
+    public record Alerts(Meta meta, List<Alert> items, Map<AlertType, Long> counts) {
+    }
 }
