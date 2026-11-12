@@ -2,6 +2,8 @@ package br.com.kjfleets.service;
 
 import br.com.kjfleets.config.BusinessException;
 import br.com.kjfleets.config.RoutingProperties;
+import br.com.kjfleets.dto.RealtimeDtos.DriverMoved;
+import br.com.kjfleets.dto.RealtimeDtos.OrderTracked;
 import br.com.kjfleets.dto.RouteDtos.AlgorithmResult;
 import br.com.kjfleets.dto.RouteDtos.NextStop;
 import br.com.kjfleets.dto.RouteDtos.OptimizeRequest;
@@ -28,6 +30,7 @@ import br.com.kjfleets.security.CurrentActor;
 import br.com.kjfleets.routing.RouteAlgorithm;
 import br.com.kjfleets.routing.RouteOptimizer;
 import br.com.kjfleets.routing.RouteOptimizer.Plan;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,9 +54,12 @@ public class RouteService {
     private final RoutingProperties props;
     private final DriverRepository drivers;
     private final TrackingStatusRepository trackings;
+    private final ApplicationEventPublisher events;
 
     public RouteService(RouteRepository routes, OrderRepository orders, DistanceService distance,
-                        RoutingProperties props, DriverRepository drivers, TrackingStatusRepository trackings) {
+                        RoutingProperties props, DriverRepository drivers, TrackingStatusRepository trackings,
+                        ApplicationEventPublisher events) {
+        this.events = events;
         this.drivers = drivers;
         this.trackings = trackings;
         this.routes = routes;
@@ -255,6 +261,8 @@ public class RouteService {
                     locked.setLat(request.lat());
                     locked.setLng(request.lng());
                     locked.setLastSeenAt(Instant.now());
+                    events.publishEvent(new DriverMoved(locked.getPublicId(), locked.getName(), locked.getStatus().name(),
+                            request.lat(), request.lng()));
                 }
             }
             stop.setVisitedAt(Instant.now());
@@ -264,6 +272,7 @@ public class RouteService {
             CurrentActor actor = CurrentActor.get();
             trackings.save(TrackingStatus.of(order, "stop_completed", details, null, null, actor.username(),
                     actor.role()));
+            events.publishEvent(new OrderTracked(order.getId(), "stop_completed"));
         }
         return RouteResponse.from(route, eta(order, route));
     }

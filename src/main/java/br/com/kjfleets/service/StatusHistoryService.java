@@ -1,10 +1,12 @@
 package br.com.kjfleets.service;
 
+import br.com.kjfleets.dto.RealtimeDtos.DriverStatusChanged;
 import br.com.kjfleets.entity.StatusChange;
 import br.com.kjfleets.entity.StatusSubject;
 import br.com.kjfleets.repository.StatusChangeRepository;
 import br.com.kjfleets.security.CurrentActor;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -18,10 +20,12 @@ public class StatusHistoryService {
 
     private final StatusChangeRepository changes;
     private final JdbcTemplate jdbc;
+    private final ApplicationEventPublisher events;
 
-    public StatusHistoryService(StatusChangeRepository changes, JdbcTemplate jdbc) {
+    public StatusHistoryService(StatusChangeRepository changes, JdbcTemplate jdbc, ApplicationEventPublisher events) {
         this.changes = changes;
         this.jdbc = jdbc;
+        this.events = events;
     }
 
     public void record(StatusSubject type, UUID id, String from, String to, String reason) {
@@ -43,6 +47,10 @@ public class StatusHistoryService {
         change.setChangedBy(username == null ? "system" : username);
         change.setReason(reason);
         changes.save(change);
+        // baseline (from nulo) e delete (force) não são mudança de status pro mapa
+        if (type == StatusSubject.DRIVER && !force && from != null) {
+            events.publishEvent(new DriverStatusChanged(id));
+        }
     }
 
     // quem já existia antes do histórico ganha uma linha com o status atual

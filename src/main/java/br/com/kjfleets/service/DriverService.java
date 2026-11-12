@@ -6,6 +6,8 @@ import br.com.kjfleets.dto.DriverDtos.DriverResponse;
 import br.com.kjfleets.dto.DriverDtos.LocationRequest;
 import br.com.kjfleets.dto.DriverDtos.NearestDriverResponse;
 import br.com.kjfleets.dto.DriverDtos.UpdateDriverRequest;
+import br.com.kjfleets.dto.RealtimeDtos.DriverMoved;
+import br.com.kjfleets.dto.RealtimeDtos.DriverRemoved;
 import br.com.kjfleets.dto.PageResponse;
 import br.com.kjfleets.entity.Driver;
 import br.com.kjfleets.entity.DriverStatus;
@@ -16,6 +18,7 @@ import br.com.kjfleets.entity.VehicleStatus;
 import br.com.kjfleets.repository.DriverRepository;
 import br.com.kjfleets.repository.VehicleRepository;
 import br.com.kjfleets.routing.Haversine;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -33,10 +36,12 @@ public class DriverService {
     private final AuthService auth;
     private final OrderService orderService;
     private final StatusHistoryService history;
+    private final ApplicationEventPublisher events;
 
     public DriverService(DriverRepository drivers, VehicleRepository vehicles, AuthService auth,
-                         OrderService orderService, StatusHistoryService history) {
+                         OrderService orderService, StatusHistoryService history, ApplicationEventPublisher events) {
         this.history = history;
+        this.events = events;
         this.drivers = drivers;
         this.vehicles = vehicles;
         this.auth = auth;
@@ -103,6 +108,7 @@ public class DriverService {
         driver.setVehicle(null);
         String status = driver.getStatus().name();
         history.record(StatusSubject.DRIVER, driver.getId(), status, status, "delete", true);
+        events.publishEvent(new DriverRemoved(driver.getPublicId()));
     }
 
     @Transactional(readOnly = true)
@@ -116,6 +122,8 @@ public class DriverService {
         driver.setLat(request.lat());
         driver.setLng(request.lng());
         driver.setLastSeenAt(Instant.now());
+        events.publishEvent(new DriverMoved(driver.getPublicId(), driver.getName(), driver.getStatus().name(),
+                request.lat(), request.lng()));
     }
 
     @Transactional(readOnly = true)

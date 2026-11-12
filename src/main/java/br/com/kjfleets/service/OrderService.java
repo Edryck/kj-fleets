@@ -18,6 +18,8 @@ import br.com.kjfleets.dto.OrderDtos.PublicEvent;
 import br.com.kjfleets.dto.OrderDtos.PublicTrackingResponse;
 import br.com.kjfleets.dto.OrderDtos.TrackingResponse;
 import br.com.kjfleets.dto.PageResponse;
+import br.com.kjfleets.dto.RealtimeDtos.DriverMoved;
+import br.com.kjfleets.dto.RealtimeDtos.OrderTracked;
 import br.com.kjfleets.entity.Customer;
 import br.com.kjfleets.entity.Driver;
 import br.com.kjfleets.entity.DriverStatus;
@@ -39,6 +41,7 @@ import br.com.kjfleets.repository.TrackingStatusRepository;
 import br.com.kjfleets.repository.VehicleRepository;
 import br.com.kjfleets.security.CurrentActor;
 import jakarta.persistence.criteria.Predicate;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
@@ -62,6 +65,7 @@ public class OrderService {
     private final VehicleRepository vehicles;
     private final RouteService routeService;
     private final StatusHistoryService history;
+    private final ApplicationEventPublisher events;
 
     private static final List<String> HIDDEN_CODES = List.of("assigned", "unassigned", "stop_completed",
             "route_failed");
@@ -71,8 +75,10 @@ public class OrderService {
 
     public OrderService(OrderRepository orders, TrackingStatusRepository trackings, PlaceRepository places,
                         CustomerRepository customers, DriverRepository drivers, VehicleRepository vehicles,
-                        RouteService routeService, StatusHistoryService history) {
+                        RouteService routeService, StatusHistoryService history,
+                        ApplicationEventPublisher events) {
         this.history = history;
+        this.events = events;
         this.routeService = routeService;
         this.drivers = drivers;
         this.vehicles = vehicles;
@@ -244,6 +250,8 @@ public class OrderService {
             driver.setLat(request.lat());
             driver.setLng(request.lng());
             driver.setLastSeenAt(Instant.now());
+            events.publishEvent(new DriverMoved(driver.getPublicId(), driver.getName(), driver.getStatus().name(),
+                    request.lat(), request.lng()));
         }
         String details = hasReason ? request.reason() : null;
         if (!actorIsDriver) {
@@ -530,6 +538,7 @@ public class OrderService {
     void track(Order order, String code, String details, Double lat, Double lng) {
         CurrentActor actor = CurrentActor.get();
         trackings.save(TrackingStatus.of(order, code, details, lat, lng, actor.username(), actor.role()));
+        events.publishEvent(new OrderTracked(order.getId(), code));
     }
 
     private Customer resolveCustomer(String customerId, Authentication auth) {
