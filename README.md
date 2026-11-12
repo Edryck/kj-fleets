@@ -7,7 +7,7 @@ API REST em Java/Spring Boot para gestão de frotas e entregas: pedidos com flux
 ## Funcionalidades
 
 - Pedidos com origem, destino e paradas, e fluxo `CREATED → DISPATCHED → DRIVER_ENROUTE → ARRIVED → IN_PROGRESS → COMPLETED` (mais `CANCELLED` e `FAILED`)
-- Atribuição de motorista e veículo, despacho, cancelamento com motivo e prova de entrega
+- Atribuição de motorista e veículo, despacho, aceite ad hoc (o motorista pega o pedido da fila), cancelamento com motivo e prova de entrega
 - Histórico de rastreamento por pedido e rastreio público por código
 - Cadastro de motoristas, veículos, lugares e frotas
 - **Roteirização:** ordem das paradas (vizinho mais próximo, 2-opt, Held-Karp exato, simulated annealing), despacho em lote (húngaro vs guloso) e menor caminho no grafo viário (Dijkstra e A*)
@@ -90,10 +90,10 @@ Erros de regra de negócio voltam como `422` (ou `409`) com um código estável,
 | Grupo | Rotas |
 |---|---|
 | Auth e usuários | `POST /auth/register`, `POST /auth/login`, `POST /users`, `GET /users` |
-| Pedidos | `POST /orders`, `GET /orders`, `GET /orders/{id}`, `GET /orders/{id}/tracking`, `POST /orders/{id}/assign`, `dispatch`, `activity`, `pod`, `cancel`, `route`, `GET /orders/{id}/route` |
+| Pedidos | `POST /orders`, `GET /orders` (filtros `status`, `driverId`, `customerId`, `active`, `from`, `to`), `GET /orders/{id}`, `GET /orders/{id}/tracking`, `POST /orders/{id}/assign`, `dispatch`, `activity`, `pod`, `cancel`, `route`, `GET /orders/{id}/route` |
 | Rastreio público | `GET /track/{trackingNumber}` |
-| Motorista (Basic Auth) | `GET /driver/me`, `GET /driver/orders`, `POST /driver/orders/{id}/accept`, `activity`, `pod`, `GET /driver/orders/{id}/route`, `POST /driver/location` |
-| Cadastros | CRUD de `/drivers`, `/vehicles`, `/fleets`, `/places` (`DELETE` desativa, não apaga); `GET /drivers/nearest` |
+| Motorista (Basic Auth) | `GET /driver/me`, `GET /driver/orders` (`?available=true` lista os pedidos sem motorista), `GET /driver/orders/{id}`, `POST /driver/orders/{id}/accept`, `activity`, `pod`, `GET /driver/orders/{id}/route`, `POST /driver/location` |
+| Cadastros | CRUD de `/drivers`, `/vehicles`, `/fleets`, `/places` (`DELETE` desativa, não apaga); `GET /drivers/nearest`; `GET /customers` (só leitura) |
 | Roteirização | `POST /routes/optimize`, `POST /dispatch/plan`, `GET /graph/shortest-path`, `POST /graph/import` |
 | Dashboard | `GET /dashboard/summary`, `orders-timeseries`, `drivers-performance`, `routing-savings`, `live` |
 

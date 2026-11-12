@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "KJ Fleets",
-    "description": "Cadastros e autenticação já seguem os DTOs. Pedidos, rota e dashboard ainda são rascunho: ajustar quando existirem. Importa no Postman e no Insomnia.",
+    "description": "Cadastros, autenticação e pedidos já seguem os DTOs. Rota e dashboard ainda são rascunho: ajustar quando existirem. Importa no Postman e no Insomnia.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -57,6 +57,10 @@
     },
     {
       "key": "placeId",
+      "value": ""
+    },
+    {
+      "key": "customerId",
       "value": ""
     },
     {
@@ -186,6 +190,45 @@
       "name": "Pedidos",
       "item": [
         {
+          "name": "Listar clientes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/customers?limit=20&offset=0",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "customers"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            },
+            "description": "Só leitura. Guarda o primeiro cliente em customerId para o Criar pedido."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.items && body.items[0]) pm.collectionVariables.set('customerId', body.items[0].publicId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Criar pedido",
           "request": {
             "method": "POST",
@@ -201,13 +244,14 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"podRequired\": true,\n  \"notes\": \"Entrega de exemplo\",\n  \"payload\": {\n    \"pickup\": {\n      \"name\": \"Depósito Central\",\n      \"address\": \"Rua A, 100\",\n      \"lat\": -24.862,\n      \"lng\": -54.337\n    },\n    \"dropoff\": {\n      \"name\": \"Cliente Final\",\n      \"address\": \"Rua das Flores, 45\",\n      \"lat\": -24.87,\n      \"lng\": -54.33\n    },\n    \"waypoints\": [\n      {\n        \"name\": \"Parada 1\",\n        \"address\": \"Av. B, 200\",\n        \"lat\": -24.866,\n        \"lng\": -54.335\n      },\n      {\n        \"name\": \"Parada 2\",\n        \"address\": \"Rua C, 30\",\n        \"lat\": -24.868,\n        \"lng\": -54.332\n      }\n    ],\n    \"entities\": [\n      {\n        \"name\": \"Caixa pequena\",\n        \"quantity\": 2\n      }\n    ]\n  }\n}",
+              "raw": "{\n  \"customerId\": \"{{customerId}}\",\n  \"pickup\": {\n    \"placeId\": \"{{placeId}}\"\n  },\n  \"dropoff\": {\n    \"name\": \"Casa Ana\",\n    \"address\": \"Rua B, 20\",\n    \"lat\": -24.87,\n    \"lng\": -54.33\n  },\n  \"waypoints\": [\n    {\n      \"placeId\": \"{{placeId}}\"\n    }\n  ],\n  \"items\": [\n    {\n      \"name\": \"Caixa P\",\n      \"quantity\": 2\n    }\n  ],\n  \"podRequired\": true,\n  \"notes\": \"Interfone 12\",\n  \"meta\": {\n    \"externalRef\": \"PED-991\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
                 }
               }
-            }
+            },
+            "description": "Lugar novo vai no ponto (name, address, lat, lng) e lugar existente vai como placeId; nunca os dois no mesmo ponto. Equipe pode omitir customerId (o pedido fica sem dono). Cliente logado é o dono, e o customerId é ignorado."
           },
           "event": [
             {
@@ -216,7 +260,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "const body = pm.response.json();",
-                  "if (body.id) pm.collectionVariables.set('orderId', body.id);",
+                  "if (body.publicId) pm.collectionVariables.set('orderId', body.publicId);",
                   "if (body.trackingNumber) pm.collectionVariables.set('trackingNumber', body.trackingNumber);"
                 ]
               }
@@ -574,6 +618,83 @@
                 }
               ]
             }
+          }
+        },
+        {
+          "name": "Pedidos disponíveis (sem motorista)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/driver/orders?available=true&limit=20&offset=0",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "driver",
+                "orders"
+              ],
+              "query": [
+                {
+                  "key": "available",
+                  "value": "true"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            },
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "{{driverUser}}"
+                },
+                {
+                  "key": "password",
+                  "value": "{{driverPass}}"
+                }
+              ]
+            },
+            "description": "Pedidos CREATED sem motorista, para aceitar. Sem cliente, notes e meta."
+          }
+        },
+        {
+          "name": "Detalhe do pedido",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/driver/orders/{{orderId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "driver",
+                "orders",
+                "{{orderId}}"
+              ]
+            },
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "{{driverUser}}"
+                },
+                {
+                  "key": "password",
+                  "value": "{{driverPass}}"
+                }
+              ]
+            },
+            "description": "Só pedido dele. Sem cliente e meta."
           }
         },
         {

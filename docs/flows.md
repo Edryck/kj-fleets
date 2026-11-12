@@ -50,21 +50,34 @@ sequenceDiagram
     participant S as OrderService
     participant DB as PostgreSQL
 
-    U->>C: POST /orders
+    U->>C: POST /orders (pickup, dropoff, waypoints com placeId ou lugar novo, customerId opcional)
     C->>S: create(request, usuário)
     alt payload sem pickup ou sem dropoff
         S-->>U: 422 ORDER_PAYLOAD_INCOMPLETE
-    else mais de 50 waypoints ou campo inválido
+    else mais de 50 waypoints, ponto com placeId e lugar novo juntos (ou nenhum), ou campo inválido
         S-->>U: 400
+    else placeId ou customerId inexistente ou inativo
+        S-->>U: 404
     else payload válido
-        opt usuário é cliente
-            S->>S: define o cliente dono como o próprio usuário
+        S->>DB: INSERT place para cada lugar novo
+        alt usuário é cliente
+            S->>S: dono = o próprio cliente (customerId do corpo é ignorado)
+        else equipe com customerId
+            S->>S: dono = esse cliente
+        else equipe sem customerId
+            S->>S: pedido sem dono (só a equipe vê)
         end
         S->>DB: INSERT orders (CREATED) + payload
-        S->>DB: INSERT tracking_status (created)
+        S->>DB: INSERT tracking_status (status CREATED, code created)
         S-->>U: 201 com publicId e trackingNumber
     end
 ```
+
+Lugares criados no pedido viram `Place` comum e aparecem em `GET /places`. A equipe acha o `customerId` em `GET /customers` (só leitura).
+
+### Códigos do histórico (`tracking_status.code`)
+
+`status` é o estado do pedido depois do evento (enum em maiúsculas). `code` é o evento, em minúsculas: `created`, `assigned`, `dispatched`, `driver_enroute`, `arrived`, `in_progress`, `pod_registered`, `completed`, `failed`, `cancelled`, `unassigned`. `assigned`, `unassigned` e `pod_registered` não mudam o status. `unassigned` aparece quando um motorista ou veículo é desativado e solto de pedidos `CREATED`. O `code` do corpo de `activity` é outra coisa: o estado de destino pedido, em maiúsculas (`"code": "ARRIVED"`).
 
 ## 4. Despachar pedido (validações)
 
@@ -82,7 +95,9 @@ flowchart TD
     G -- não --> E4["422 DRIVER_NOT_AVAILABLE"]
     G -- sim --> H{"Motorista sem outro pedido ativo?"}
     H -- não --> E5["422 DRIVER_HAS_ACTIVE_ORDER"]
-    H -- sim --> T["Transação: status = DISPATCHED, dispatchedAt = agora, motorista BUSY, INSERT tracking_status"]
+    H -- sim --> M{"Veículo ativo, fora de MAINTENANCE e sem pedido ativo?"}
+    M -- não --> E6["422 VEHICLE_NOT_AVAILABLE"]
+    M -- sim --> T["Transação: status = DISPATCHED, dispatchedAt = agora, motorista BUSY, veículo IN_USE, INSERT tracking_status (code dispatched)"]
     T --> P["Após o commit: publica order.updated"]
     P --> OK["200 com pedido atualizado"]
 ```
@@ -110,15 +125,20 @@ sequenceDiagram
         S-->>A: 422 ORDER_POD_REQUIRED
     else ok
         S->>DB: UPDATE orders.status
-        S->>DB: INSERT tracking_status (status, code, lat, lng)
+        S->>DB: INSERT tracking_status (status novo, code do evento em minúsculas, lat, lng)
+        opt ator é motorista e veio lat e lng
+            S->>DB: UPDATE driver (lat, lng, lastSeenAt)
+        end
         opt estado terminal
-            S->>DB: UPDATE orders.finishedAt e driver.status = AVAILABLE
+            S->>DB: UPDATE orders.finishedAt, driver.status = AVAILABLE e vehicle.status = AVAILABLE
         end
         S->>DB: COMMIT
         S->>WS: convertAndSend /topic/orders/id (order.updated)
         S-->>A: 200
     end
 ```
+
+O motorista só pede `DRIVER_ENROUTE`, `ARRIVED`, `IN_PROGRESS`, `COMPLETED` ou `FAILED`. Quando a equipe avança em nome dele, o `details` registra quem fez (ex.: `por operador1`).
 
 ## 6. Ping de localização do motorista
 
@@ -199,13 +219,23 @@ sequenceDiagram
         D1->>S: POST /driver/orders/id/accept
         D2->>S: POST /driver/orders/id/accept
     end
-    S->>DB: UPDATE orders SET driver = A, vehicle = veículo de A, status = DISPATCHED WHERE id = X AND driver IS NULL AND status = CREATED
-    DB-->>S: 1 linha afetada
-    S-->>D1: 200 pedido é seu
-    S->>DB: UPDATE orders SET driver = B, vehicle = veículo de B, status = DISPATCHED WHERE id = X AND driver IS NULL AND status = CREATED
-    DB-->>S: 0 linhas afetadas
-    S-->>D2: 409 ORDER_ALREADY_TAKEN
+    S->>DB: trava o pedido (SELECT FOR UPDATE)
+    alt pedido não existe
+        S-->>D2: 404
+    else pedido já tem motorista (o outro aceite venceu)
+        S-->>D2: 409 ORDER_ALREADY_TAKEN
+    else pedido fora de CREATED
+        S-->>D2: 422 ORDER_INVALID_TRANSITION
+    else ok
+        S->>DB: trava o motorista e depois o veículo dele
+        S->>S: validações do assign (ativo, AVAILABLE, sem pedido ativo, veículo fora de MAINTENANCE)
+        S->>DB: UPDATE orders (driver, vehicle, DISPATCHED, dispatchedAt), motorista BUSY, veículo IN_USE
+        S->>DB: INSERT tracking_status (assigned e dispatched)
+        S-->>D1: 200 pedido é seu
+    end
 ```
+
+Só um aceite leva o pedido: quem chega depois encontra o motorista gravado e recebe 409. A trava segue a ordem fixa do sistema (pedido, motorista, veículo).
 
 ## 9. Atribuir motorista e veículo (antes do despacho)
 
@@ -213,17 +243,19 @@ sequenceDiagram
 flowchart TD
     A["POST /orders/id/assign (driverId, vehicleId opcional)"] --> B{"Status = CREATED?"}
     B -- não --> E1["422 ORDER_INVALID_TRANSITION"]
-    B -- sim --> C{"Motorista existe e está AVAILABLE?"}
+    B -- sim --> C{"Motorista ativo e AVAILABLE?"}
     C -- não --> E2["422 DRIVER_NOT_AVAILABLE"]
     C -- sim --> D{"Motorista sem pedido ativo?"}
     D -- não --> E3["422 DRIVER_HAS_ACTIVE_ORDER"]
     D -- sim --> V{"Veículo informado ou do motorista?"}
     V -- nenhum --> E4["422 ORDER_DISPATCH_REQUIRES_VEHICLE"]
-    V -- tem --> F{"Veículo sem pedido ativo?"}
+    V -- tem --> F{"Veículo ativo, fora de MAINTENANCE e sem pedido ativo?"}
     F -- não --> E5["422 VEHICLE_NOT_AVAILABLE"]
-    F -- sim --> G["UPDATE orders: driver e vehicle (status segue CREATED)"]
+    F -- sim --> G["UPDATE orders: driver e vehicle (status segue CREATED) e INSERT tracking_status (code assigned)"]
     G --> OK["200 com pedido atualizado"]
 ```
+
+Atribuir não ocupa o motorista: o mesmo motorista pode estar em vários pedidos `CREATED` (fila). Só o despacho o torna `BUSY`; enquanto ele estiver ocupado, despachar ou atribuir outro pedido a ele responde 422 `DRIVER_NOT_AVAILABLE`. Um novo `assign` em `CREATED` substitui o anterior.
 
 ## 10. Cancelar pedido
 
@@ -243,9 +275,9 @@ sequenceDiagram
         S-->>A: 422 ORDER_INVALID_TRANSITION
     else ok
         S->>DB: UPDATE orders.status = CANCELLED, reason, finishedAt
-        S->>DB: INSERT tracking_status (cancelled)
-        opt motorista estava BUSY neste pedido
-            S->>DB: UPDATE driver.status = AVAILABLE
+        S->>DB: INSERT tracking_status (status CANCELLED, code cancelled, details = reason)
+        opt pedido já despachado (motorista BUSY neste pedido)
+            S->>DB: UPDATE driver.status = AVAILABLE e vehicle.status = AVAILABLE
         end
         S->>DB: COMMIT
         S->>WS: convertAndSend /topic/orders/id (order.updated)
@@ -270,7 +302,7 @@ sequenceDiagram
         S-->>A: 422 ORDER_INVALID_TRANSITION
     else ok
         S->>DB: UPDATE orders (podValue, podAt)
-        S->>DB: INSERT tracking_status (pod_registered)
+        S->>DB: INSERT tracking_status (status IN_PROGRESS, code pod_registered, details = value)
         S-->>A: 200
     end
     Note over A,DB: Depois disso o activity para COMPLETED passa na regra de POD
@@ -382,10 +414,7 @@ flowchart TD
 flowchart TD
     A["GET /track/{trackingNumber}"] --> B{"Pedido com esse código existe?"}
     B -- não --> E["404"]
-    B -- sim --> C["Lê o histórico em tracking_status"]
-    C --> D{"Tem rota gravada?"}
-    D -- sim --> F["Inclui etaMinutes"]
-    D -- não --> G["Sem ETA"]
-    F --> H["200 com status e linha do tempo, sem dados pessoais nem coordenadas"]
-    G --> H
+    B -- sim --> C["Lê o histórico em tracking_statuses"]
+    C --> X["Remove eventos assigned e unassigned, details, reason e coordenadas"]
+    X --> H["200 com status e linha do tempo, etaMinutes null até o subprojeto 3"]
 ```

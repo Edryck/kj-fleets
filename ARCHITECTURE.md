@@ -65,7 +65,7 @@ Nada de segredo no repositório: o `application.properties` lê tudo de variáve
 - Datas em `Instant` (UTC).
 - Enums gravados como string (`@Enumerated(EnumType.STRING)`).
 - Todos os perfis ficam na mesma tabela `users`. Motorista e cliente são entidades próprias ligadas 1:1 a um `AppUser`.
-- As demais tabelas seguem o padrão do JPA, no singular (`driver`, `vehicle`, `route`, `route_stop`, `tracking_status`, `road_node`, `road_edge`).
+- As demais tabelas são no plural, como as entidades do código (`drivers`, `vehicles`, `fleets`, `places`, `customers`, `payloads`, `payload_items`, `payload_waypoints`, `tracking_statuses`). Rotas e grafo viário (`routes`, `route_stops`, `road_nodes`, `road_edges`) entram no subprojeto 3.
 ## Modelo de domínio
 
 Diagrama ER, tipos das colunas, índices e restrições em [docs/domain.md](docs/domain.md). Abaixo, o resumo das entidades.
@@ -98,31 +98,38 @@ Criar um motorista (`POST /drivers`) cria também o `AppUser` com role DRIVER (u
 - **Normalização:** username vira minúsculo, placa vira maiúscula, e os dois perdem espaços nas bordas. O login também normaliza o username.
 - **Motorista nasce `OFFLINE`.** `BUSY` é definido pelas rotas, não à mão: `PUT` com `BUSY` responde 400. Motorista `BUSY` não muda de status nem pode ser removido (409 `RESOURCE_IN_USE`).
 - **Vínculo motorista-veículo:** `vehicleId` é opcional. Veículo inativo, em `MAINTENANCE` ou já vinculado a outro motorista responde 409 `RESOURCE_IN_USE`. Excluir motorista o tira das frotas; excluir veículo solta o vínculo do motorista.
-- **Status do veículo:** `MAINTENANCE` é manual. `IN_USE` não pode ser definido à mão (400), e veículo `IN_USE` não muda de status nem pode ser removido (409 `RESOURCE_IN_USE`). A troca automática para `IN_USE` no despacho e para `AVAILABLE` no fim do pedido entra com os pedidos (subprojeto 2); nesta fundação o status não muda sozinho.
+- **Status do veículo:** `MAINTENANCE` é manual. `IN_USE` não pode ser definido à mão (400), e veículo `IN_USE` não muda de status nem pode ser removido (409 `RESOURCE_IN_USE`). A troca automática para `IN_USE` no despacho e para `AVAILABLE` no fim do pedido é feita pelo próprio pedido (ver [Fluxo e regras do pedido](#fluxo-e-regras-do-pedido)).
 - **Login:** `POST /auth/login` recusa motorista (role DRIVER) e usuário inativo com 401, com a mesma resposta de credencial inválida. Motorista só se autentica por Basic Auth em `/driver/**`.
 
 ## Fluxo e regras do pedido
 
-Estados: `CREATED → DISPATCHED → DRIVER_ENROUTE → ARRIVED → IN_PROGRESS → COMPLETED`. Terminais: `COMPLETED`, `CANCELLED`, `FAILED`. "Pedido ativo" = de `DISPATCHED` até `IN_PROGRESS`. No `activity`, `code` é o estado de destino.
+Estados: `CREATED → DISPATCHED → DRIVER_ENROUTE → ARRIVED → IN_PROGRESS → COMPLETED`. Terminais: `COMPLETED`, `CANCELLED`, `FAILED`. "Pedido ativo" = de `DISPATCHED` até `IN_PROGRESS`.
+
+Cada linha do histórico (`tracking_statuses`) tem dois campos: `status` é o estado do pedido depois do evento (enum em maiúsculas) e `code` é o evento em minúsculas: `created`, `assigned`, `unassigned`, `dispatched`, `driver_enroute`, `arrived`, `in_progress`, `pod_registered`, `completed`, `failed`, `cancelled`. `assigned`, `unassigned` e `pod_registered` não mudam o status. No corpo do `activity`, `code` é outra coisa: o estado de destino pedido, em maiúsculas (`"code": "ARRIVED"`).
 
 Transições (centralizadas em **um** lugar, um mapa ou enum com `canGoTo`):
-- `CREATED → DISPATCHED` (só por `dispatch`)
+- `CREATED → DISPATCHED` (só por `dispatch` ou `accept`)
 - `DISPATCHED → DRIVER_ENROUTE → ARRIVED → IN_PROGRESS`
 - `IN_PROGRESS → COMPLETED | FAILED`
 - Cancelar (`CANCELLED`) só até `ARRIVED`.
 
 Regras (as quatro primeiras vêm da spec de terceiros, ver [CREDITS.md](CREDITS.md)):
-1. Despachar exige motorista **e** veículo atribuídos.
-2. Atribuir (`assign`, só em `CREATED`) exige motorista `AVAILABLE` e sem pedido ativo, e veículo (o informado ou o do motorista) sem pedido ativo.
+1. Despachar exige motorista **e** veículo atribuídos. O veículo não pode estar em `MAINTENANCE` nem com pedido ativo (422 `VEHICLE_NOT_AVAILABLE`).
+2. Atribuir (`assign`, só em `CREATED`) exige motorista ativo e `AVAILABLE` sem pedido ativo, e veículo (o informado ou o do motorista) ativo, fora de `MAINTENANCE` e sem pedido ativo. Atribuir não ocupa o motorista: ele pode ter vários pedidos `CREATED` na fila. Só o despacho o torna `BUSY`.
 3. Payload precisa de pelo menos 1 pickup e 1 dropoff, e aceita até 50 waypoints.
 4. Se `podRequired`, não completa sem prova de entrega (`POST /orders/{id}/pod`, só em `IN_PROGRESS`).
 5. Cada transição, **inclusive a criação**, grava um `TrackingStatus` (status, código, detalhes, lat/lng) **na mesma transação** da mudança de status. Estados terminais preenchem `finishedAt`.
 6. Cada transição publica o evento `order.updated` no WebSocket depois do commit.
 7. Proposta própria: um motorista só pode ter 1 pedido ativo por vez. Ele vira `BUSY` no despacho e volta a `AVAILABLE` quando o pedido chega a um estado terminal.
-8. Diferencial (opcional): modo ad hoc, em que o primeiro motorista que aceita (`POST /driver/orders/{id}/accept`) leva o pedido. Aceitar atribui o motorista e o veículo dele e despacha o pedido numa operação só (pedido em `CREATED` e sem motorista), com as mesmas validações de `assign`. Resolver a concorrência com `@Version` ou `UPDATE ... WHERE driver IS NULL` conferindo as linhas afetadas.
+8. Diferencial (opcional): modo ad hoc, em que o primeiro motorista que aceita (`POST /driver/orders/{id}/accept`) leva o pedido. O aceite trava a linha do pedido (`PESSIMISTIC_WRITE`). Se ele já tem motorista, responde 409 `ORDER_ALREADY_TAKEN`. Senão, exige pedido em `CREATED` (422 `ORDER_INVALID_TRANSITION`), trava o motorista e o veículo dele e aplica as validações de `assign` (sem veículo: 422 `ORDER_DISPATCH_REQUIRES_VEHICLE`). Por fim despacha, tudo numa transação.
 9. Cancelar e marcar como `FAILED` exigem `reason`.
-10. CUSTOMER só enxerga e cancela os próprios pedidos; DRIVER só enxerga os atribuídos a ele. Em ambos os casos, pedido de outra pessoa responde 404 (não vaza que existe).
+10. CUSTOMER só enxerga e cancela os próprios pedidos. DRIVER só enxerga os atribuídos a ele, mais os pedidos `CREATED` sem motorista na listagem `?available=true`, que servem para o aceite. Em ambos os casos, pedido de outra pessoa responde 404 (não vaza que existe).
 11. O payload não é editável depois da criação (não existe `PUT` de payload).
+
+Cadastros x pedidos:
+- Desativar motorista ou veículo com pedido ativo responde 409 `RESOURCE_IN_USE`. Com pedidos só em `CREATED`, os pedidos são soltos (motorista e/ou veículo viram `null`) com evento `unassigned` e motivo ("motorista desativado" ou "veículo desativado").
+- `PUT` do motorista para `OFFLINE` e do veículo para `MAINTENANCE` é permitido com pedidos `CREATED`; o despacho barra depois.
+- Pedido e histórico nunca são apagados (não existe `DELETE /orders`).
 
 Erros de regra:
 - **422:** `ORDER_INVALID_TRANSITION`, `ORDER_PAYLOAD_INCOMPLETE`, `ORDER_DISPATCH_REQUIRES_DRIVER`, `ORDER_DISPATCH_REQUIRES_VEHICLE`, `ORDER_POD_REQUIRED`, `DRIVER_NOT_AVAILABLE`, `DRIVER_HAS_ACTIVE_ORDER`, `VEHICLE_NOT_AVAILABLE`, `ROUTE_TOO_LARGE_FOR_EXACT`, `GRAPH_NOT_LOADED`, `GRAPH_IMPORT_FAILED`, `NO_PATH_FOUND`
@@ -172,27 +179,32 @@ Listagens paginadas por `limit` e `offset`: padrão 20, máximo 100 (acima disso
 
 **Pedidos**
 - `POST /orders`: cria pedido (equipe ou cliente)
-- `GET /orders`: lista, filtro `status` (cliente vê só os seus)
+- `GET /orders`: paginado, filtros `status` (repetível), `driverId`, `customerId`, `active=true`, `from` e `to` (ISO-8601 sobre `createdAt`). Cliente vê só os seus e ignora `driverId` e `customerId`
 - `GET /orders/{id}`: detalhe
 - `GET /orders/{id}/tracking`: histórico
-- `POST /orders/{id}/assign`: motorista (+ veículo opcional), só em `CREATED`
+- `POST /orders/{id}/assign`: motorista (+ veículo opcional), só em `CREATED`; o motorista pode estar em vários pedidos `CREATED`
 - `POST /orders/{id}/dispatch`
 - `POST /orders/{id}/activity`: avança o fluxo (`FAILED` exige `reason`)
 - `POST /orders/{id}/pod`: só em `IN_PROGRESS`
-- `POST /orders/{id}/cancel`: exige `reason`
+- `POST /orders/{id}/cancel`: exige `reason`; cliente só nos próprios, em `CREATED`
 - `POST /orders/{id}/route`: calcula e grava a rota (`algorithm` e `seed` opcionais)
 - `GET /orders/{id}/route`: rota gravada, 404 `ROUTE_NOT_FOUND` se não houver
 
+**Clientes**
+- `GET /customers`: paginado, filtro `q` (nome ou e-mail, sem diferenciar maiúsculas). Só leitura (ADMIN, DISPATCHER, FLEET_MANAGER)
+
 **Rastreio público**
-- `GET /track/{trackingNumber}`: status, linha do tempo e ETA, sem dados pessoais nem coordenadas
+- `GET /track/{trackingNumber}`: status, `createdAt`, `finishedAt`, linha do tempo (sem `assigned` e `unassigned`) e `etaMinutes`, que fica `null` até a roteirização (subprojeto 3). Sem dados pessoais, coordenadas, `details` nem `reason`
 
 **API do motorista (Basic Auth, só pedidos dele)**
 - `GET /driver/me`: dados do próprio motorista
-- `GET /driver/orders`
+- `GET /driver/orders`: os dele, ativos primeiro, depois `CREATED`, depois os finalizados; filtro `status`
+- `GET /driver/orders?available=true`: pedidos `CREATED` sem motorista, para escolher no aceite (sem cliente, `notes` nem `meta`)
+- `GET /driver/orders/{id}`: detalhe de um pedido dele (sem cliente nem `meta`)
 - `POST /driver/orders/{id}/accept` (modo ad hoc, opcional)
 - `POST /driver/orders/{id}/activity`
 - `POST /driver/orders/{id}/pod`
-- `GET /driver/orders/{id}/route`
+- `GET /driver/orders/{id}/route` (subprojeto 3)
 - `POST /driver/location`: ping de posição
 
 **Cadastros (CRUD: `GET`, `GET /{id}`, `POST`, `PUT /{id}`, `DELETE /{id}`)**
@@ -233,10 +245,11 @@ Mesmo formato em todas as respostas de erro: `{ "status", "code", "message", "ti
 | `/users` | sim | não | não | não | não |
 | Criar pedido | sim | sim | não | sim | não |
 | Listar, detalhar e ver histórico de pedidos | sim | sim | sim | só os próprios | não |
+| `GET /customers` | sim | sim | sim | não | não |
 | Ver a rota gravada do pedido | sim | sim | sim | não | não |
 | Atribuir, despachar, avançar, POD e calcular a rota do pedido | sim | sim | não | não | não |
 | Cancelar pedido | sim | sim | não | o próprio, só em `CREATED` | não |
-| API do motorista `/driver/**` | não | não | não | não | só os atribuídos a ele |
+| API do motorista `/driver/**` | não | não | não | não | só os atribuídos a ele (e os sem motorista, em `?available=true`) |
 | Motoristas, veículos e frotas (CRUD) | sim | só leitura | sim | não | não |
 | `GET /drivers/nearest` | sim | sim | sim | não | não |
 | Lugares (CRUD) | sim | sim | só leitura | não | não |
@@ -271,7 +284,7 @@ Opcional: uma página estática (`src/main/resources/static/dashboard.html`, Cha
 ## Banco (PostgreSQL)
 
 - Dev: `spring.jpa.hibernate.ddl-auto=update`. Manter um `schema.sql` exportado do pgAdmin como snapshot para a entrega (`docs/schema.sql`).
-- Índices: `orders(status)`, `orders(created_at)`, `orders(finished_at)`, `tracking_status(order_id, created_at)`, `driver(status)`, `route(order_id)` único, `road_edge(from_node)`.
+- Índices: `orders(status)`, `orders(created_at)`, `orders(finished_at)`, `tracking_statuses(order_id, created_at)`, `drivers(status)`, `routes(order_id)` único e `road_edges(from_node)` (subprojeto 3).
 - Evitar N+1 nas listagens (`@EntityGraph` ou fetch join onde fizer sentido).
 - Testes: Testcontainers sobe um PostgreSQL 17 descartável (`postgres:17-alpine`). Precisa de Docker rodando e nunca usa o banco de desenvolvimento.
 
@@ -288,6 +301,7 @@ Opcional: uma página estática (`src/main/resources/static/dashboard.html`, Cha
 | Basic Auth só no motorista | Cumpre o requisito da disciplina com um caso de uso real (dispositivo simples) | Credencial viaja a cada requisição: exigir HTTPS fora de dev |
 | STOMP só para saída | Mantém o motorista simples (REST) | Motorista não recebe push; consulta `GET /driver/orders` |
 | `ddl-auto=update` em dev | Rápido para iterar | Sem migrations versionadas; ver "Banco" |
+| Ordem fixa de trava: pedido, motorista, veículo (`PESSIMISTIC_WRITE`) | Evita deadlock entre `assign`, `dispatch`, `accept` e a soltura nos cadastros | Operações concorrentes sobre o mesmo motorista esperam uma à outra |
 
 ## Fonte das regras
 
