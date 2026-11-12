@@ -315,6 +315,8 @@ class WebSocketAuthTest extends IntegrationTest {
     void unauthenticatedSocketClosedAfterTenSeconds() throws Exception {
         BlockingQueue<String> events = new LinkedBlockingQueue<>();
         openRaw(events);
+        // o handshake do cliente volta antes do servidor registrar o socket; sem isso o openedAt pegaria o offset
+        Thread.sleep(500);
         clock.offset = Duration.ofSeconds(5);
         interceptor.closeExpired();
         assertNull(events.poll(1, TimeUnit.SECONDS));

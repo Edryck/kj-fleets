@@ -36,10 +36,17 @@ public final class AuthDtos {
                                     @NotNull Role role) {
     }
 
-    public record UserResponse(String username, Role role, boolean active) {
+    public record MeResponse(String publicId, String username, String role, String name, String email,
+                             String phone) {
+    }
+
+    public record ChangePasswordRequest(@NotBlank String currentPassword, @NotBlank @Size(min = 8) String newPassword) {
+    }
+
+    public record UserResponse(String publicId, String username, Role role, boolean active) {
 
         public static UserResponse from(AppUser user) {
-            return new UserResponse(user.getUsername(), user.getRole(), user.isActive());
+            return new UserResponse(user.getPublicId(), user.getUsername(), user.getRole(), user.isActive());
         }
     }
 }

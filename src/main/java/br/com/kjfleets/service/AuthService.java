@@ -2,19 +2,23 @@ package br.com.kjfleets.service;
 
 import br.com.kjfleets.config.BusinessException;
 import br.com.kjfleets.dto.AuthDtos.CreateUserRequest;
+import br.com.kjfleets.dto.AuthDtos.ChangePasswordRequest;
 import br.com.kjfleets.dto.AuthDtos.LoginRequest;
 import br.com.kjfleets.dto.AuthDtos.LoginResponse;
+import br.com.kjfleets.dto.AuthDtos.MeResponse;
 import br.com.kjfleets.dto.AuthDtos.RegisterRequest;
 import br.com.kjfleets.dto.AuthDtos.RegisterResponse;
 import br.com.kjfleets.dto.AuthDtos.UserResponse;
 import br.com.kjfleets.dto.PageResponse;
 import br.com.kjfleets.entity.AppUser;
 import br.com.kjfleets.entity.Customer;
+import br.com.kjfleets.entity.PublicIds;
 import br.com.kjfleets.entity.Role;
 import br.com.kjfleets.repository.AppUserRepository;
 import br.com.kjfleets.repository.CustomerRepository;
 import br.com.kjfleets.security.JwtService;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.boot.context.event.ApplicationStartedEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.data.domain.Pageable;
@@ -57,6 +61,33 @@ public class AuthService {
             throw new IllegalStateException("Defina ADMIN_USERNAME e ADMIN_PASSWORD");
         }
         newUser(adminUsername, adminPassword, Role.ADMIN);
+    }
+
+    // usuários antigos ficaram sem publicId quando a coluna nasceu
+    @EventListener(ApplicationReadyEvent.class)
+    @Transactional
+    public void backfillPublicIds() {
+        users.findByPublicIdIsNull().forEach(u -> u.setPublicId(PublicIds.generate("usr")));
+    }
+
+    @Transactional(readOnly = true)
+    public MeResponse me(String username) {
+        AppUser user = users.findByUsername(username).orElseThrow();
+        if (user.getRole() == Role.CUSTOMER) {
+            Customer c = customers.findByUserUsername(username).orElseThrow();
+            return new MeResponse(c.getPublicId(), username, user.getRole().name(), c.getName(), c.getEmail(),
+                    c.getPhone());
+        }
+        return new MeResponse(user.getPublicId(), username, user.getRole().name(), null, null, null);
+    }
+
+    @Transactional
+    public void changePassword(String username, ChangePasswordRequest request) {
+        AppUser user = users.findByUsername(username).orElseThrow();
+        if (!encoder.matches(request.currentPassword(), user.getPasswordHash())) {
+            throw new BusinessException("VALIDATION_ERROR", HttpStatus.BAD_REQUEST, "senha atual incorreta");
+        }
+        user.setPasswordHash(encoder.encode(request.newPassword()));
     }
 
     @Transactional

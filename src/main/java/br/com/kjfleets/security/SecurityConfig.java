@@ -1,9 +1,11 @@
 package br.com.kjfleets.security;
 
 import br.com.kjfleets.config.ApiExceptionHandler;
+import br.com.kjfleets.config.CorsProperties;
 import br.com.kjfleets.entity.Role;
 import br.com.kjfleets.repository.AppUserRepository;
 import java.time.Clock;
+import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -20,6 +22,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
@@ -28,6 +32,19 @@ public class SecurityConfig {
     @Bean
     Clock clock() {
         return Clock.systemUTC();
+    }
+
+    // sem origem configurada não responde CORS nenhum; /ws fica de fora porque tem a própria regra
+    @Bean
+    CorsConfigurationSource corsConfigurationSource(CorsProperties cors) {
+        List<String> origins = cors.allowedOrigins() == null ? List.of()
+                : cors.allowedOrigins().stream().map(String::trim).filter(o -> !o.isEmpty()).toList();
+        CorsConfiguration config = new CorsConfiguration();
+        config.setAllowedOrigins(origins);
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        config.setAllowCredentials(false);
+        return request -> origins.isEmpty() || request.getRequestURI().startsWith("/ws") ? null : config;
     }
 
     @Bean
@@ -86,6 +103,7 @@ public class SecurityConfig {
                 .exceptionHandling(e -> e.authenticationEntryPoint(entryPoint).accessDeniedHandler(deniedHandler))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/auth/**", "/track/**", "/ws/**").permitAll()
+                        .requestMatchers("/me/**").authenticated()
                         .requestMatchers("/users/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/drivers/**", "/vehicles/**", "/fleets/**", "/places/**")
                         .hasAnyRole("ADMIN", "DISPATCHER", "FLEET_MANAGER")
