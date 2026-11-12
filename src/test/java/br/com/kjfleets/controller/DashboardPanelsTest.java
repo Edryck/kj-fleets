@@ -164,8 +164,8 @@ class DashboardPanelsTest extends IntegrationTest {
         JsonNode active = json.readTree(text).get("active");
         assertEquals(List.of(mine), ids(active, "orderId"));
         assertFalse(text.contains(theirs));
-        assertFalse(text.toLowerCase().contains("km"));
-        assertFalse(text.toLowerCase().contains("algorithm"));
+        // olha só as chaves do JSON; ids e tracking aleatórios podem conter "km"
+        assertFalse(java.util.regex.Pattern.compile("\"\\w*(?i:km|algorithm)\\w*\"\\s*:").matcher(text).find());
         assertEquals(1, json.readTree(text).get("summary").get("created").asLong());
         assertTrue(active.get(0).get("driverName").asString().startsWith("Motorista"));
     }
@@ -231,6 +231,21 @@ class DashboardPanelsTest extends IntegrationTest {
         assertEquals(done.get(0), delivered.get(0).get("orderId").asString());
         assertTrue(delivered.get(0).get("hasPod").asBoolean());
         assertFalse(delivered.get(1).get("hasPod").asBoolean());
+    }
+
+    @Test
+    void customerAttentionFailedUsesFinishedAtWindow() throws Exception {
+        Customer customer = registerCustomer();
+        String failed = fixtures.createOrder(customer.bearer());
+        jdbc.update("UPDATE orders SET status = 'FAILED', reason = 'recusado', created_at = now() - interval '60 days', "
+                + "finished_at = now() WHERE public_id = ?", failed);
+
+        JsonNode body = panel("/customer/dashboard", customer.bearer());
+        boolean found = false;
+        for (JsonNode item : body.get("attention")) {
+            found |= item.get("orderId").asString().equals(failed);
+        }
+        assertTrue(found);
     }
 
     @Test

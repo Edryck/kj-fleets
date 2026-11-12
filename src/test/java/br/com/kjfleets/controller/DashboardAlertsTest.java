@@ -245,9 +245,6 @@ class DashboardAlertsTest extends IntegrationTest {
         assertFalse(dispatcher.get("counts").has("STATUS_INCONSISTENT"));
 
         JsonNode admin = call(Role.ADMIN);
-        for (JsonNode item : admin.get("items")) {
-            assertFalse(item.get("type").asString().equals("STALE_ORDER"));
-        }
         assertTrue(admin.get("counts").get("STALE_ORDER").asLong() >= 1);
         assertEquals(8, admin.get("counts").size());
 

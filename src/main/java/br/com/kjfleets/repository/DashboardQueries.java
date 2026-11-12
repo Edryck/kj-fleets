@@ -220,7 +220,8 @@ public class DashboardQueries {
     public List<DriverRow> driverRows(UUID fleetId, Instant freshSince, boolean availableOnly) {
         String sql = "SELECT d.public_id, d.name, d.status, v.plate, v.status AS vehicle_status,"
                 + " (SELECT o.public_id FROM orders o WHERE o.driver_id = d.id"
-                + "   AND o.status IN ('DISPATCHED', 'DRIVER_ENROUTE', 'ARRIVED', 'IN_PROGRESS') LIMIT 1) AS active_order,"
+                + "   AND o.status IN ('DISPATCHED', 'DRIVER_ENROUTE', 'ARRIVED', 'IN_PROGRESS')"
+                + "   ORDER BY o.created_at, o.public_id LIMIT 1) AS active_order,"
                 + " (SELECT count(*) FROM orders o WHERE o.driver_id = d.id AND o.status = 'CREATED') AS queue_size,"
                 + " d.last_seen_at, (d.last_seen_at IS NULL OR d.last_seen_at < :freshSince) AS ping_stale"
                 + " FROM drivers d LEFT JOIN vehicles v ON v.id = d.vehicle_id"
@@ -238,7 +239,7 @@ public class DashboardQueries {
 
     // tempo BUSY / (AVAILABLE + BUSY) do status_changes, cortado em [from, to]; a última linha antes de from
     // entra como estado inicial porque o intervalo dela é recortado em from
-    public DriversPerformance driversPerformance(DashboardPeriod period, UUID fleetId) {
+    public DriversPerformance driversPerformance(DashboardPeriod period, UUID fleetId, Instant now) {
         String sql = "WITH ord AS ("
                 + "  SELECT o.driver_id,"
                 + "   count(*) FILTER (WHERE o.status = 'COMPLETED' AND o.finished_at >= :from AND o.finished_at < :to) AS completed,"
@@ -278,10 +279,10 @@ public class DashboardQueries {
                 Rate.of(rs.getLong("completed"), rs.getLong("completed") + rs.getLong("failed")),
                 minutes(rs.getBigDecimal("minutes")), minutes(rs.getBigDecimal("busy_pct")), rs.getLong("orders")));
         List<String> idle = drivers.stream().filter(d -> d.completed() == 0).map(DriverPerformance::driverId).toList();
-        return new DriversPerformance(period.meta(Instant.now()), drivers, idle);
+        return new DriversPerformance(period.meta(now), drivers, idle);
     }
 
-    public RoutingSavings routingSavings(DashboardPeriod period) {
+    public RoutingSavings routingSavings(DashboardPeriod period, Instant now) {
         MapSqlParameterSource params = window(period, null);
         Map<String, AlgorithmSavings> byAlgorithm = new LinkedHashMap<>();
         double[] totals = new double[4]; // rotas, planejado, base, soma dos percentuais
@@ -306,7 +307,7 @@ public class DashboardQueries {
                 + " WHERE o.dispatched_at >= :from AND o.dispatched_at < :to", params,
                 (rs, i) -> new long[]{rs.getLong("n"), rs.getLong("hits")});
         long routes = (long) totals[0];
-        return new RoutingSavings(period.meta(Instant.now()), routes, totals[1], totals[2], totals[2] - totals[1],
+        return new RoutingSavings(period.meta(now), routes, totals[1], totals[2], totals[2] - totals[1],
                 routes == 0 ? null : totals[3] / routes, byAlgorithm, Rate.of(batch[1], batch[0]));
     }
 

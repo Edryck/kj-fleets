@@ -32,7 +32,7 @@ public class AlertService {
     private static final double SUSPICIOUS_RATIO = 0.8;
 
     private static final Map<String, Set<AlertType>> VISIBLE = Map.of(
-            "ADMIN", EnumSet.of(STATUS_INCONSISTENT, DEMAND_OVER_CAPACITY, SUSPICIOUS_STOP),
+            "ADMIN", EnumSet.allOf(AlertType.class),
             "DISPATCHER", EnumSet.of(STALE_ORDER, DRIVER_NO_SIGNAL, VEHICLE_MAINTENANCE_ON_AVAILABLE_DRIVER,
                     DEMAND_OVER_CAPACITY, ROUTE_MISSING),
             "FLEET_MANAGER", EnumSet.of(DRIVER_NO_SIGNAL, STATUS_INCONSISTENT,
@@ -41,12 +41,13 @@ public class AlertService {
     private final DashboardQueries queries;
     private final DashboardProperties props;
     private final RoutingProperties routing;
-    private final Clock clock = Clock.systemUTC();
+    private final Clock clock;
 
-    public AlertService(DashboardQueries queries, DashboardProperties props, RoutingProperties routing) {
+    public AlertService(DashboardQueries queries, DashboardProperties props, RoutingProperties routing, Clock clock) {
         this.queries = queries;
         this.props = props;
         this.routing = routing;
+        this.clock = clock;
     }
 
     @Transactional(readOnly = true)

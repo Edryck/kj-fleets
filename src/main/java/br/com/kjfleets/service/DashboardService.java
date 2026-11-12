@@ -84,12 +84,12 @@ public class DashboardService {
     private final RouteService routeService;
     private final AlertService alertService;
     private final DriverRepository drivers;
-    private final Clock clock = Clock.systemUTC();
+    private final Clock clock;
 
     public DashboardService(DashboardQueries queries, DashboardProperties props, RoutingProperties routing,
                             CustomerRepository customers, FleetRepository fleets, OrderRepository orders,
                             RouteRepository routes, RouteService routeService, AlertService alertService,
-                            DriverRepository drivers) {
+                            DriverRepository drivers, Clock clock) {
         this.queries = queries;
         this.props = props;
         this.routing = routing;
@@ -100,6 +100,7 @@ public class DashboardService {
         this.routeService = routeService;
         this.alertService = alertService;
         this.drivers = drivers;
+        this.clock = clock;
     }
 
     private static boolean hasRole(Authentication auth, String role) {
@@ -137,6 +138,10 @@ public class DashboardService {
 
     @Transactional(readOnly = true)
     public Funnel funnel() {
+        return funnel(queries.countByStage());
+    }
+
+    private Funnel funnel(Map<String, Long> byStage) {
         Instant now = clock.instant();
         Map<String, Long> stale = new LinkedHashMap<>();
         DashboardQueries.STAGES.forEach(stage -> stale.put(stage, 0L));
@@ -144,13 +149,16 @@ public class DashboardService {
             stale.merge(order.stage(), 1L, Long::sum);
         }
         return new Funnel(Meta.now(now, props.timezone()),
-                queries.countByStage(), stale);
+                byStage, stale);
     }
 
     @Transactional(readOnly = true)
     public DispatchQueue dispatchQueue() {
+        return dispatchQueue(queries.countByStage());
+    }
+
+    private DispatchQueue dispatchQueue(Map<String, Long> byStage) {
         Instant now = clock.instant();
-        Map<String, Long> byStage = queries.countByStage();
 
         List<Order> active = orders.findTop50ByStatusInOrderByCreatedAtAsc(IN_PROGRESS);
         Map<UUID, Route> routeByOrder = routes.findByOrderIn(active).stream()
@@ -207,12 +215,12 @@ public class DashboardService {
     @Transactional(readOnly = true)
     public DriversPerformance driversPerformance(String periodName, String fleetId) {
         DashboardPeriod period = DashboardPeriod.resolve(periodName, props.timezone(), clock);
-        return queries.driversPerformance(period, fleetUuid(fleetId));
+        return queries.driversPerformance(period, fleetUuid(fleetId), clock.instant());
     }
 
     @Transactional(readOnly = true)
     public RoutingSavings routingSavings(String periodName) {
-        return queries.routingSavings(DashboardPeriod.resolve(periodName, props.timezone(), clock));
+        return queries.routingSavings(DashboardPeriod.resolve(periodName, props.timezone(), clock), clock.instant());
     }
 
     @Transactional(readOnly = true)
@@ -229,9 +237,9 @@ public class DashboardService {
                 customerId != null ? null : queries.completedByDriverMonth(now, props.timezone()));
     }
 
-    private FleetCounts fleetCounts(List<DriverRow> available) {
+    private FleetCounts fleetCounts(List<DriverRow> available, Map<String, Long> byStage) {
         return new FleetCounts(queries.driversByStatus(null), queries.vehiclesByStatus(null),
-                queries.countByStage().get("UNASSIGNED"), available.size());
+                byStage.get("UNASSIGNED"), available.size());
     }
 
     private List<DriverRow> availableRows() {
@@ -244,14 +252,16 @@ public class DashboardService {
 
     @Transactional(readOnly = true)
     public AdminPanel adminPanel(String period, Authentication auth) {
-        return new AdminPanel(panelMeta(period), ordersSummary(period, true, auth), funnel(),
-                fleetCounts(availableRows()), routingSavings(period), alertService.alerts(auth).counts());
+        Map<String, Long> byStage = queries.countByStage();
+        return new AdminPanel(panelMeta(period), ordersSummary(period, true, auth), funnel(byStage),
+                fleetCounts(availableRows(), byStage), routingSavings(period), alertService.alerts(auth).counts());
     }
 
     @Transactional(readOnly = true)
     public DispatchPanel dispatchPanel(String period, Authentication auth) {
         List<DriverRow> available = availableRows();
-        return new DispatchPanel(panelMeta(period), dispatchQueue(), available, fleetCounts(available),
+        Map<String, Long> byStage = queries.countByStage();
+        return new DispatchPanel(panelMeta(period), dispatchQueue(byStage), available, fleetCounts(available, byStage),
                 ordersSummary(period, false, auth), alertService.alertsFor("DISPATCHER").items());
     }
 
@@ -285,12 +295,12 @@ public class DashboardService {
         }).toList();
 
         List<CustomerAttention> attention = new ArrayList<>();
-        orders.findByCustomerIdAndStatusAndCreatedAtGreaterThanEqualOrderByCreatedAtDesc(customerId,
-                OrderStatus.FAILED, period.from()).forEach(order -> attention.add(new CustomerAttention(
+        orders.findByCustomerIdAndStatusAndFinishedAtGreaterThanEqualAndFinishedAtLessThanOrderByFinishedAtDesc(
+                customerId, OrderStatus.FAILED, period.from(), period.to()).forEach(order -> attention.add(new CustomerAttention(
                 order.getPublicId(), order.getTrackingNumber(), "FAILED", order.getReason(), null)));
         queries.staleOrders(props, now, customerId).forEach(stale -> attention.add(new CustomerAttention(
                 stale.orderId(), stale.trackingNumber(), "STALE", "Há " + stale.minutesInStage()
-                + " min nesta etapa (limite " + stale.limitMin() + ")", stale.minutesInStage())));
+                + " min nesta etapa, acima do esperado", stale.minutesInStage())));
 
         List<CustomerDelivered> delivered = orders.findTop10ByCustomerIdAndStatusOrderByFinishedAtDesc(customerId,
                 OrderStatus.COMPLETED).stream().map(order -> new CustomerDelivered(order.getPublicId(),

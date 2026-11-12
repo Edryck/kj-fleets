@@ -94,9 +94,8 @@ public interface OrderRepository extends JpaRepository<Order, UUID>, JpaSpecific
     List<Order> findByCustomerIdAndStatusInOrderByCreatedAtAsc(UUID customerId, Collection<OrderStatus> statuses);
 
     @EntityGraph(attributePaths = "payload")
-    List<Order> findByCustomerIdAndStatusAndCreatedAtGreaterThanEqualOrderByCreatedAtDesc(UUID customerId,
-                                                                                         OrderStatus status,
-                                                                                         Instant from);
+    List<Order> findByCustomerIdAndStatusAndFinishedAtGreaterThanEqualAndFinishedAtLessThanOrderByFinishedAtDesc(
+            UUID customerId, OrderStatus status, Instant from, Instant to);
 
     @EntityGraph(attributePaths = "payload")
     List<Order> findTop10ByCustomerIdAndStatusOrderByFinishedAtDesc(UUID customerId, OrderStatus status);

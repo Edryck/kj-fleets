@@ -3,6 +3,7 @@ package br.com.kjfleets.security;
 import br.com.kjfleets.config.ApiExceptionHandler;
 import br.com.kjfleets.entity.Role;
 import br.com.kjfleets.repository.AppUserRepository;
+import java.time.Clock;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -23,6 +24,11 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 @Configuration
 public class SecurityConfig {
+
+    @Bean
+    Clock clock() {
+        return Clock.systemUTC();
+    }
 
     @Bean
     PasswordEncoder passwordEncoder() {

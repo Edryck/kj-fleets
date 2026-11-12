@@ -314,7 +314,7 @@ Somente leitura. Há dois tipos de consulta: **tópicos** (um número ou uma lis
 - `GET /dashboard/fleet/status` (`fleetId`, opcional, no formato `fleet_xxxxxx`): motoristas e veículos por status, pedidos esperando e motoristas disponíveis com posição recente. DISPATCHER não recebe `drivers` (lista completa). Frota inexistente responde 404.
 - `GET /dashboard/drivers/performance` (`period`, `fleetId`): por motorista, concluídos, falhos, taxa de sucesso, pedidos, despacho até chegada (média em minutos) e `busyPct` (tempo em `BUSY` sobre o tempo em `AVAILABLE` mais `BUSY`, no período). `idleDriverIds` lista quem não concluiu nada.
 - `GET /dashboard/routing/savings` (`period`): rotas concluídas, km planejados e de base, km economizados, economia média no total e por algoritmo, e `batchDispatchPct` (percentual de despachos em lote).
-- `GET /dashboard/trends/yearly`: 13 meses (12 fechados e o atual) no fuso do painel, zerados quando vazios. `byDriver` traz os concluídos por motorista e mês. Cliente recebe só contagens e taxa de sucesso, sem km, economia, ciclo nem motorista.
+- `GET /dashboard/trends/yearly`: 13 meses (12 fechados e o atual) no fuso do painel, zerados quando vazios. `byDriver` traz os concluídos por motorista e mês, de todos os motoristas (inclusive desativados), sem filtro de frota. Cliente recebe só contagens e taxa de sucesso, sem km, economia, ciclo nem motorista.
 - `GET /dashboard/alerts`: alertas do perfil (ver abaixo).
 
 Tendência anual é uma **coorte pela data de criação do pedido**: concluídos, falhos, cancelados, ciclo e economia caem no mês em que o pedido foi criado, mesmo que a conclusão seja no mês seguinte.
@@ -325,7 +325,7 @@ Tendência anual é uma **coorte pela data de criação do pedido**: concluídos
 - `GET /dashboard/dispatch` (ADMIN e DISPATCHER, `period`): fila, motoristas disponíveis, contagens, resumo e alertas do DISPATCHER.
 - `GET /dashboard/fleet` (ADMIN e FLEET_MANAGER, `period`): status da frota, alertas do FLEET_MANAGER, desempenho dos motoristas e `sizing` (por dia: pedidos criados e motoristas que entregaram).
 - `GET /customer/dashboard` (CUSTOMER, `period`): `active` (pedidos ativos, incluindo `CREATED`; `etaMinutes` só em `DRIVER_ENROUTE`, `ARRIVED` e `IN_PROGRESS`), `attention` (falhas no período e pedidos parados), resumo dos próprios pedidos e as 10 últimas entregas.
-- `GET /driver/dashboard` (DRIVER, Basic Auth, sem `period`): pedido em andamento mais antigo, fila de atribuídos, resumo de hoje (concluídos, falhos e paradas concluídas) e GPS (`lastSeenAt`, idade da posição e se ela é válida). "Hoje" é sempre o dia no fuso do painel.
+- `GET /driver/dashboard` (DRIVER, Basic Auth, sem `period`): pedido em andamento mais antigo, fila de atribuídos, resumo de hoje (concluídos, falhos e paradas concluídas; só conta paradas concluídas pelo próprio motorista, as concluídas pela equipe ficam de fora) e GPS (`lastSeenAt`, idade da posição e se ela é válida). "Hoje" é sempre o dia no fuso do painel.
 
 ### Alertas
 
@@ -333,16 +333,16 @@ Resposta com `items` (até 100) e `counts` por tipo. Cada alerta traz `type`, `s
 
 | Tipo | Regra | Severidade | Quem recebe a lista |
 |---|---|---|---|
-| `STALE_ORDER` | Pedido passou do limite da etapa. O relógio começa no último evento de mudança de etapa (ou na criação) | MEDIUM; HIGH acima de 2x o limite | DISPATCHER |
-| `DRIVER_NO_SIGNAL` | Motorista `BUSY` ou `AVAILABLE` sem posição há mais de 2x `ROUTING_POSITION_MAX_AGE_S` (padrão 10 min). Motorista que nunca enviou posição fica de fora | HIGH se tem pedido em andamento; senão MEDIUM | DISPATCHER, FLEET_MANAGER |
+| `STALE_ORDER` | Pedido passou do limite da etapa. O relógio começa no último evento de mudança de etapa (ou na criação) | MEDIUM; HIGH acima de 2x o limite | DISPATCHER, ADMIN |
+| `DRIVER_NO_SIGNAL` | Motorista `BUSY` ou `AVAILABLE` sem posição há mais de 2x `ROUTING_POSITION_MAX_AGE_S` (padrão 10 min). Motorista que nunca enviou posição fica de fora | HIGH se tem pedido em andamento; senão MEDIUM | DISPATCHER, FLEET_MANAGER, ADMIN |
 | `STATUS_INCONSISTENT` | Motorista `BUSY` sem pedido ativo, ou `AVAILABLE` com pedido ativo | HIGH | FLEET_MANAGER, ADMIN |
-| `VEHICLE_MAINTENANCE_ON_AVAILABLE_DRIVER` | Motorista `AVAILABLE` com veículo em `MAINTENANCE` | MEDIUM | DISPATCHER, FLEET_MANAGER |
+| `VEHICLE_MAINTENANCE_ON_AVAILABLE_DRIVER` | Motorista `AVAILABLE` com veículo em `MAINTENANCE` | MEDIUM | DISPATCHER, FLEET_MANAGER, ADMIN |
 | `DEMAND_OVER_CAPACITY` | Pedidos sem motorista maiores que os motoristas livres (`AVAILABLE`, veículo `AVAILABLE`, posição recente) | HIGH | DISPATCHER, ADMIN |
 | `SUSPICIOUS_STOP` | Parada concluída nas últimas 24h sem distância registrada (concluída pela equipe) ou a mais de 80% de `ROUTING_ARRIVAL_RADIUS_M` | LOW | FLEET_MANAGER, ADMIN |
-| `ROUTE_MISSING` | Pedido ativo sem rota calculada. A mensagem traz o último `route_failed` | MEDIUM | DISPATCHER |
-| `LONG_MAINTENANCE` | Veículo em `MAINTENANCE` há mais de `DASHBOARD_MAINTENANCE_ALERT_DAYS` dias | LOW | FLEET_MANAGER |
+| `ROUTE_MISSING` | Pedido ativo sem rota calculada. A mensagem traz o último `route_failed` | MEDIUM | DISPATCHER, ADMIN |
+| `LONG_MAINTENANCE` | Veículo em `MAINTENANCE` há mais de `DASHBOARD_MAINTENANCE_ALERT_DAYS` dias | LOW | FLEET_MANAGER, ADMIN |
 
-ADMIN recebe a contagem dos 8 tipos, mas a lista só traz os três que são dele (`STATUS_INCONSISTENT`, `DEMAND_OVER_CAPACITY` e `SUSPICIOUS_STOP`). DISPATCHER e FLEET_MANAGER veem contagem e lista só dos tipos do próprio papel. Os painéis `dispatch` e `fleet` mostram os alertas desse operador, mesmo quando quem chama é ADMIN.
+ADMIN recebe contagem e lista dos 8 tipos. DISPATCHER e FLEET_MANAGER veem contagem e lista só dos tipos do próprio papel. Os painéis `dispatch` e `fleet` mostram os alertas desse operador, mesmo quando quem chama é ADMIN.
 
 ### Histórico de status
 

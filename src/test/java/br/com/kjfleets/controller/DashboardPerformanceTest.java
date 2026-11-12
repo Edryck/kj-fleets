@@ -129,7 +129,7 @@ class DashboardPerformanceTest extends IntegrationTest {
         finishedOrder(other, bearer(Role.DISPATCHER), "COMPLETED", 40);
         finishedOrder(busy, bearer(Role.DISPATCHER), "COMPLETED", 60 * 24 * 40);
 
-        DriversPerformance result = queries.driversPerformance(window(Instant.now().minus(1, ChronoUnit.DAYS), Instant.now()), null);
+        DriversPerformance result = queries.driversPerformance(window(Instant.now().minus(1, ChronoUnit.DAYS), Instant.now()), null, Instant.now());
         var row = row(result, busy);
         assertEquals(2, row.completed());
         assertEquals(1, row.failed());
@@ -161,7 +161,7 @@ class DashboardPerformanceTest extends IntegrationTest {
         statusChange(onlyBefore, "BUSY", from.minus(5, ChronoUnit.HOURS));
         statusChange(onlyOffline, "OFFLINE", from.minus(5, ChronoUnit.HOURS));
 
-        DriversPerformance result = queries.driversPerformance(window(from, to), null);
+        DriversPerformance result = queries.driversPerformance(window(from, to), null, Instant.now());
         assertEquals(50.0, row(result, clipped).busyPct());
         assertNull(row(result, noHistory).busyPct());
         assertEquals(100.0, row(result, onlyBefore).busyPct());
@@ -180,7 +180,7 @@ class DashboardPerformanceTest extends IntegrationTest {
         track(b, "dispatched", null, 60);
         track(b, "arrived", null, 40);
 
-        var row = row(queries.driversPerformance(window(Instant.now().minus(1, ChronoUnit.DAYS), Instant.now()), null), driver);
+        var row = row(queries.driversPerformance(window(Instant.now().minus(1, ChronoUnit.DAYS), Instant.now()), null, Instant.now()), driver);
         assertEquals(15.0, row.avgDispatchToArrivedMinutes(), 0.01);
     }
 
@@ -190,7 +190,7 @@ class DashboardPerformanceTest extends IntegrationTest {
         String idle = driver();
         finishedOrder(worker, bearer(Role.DISPATCHER), "COMPLETED", 10);
 
-        DriversPerformance result = queries.driversPerformance(window(Instant.now().minus(1, ChronoUnit.DAYS), Instant.now()), null);
+        DriversPerformance result = queries.driversPerformance(window(Instant.now().minus(1, ChronoUnit.DAYS), Instant.now()), null, Instant.now());
         assertTrue(result.idleDriverIds().contains(idle));
         assertTrue(!result.idleDriverIds().contains(worker));
     }
@@ -198,14 +198,14 @@ class DashboardPerformanceTest extends IntegrationTest {
     @Test
     void savingsTotalsAndByAlgorithm() throws Exception {
         Instant from = Instant.now().minus(1, ChronoUnit.DAYS);
-        var before = queries.routingSavings(window(from, Instant.now().plusSeconds(60)));
+        var before = queries.routingSavings(window(from, Instant.now().plusSeconds(60)), Instant.now());
         String driver = driver();
         route(finishedOrder(driver, bearer(Role.DISPATCHER), "COMPLETED", 10), "TWO_OPT", 8, 10, 20);
         route(finishedOrder(driver, bearer(Role.DISPATCHER), "COMPLETED", 10), "TWO_OPT", 6, 10, 40);
         route(finishedOrder(driver, bearer(Role.DISPATCHER), "FAILED", 10), "TWO_OPT", 1, 100, 99);
         route(finishedOrder(driver, bearer(Role.DISPATCHER), "COMPLETED", 60 * 24 * 40), "HELD_KARP", 1, 100, 99);
 
-        var after = queries.routingSavings(window(from, Instant.now().plusSeconds(60)));
+        var after = queries.routingSavings(window(from, Instant.now().plusSeconds(60)), Instant.now());
         var twoOptBefore = before.byAlgorithm().get("TWO_OPT");
         var twoOpt = after.byAlgorithm().get("TWO_OPT");
         assertEquals(before.routes() + 2, after.routes());
@@ -222,7 +222,7 @@ class DashboardPerformanceTest extends IntegrationTest {
     void batchDispatchPct() throws Exception {
         String driver = driver();
         Instant from = Instant.now().minus(1, ChronoUnit.HOURS);
-        var before = queries.routingSavings(window(from, Instant.now().plusSeconds(60))).batchDispatchPct();
+        var before = queries.routingSavings(window(from, Instant.now().plusSeconds(60)), Instant.now()).batchDispatchPct();
         String batch = finishedOrder(driver, bearer(Role.DISPATCHER), "DISPATCHED", 5);
         String manual = finishedOrder(driver, bearer(Role.DISPATCHER), "DISPATCHED", 5);
         track(batch, "assigned", "Fulano (ABC1234) lote", 40);
@@ -231,7 +231,7 @@ class DashboardPerformanceTest extends IntegrationTest {
         track(manual, "assigned", "Fulano (ABC1234) lote", 35);
         track(manual, "assigned", "Beltrano (XYZ9876)", 30);
 
-        var after = queries.routingSavings(window(from, Instant.now().plusSeconds(60))).batchDispatchPct();
+        var after = queries.routingSavings(window(from, Instant.now().plusSeconds(60)), Instant.now()).batchDispatchPct();
         assertEquals(before.n() + 2, after.n());
         long hitsBefore = Math.round((before.rate() == null ? 0 : before.rate()) * before.n());
         assertEquals(hitsBefore + 1, Math.round(after.rate() * after.n()));
