@@ -85,7 +85,7 @@ public class SecurityConfig {
                 .addFilterBefore(new JwtFilter(jwt, users), UsernamePasswordAuthenticationFilter.class)
                 .exceptionHandling(e -> e.authenticationEntryPoint(entryPoint).accessDeniedHandler(deniedHandler))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/**", "/track/**").permitAll()
+                        .requestMatchers("/auth/**", "/track/**", "/ws/**").permitAll()
                         .requestMatchers("/users/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/drivers/**", "/vehicles/**", "/fleets/**", "/places/**")
                         .hasAnyRole("ADMIN", "DISPATCHER", "FLEET_MANAGER")

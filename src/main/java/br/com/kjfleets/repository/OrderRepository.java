@@ -30,6 +30,8 @@ public interface OrderRepository extends JpaRepository<Order, UUID>, JpaSpecific
     @Query("select o from Order o where o.publicId = :publicId")
     Optional<Order> lockByPublicId(String publicId);
 
+    boolean existsByPublicIdAndCustomerUserUsername(String publicId, String username);
+
     Optional<Order> findByTrackingNumber(String trackingNumber);
 
     boolean existsByDriverAndStatusIn(Driver driver, Collection<OrderStatus> statuses);
