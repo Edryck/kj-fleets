@@ -55,8 +55,11 @@ class JwtServiceTest {
     @Test
     void tamperedTokenIsEmpty() {
         String token = jwt.generate(admin());
-        char last = token.charAt(token.length() - 1);
-        String tampered = token.substring(0, token.length() - 1) + (last == 'A' ? 'B' : 'A');
+        // mexe no meio da assinatura: o último caractere pode ter só bits de padding e não mudar nada
+        int signatureStart = token.lastIndexOf('.') + 1;
+        int middle = signatureStart + (token.length() - signatureStart) / 2;
+        char original = token.charAt(middle);
+        String tampered = token.substring(0, middle) + (original == 'A' ? 'B' : 'A') + token.substring(middle + 1);
 
         assertTrue(jwt.username(tampered).isEmpty());
     }
