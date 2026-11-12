@@ -5,6 +5,9 @@ import br.com.kjfleets.entity.RouteStop;
 import br.com.kjfleets.entity.StopType;
 import br.com.kjfleets.routing.RouteAlgorithm;
 
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
+
 import java.time.Instant;
 import java.util.List;
 
@@ -14,6 +17,10 @@ public final class RouteDtos {
     }
 
     public record RouteRequest(RouteAlgorithm algorithm, Long seed) {
+    }
+
+    public record StopCompleteRequest(@DecimalMin("-90") @DecimalMax("90") Double lat,
+                                      @DecimalMin("-180") @DecimalMax("180") Double lng) {
     }
 
     public record StopResponse(int seq, StopType type, String placeId, String name, double lat, double lng,

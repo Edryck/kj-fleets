@@ -8,6 +8,7 @@ import br.com.kjfleets.dto.OrderDtos.PodRequest;
 import br.com.kjfleets.dto.PageResponse;
 import br.com.kjfleets.entity.OrderStatus;
 import br.com.kjfleets.dto.RouteDtos.RouteResponse;
+import br.com.kjfleets.dto.RouteDtos.StopCompleteRequest;
 import br.com.kjfleets.service.OrderService;
 import br.com.kjfleets.service.RouteService;
 import jakarta.validation.Valid;
@@ -52,6 +53,14 @@ public class DriverOrderController {
     @GetMapping("/driver/orders/{publicId}/route")
     RouteResponse route(@PathVariable String publicId, Authentication authentication) {
         return routeService.driverRoute(publicId, authentication.getName());
+    }
+
+    @PostMapping("/driver/orders/{publicId}/stops/{seq}/complete")
+    RouteResponse completeStop(@PathVariable String publicId, @PathVariable int seq,
+                               @Valid @RequestBody(required = false) StopCompleteRequest request,
+                               Authentication authentication) {
+        return routeService.completeStop(publicId, seq,
+                request == null ? new StopCompleteRequest(null, null) : request, authentication.getName(), true);
     }
 
     @PostMapping("/driver/orders/{publicId}/activity")

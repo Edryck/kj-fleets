@@ -4,6 +4,7 @@ import br.com.kjfleets.config.BusinessException;
 import br.com.kjfleets.config.RoutingProperties;
 import br.com.kjfleets.dto.RouteDtos.RouteRequest;
 import br.com.kjfleets.dto.RouteDtos.RouteResponse;
+import br.com.kjfleets.dto.RouteDtos.StopCompleteRequest;
 import br.com.kjfleets.entity.Driver;
 import br.com.kjfleets.entity.Order;
 import br.com.kjfleets.entity.OrderStatus;
@@ -12,8 +13,11 @@ import br.com.kjfleets.entity.Place;
 import br.com.kjfleets.entity.Route;
 import br.com.kjfleets.entity.RouteStop;
 import br.com.kjfleets.entity.StopType;
+import br.com.kjfleets.entity.TrackingStatus;
+import br.com.kjfleets.repository.DriverRepository;
 import br.com.kjfleets.repository.OrderRepository;
 import br.com.kjfleets.repository.RouteRepository;
+import br.com.kjfleets.repository.TrackingStatusRepository;
 import br.com.kjfleets.routing.RouteAlgorithm;
 import br.com.kjfleets.routing.RouteOptimizer;
 import br.com.kjfleets.routing.RouteOptimizer.Plan;
@@ -35,9 +39,13 @@ public class RouteService {
     private final OrderRepository orders;
     private final DistanceService distance;
     private final RoutingProperties props;
+    private final DriverRepository drivers;
+    private final TrackingStatusRepository trackings;
 
     public RouteService(RouteRepository routes, OrderRepository orders, DistanceService distance,
-                        RoutingProperties props) {
+                        RoutingProperties props, DriverRepository drivers, TrackingStatusRepository trackings) {
+        this.drivers = drivers;
+        this.trackings = trackings;
         this.routes = routes;
         this.orders = orders;
         this.distance = distance;
@@ -206,6 +214,92 @@ public class RouteService {
             }
         }
         return distance.etaMinutes(km);
+    }
+
+    @Transactional
+    public RouteResponse completeStop(String orderPublicId, int seq, StopCompleteRequest request,
+                                      String actorUsername, boolean actorIsDriver) {
+        if ((request.lat() == null) != (request.lng() == null)) {
+            throw new BusinessException("VALIDATION_ERROR", HttpStatus.BAD_REQUEST, "informe lat e lng juntos");
+        }
+        Order order = orders.lockByPublicId(orderPublicId).orElseThrow(() -> BusinessException.notFound("Pedido"));
+        Driver driver = order.getDriver();
+        if (actorIsDriver && (driver == null || !driver.isActive()
+                || !driver.getUser().getUsername().equals(actorUsername))) {
+            throw BusinessException.notFound("Pedido");
+        }
+        if (order.getStatus() == OrderStatus.CREATED || order.getStatus().isTerminal()) {
+            throw invalidTransition(order);
+        }
+        Route route = routes.findByOrder(order).orElseThrow(() -> new BusinessException("ROUTE_NOT_FOUND",
+                HttpStatus.NOT_FOUND, "Pedido sem rota calculada"));
+        RouteStop stop = route.getStops().stream().filter(s -> s.getSeq() == seq).findFirst()
+                .orElseThrow(() -> BusinessException.notFound("Parada"));
+        if (stop.getType() != StopType.WAYPOINT) {
+            throw invalidTransition(order);
+        }
+        if (stop.getVisitedAt() == null) {
+            double[] position = position(driver, request.lat(), request.lng());
+            Double meters = position == null ? null
+                    : distance.straightMeters(position[0], position[1], stop.getLat(), stop.getLng());
+            if (actorIsDriver) {
+                requireWithinRadius(meters);
+                if (request.lat() != null) {
+                    Driver locked = drivers.lockById(driver.getId()).orElseThrow();
+                    locked.setLat(request.lat());
+                    locked.setLng(request.lng());
+                    locked.setLastSeenAt(Instant.now());
+                }
+            }
+            stop.setVisitedAt(Instant.now());
+            stop.setDistanceM(meters);
+            stop.setCompletedBy(actorUsername);
+            String details = "WAYPOINT #" + seq + (actorIsDriver ? "" : " por " + actorUsername);
+            trackings.save(TrackingStatus.of(order, "stop_completed", details, null, null));
+        }
+        return RouteResponse.from(route, eta(order, route));
+    }
+
+    public void requireNearDropoff(Order order, Double lat, Double lng) {
+        Place dropoff = order.getPayload().getDropoff();
+        double[] position = position(order.getDriver(), lat, lng);
+        requireWithinRadius(position == null ? null
+                : distance.straightMeters(position[0], position[1], dropoff.getLat(), dropoff.getLng()));
+    }
+
+    public void markVisited(Order order, StopType type, String username) {
+        routes.findByOrder(order).flatMap(route -> route.getStops().stream()
+                .filter(s -> s.getType() == type && s.getVisitedAt() == null).findFirst()).ifPresent(stop -> {
+                    stop.setVisitedAt(Instant.now());
+                    stop.setCompletedBy(username);
+                });
+    }
+
+    // posição do corpo ganha; senão a gravada do motorista, só se ainda estiver dentro da idade máxima
+    private double[] position(Driver driver, Double lat, Double lng) {
+        if (lat != null) {
+            return new double[]{lat, lng};
+        }
+        boolean fresh = driver != null && driver.getLat() != null && driver.getLng() != null
+                && driver.getLastSeenAt() != null
+                && Duration.between(driver.getLastSeenAt(), Instant.now()).toSeconds() <= props.positionMaxAgeS();
+        return fresh ? new double[]{driver.getLat(), driver.getLng()} : null;
+    }
+
+    private void requireWithinRadius(Double meters) {
+        if (meters == null) {
+            throw new BusinessException("STOP_TOO_FAR", HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Sem posição recente do motorista");
+        }
+        if (meters > props.arrivalRadiusM()) {
+            throw new BusinessException("STOP_TOO_FAR", HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Fora do raio: " + Math.round(meters) + " m");
+        }
+    }
+
+    private static BusinessException invalidTransition(Order order) {
+        return new BusinessException("ORDER_INVALID_TRANSITION", HttpStatus.UNPROCESSABLE_ENTITY,
+                "Pedido em " + order.getStatus() + " não aceita esta ação");
     }
 
     @Transactional(readOnly = true)

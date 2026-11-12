@@ -201,7 +201,7 @@ class RouteAutoEtaTest extends IntegrationTest {
         String orderId = dispatchedWithRoute(driver, -0.02);
         for (String code : List.of("DRIVER_ENROUTE", "ARRIVED", "IN_PROGRESS", "COMPLETED")) {
             mvc.perform(post("/driver/orders/" + orderId + "/activity").with(httpBasic(driver.username(), PASSWORD))
-                    .contentType(MediaType.APPLICATION_JSON).content("{\"code\":\"" + code + "\"}"))
+                    .contentType(MediaType.APPLICATION_JSON).content("{\"code\":\"" + code + "\",\"lat\":" + LAT + ",\"lng\":" + (LNG + 0.04) + "}"))
                     .andExpect(status().isOk());
         }
 

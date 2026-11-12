@@ -26,6 +26,7 @@ import br.com.kjfleets.entity.OrderStatus;
 import br.com.kjfleets.entity.Payload;
 import br.com.kjfleets.entity.PayloadItem;
 import br.com.kjfleets.entity.Place;
+import br.com.kjfleets.entity.StopType;
 import br.com.kjfleets.entity.TrackingStatus;
 import br.com.kjfleets.entity.Vehicle;
 import br.com.kjfleets.entity.VehicleStatus;
@@ -215,7 +216,15 @@ public class OrderService {
             throw new BusinessException("ORDER_POD_REQUIRED", HttpStatus.UNPROCESSABLE_ENTITY,
                     "Pedido exige prova de entrega antes de concluir");
         }
+        if (actorIsDriver && target == OrderStatus.COMPLETED) {
+            routeService.requireNearDropoff(order, request.lat(), request.lng());
+        }
         order.setStatus(target);
+        if (target == OrderStatus.ARRIVED) {
+            routeService.markVisited(order, StopType.PICKUP, actorUsername);
+        } else if (target == OrderStatus.COMPLETED) {
+            routeService.markVisited(order, StopType.DROPOFF, actorUsername);
+        }
         if (target == OrderStatus.FAILED) {
             order.setReason(request.reason());
         }

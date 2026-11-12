@@ -196,7 +196,7 @@ class DriverOrderTest extends IntegrationTest {
         driverPost(driver, "/driver/orders/" + orderId + "/pod", Map.of("value", "assinatura-ok"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.podValue").value("assinatura-ok"));
-        driverPost(driver, "/driver/orders/" + orderId + "/activity", Map.of("code", "COMPLETED"))
+        driverPost(driver, "/driver/orders/" + orderId + "/activity", Map.of("code", "COMPLETED", "lat", -24.87, "lng", -54.33))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("COMPLETED"));
     }
