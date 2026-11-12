@@ -1,6 +1,9 @@
 package br.com.kjfleets.controller;
 
+import br.com.kjfleets.dto.DashboardDtos.AdminPanel;
 import br.com.kjfleets.dto.DashboardDtos.Alerts;
+import br.com.kjfleets.dto.DashboardDtos.DispatchPanel;
+import br.com.kjfleets.dto.DashboardDtos.FleetPanel;
 import br.com.kjfleets.dto.DashboardDtos.DispatchQueue;
 import br.com.kjfleets.dto.DashboardDtos.DriversPerformance;
 import br.com.kjfleets.dto.DashboardDtos.FleetStatus;
@@ -66,5 +69,20 @@ public class DashboardController {
     @GetMapping("/dashboard/alerts")
     Alerts alerts(Authentication auth) {
         return alerts.alerts(auth);
+    }
+
+    @GetMapping("/dashboard/admin")
+    AdminPanel adminPanel(@RequestParam(required = false) String period, Authentication auth) {
+        return service.adminPanel(period, auth);
+    }
+
+    @GetMapping("/dashboard/dispatch")
+    DispatchPanel dispatchPanel(@RequestParam(required = false) String period, Authentication auth) {
+        return service.dispatchPanel(period, auth);
+    }
+
+    @GetMapping("/dashboard/fleet")
+    FleetPanel fleetPanel(@RequestParam(required = false) String period, Authentication auth) {
+        return service.fleetPanel(period, auth);
     }
 }

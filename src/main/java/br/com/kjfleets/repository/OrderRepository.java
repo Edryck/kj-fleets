@@ -16,6 +16,7 @@ import org.springframework.lang.Nullable;
 
 import jakarta.persistence.LockModeType;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -88,4 +89,16 @@ public interface OrderRepository extends JpaRepository<Order, UUID>, JpaSpecific
     // payload entra no grafo porque o lado inverso do OneToOne senão é uma consulta por pedido
     @EntityGraph(attributePaths = {"driver", "payload"})
     List<Order> findTop50ByStatusInOrderByCreatedAtAsc(Collection<OrderStatus> statuses);
+
+    @EntityGraph(attributePaths = {"driver", "payload"})
+    List<Order> findByCustomerIdAndStatusInOrderByCreatedAtAsc(UUID customerId, Collection<OrderStatus> statuses);
+
+    List<Order> findByCustomerIdAndStatusAndCreatedAtGreaterThanEqualOrderByCreatedAtDesc(UUID customerId,
+                                                                                         OrderStatus status,
+                                                                                         Instant from);
+
+    List<Order> findTop10ByCustomerIdAndStatusOrderByFinishedAtDesc(UUID customerId, OrderStatus status);
+
+    @EntityGraph(attributePaths = {"driver", "payload.pickup", "payload.dropoff"})
+    List<Order> findByDriverAndStatusIn(Driver driver, Collection<OrderStatus> statuses);
 }

@@ -51,11 +51,23 @@ public class AlertService {
 
     @Transactional(readOnly = true)
     public Alerts alerts(Authentication auth) {
+        return alertsFor(VISIBLE.keySet().stream()
+                .filter(role -> auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_" + role)))
+                .toList());
+    }
+
+    // os painéis pedem o recorte de um papel específico, mesmo quando quem chama é ADMIN
+    @Transactional(readOnly = true)
+    public Alerts alertsFor(String role) {
+        return alertsFor(List.of(role));
+    }
+
+    private Alerts alertsFor(List<String> roles) {
         Instant now = clock.instant();
         Set<AlertType> types = EnumSet.noneOf(AlertType.class);
         boolean admin = false;
         for (var entry : VISIBLE.entrySet()) {
-            if (auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_" + entry.getKey()))) {
+            if (roles.contains(entry.getKey())) {
                 types.addAll(entry.getValue());
                 admin |= entry.getKey().equals("ADMIN");
             }

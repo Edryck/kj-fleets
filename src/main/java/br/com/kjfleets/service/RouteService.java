@@ -3,6 +3,7 @@ package br.com.kjfleets.service;
 import br.com.kjfleets.config.BusinessException;
 import br.com.kjfleets.config.RoutingProperties;
 import br.com.kjfleets.dto.RouteDtos.AlgorithmResult;
+import br.com.kjfleets.dto.RouteDtos.NextStop;
 import br.com.kjfleets.dto.RouteDtos.OptimizeRequest;
 import br.com.kjfleets.dto.RouteDtos.OptimizeResponse;
 import br.com.kjfleets.dto.RouteDtos.OptimizedStop;
@@ -246,8 +247,7 @@ public class RouteService {
         }
         if (stop.getVisitedAt() == null) {
             double[] position = position(driver, request.lat(), request.lng());
-            Double meters = position == null ? null
-                    : distance.straightMeters(position[0], position[1], stop.getLat(), stop.getLng());
+            Double meters = metersTo(position, stop.getLat(), stop.getLng());
             if (actorIsDriver) {
                 requireWithinRadius(meters);
                 if (request.lat() != null) {
@@ -271,8 +271,46 @@ public class RouteService {
     public void requireNearDropoff(Order order, Double lat, Double lng) {
         Place dropoff = order.getPayload().getDropoff();
         double[] position = position(order.getDriver(), lat, lng);
-        requireWithinRadius(position == null ? null
-                : distance.straightMeters(position[0], position[1], dropoff.getLat(), dropoff.getLng()));
+        requireWithinRadius(metersTo(position, dropoff.getLat(), dropoff.getLng()));
+    }
+
+    // próxima parada pendente (sem START); sem rota vale o dropoff do payload. Mesma posição, idade e raio da conclusão
+    public NextStop nextStop(Order order) {
+        return nextStop(order, routes.findByOrder(order).orElse(null));
+    }
+
+    public NextStop nextStop(Order order, Route route) {
+        RouteStop pending = route == null ? null : route.getStops().stream()
+                .filter(s -> s.getVisitedAt() == null && s.getType() != StopType.START)
+                .min(Comparator.comparingInt(RouteStop::getSeq)).orElse(null);
+        Driver driver = order.getDriver();
+        double[] position = position(driver, null, null);
+        Instant seenAt = driver == null ? null : driver.getLastSeenAt();
+        Long ageS = seenAt == null ? null : Duration.between(seenAt, Instant.now()).toSeconds();
+        int radius = props.arrivalRadiusM();
+        int seq = 0;
+        StopType type = StopType.DROPOFF;
+        Place place;
+        double lat;
+        double lng;
+        if (pending != null) {
+            seq = pending.getSeq();
+            type = pending.getType();
+            place = pending.getPlace();
+            lat = pending.getLat();
+            lng = pending.getLng();
+        } else {
+            place = order.getPayload().getDropoff();
+            lat = place.getLat();
+            lng = place.getLng();
+        }
+        Double meters = metersTo(position, lat, lng);
+        return new NextStop(seq, type, place == null ? null : place.getName(), place == null ? null : place.getAddress(),
+                meters, radius, meters == null ? null : meters <= radius, ageS, position != null);
+    }
+
+    private Double metersTo(double[] position, double lat, double lng) {
+        return position == null ? null : distance.straightMeters(position[0], position[1], lat, lng);
     }
 
     public void markVisited(Order order, StopType type, String username) {
@@ -317,7 +355,8 @@ public class RouteService {
         if (driver == null || !driver.isActive() || !driver.getUser().getUsername().equals(username)) {
             throw BusinessException.notFound("Pedido");
         }
-        return get(orderPublicId);
+        RouteResponse response = get(orderPublicId);
+        return order.getStatus().isTerminal() ? response : response.withNextStop(nextStop(order));
     }
 
     @Transactional(readOnly = true)

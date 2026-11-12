@@ -4,9 +4,12 @@ import br.com.kjfleets.config.DashboardProperties;
 import br.com.kjfleets.config.RoutingProperties;
 import br.com.kjfleets.dto.DashboardDtos.AlertType;
 import br.com.kjfleets.dto.DashboardDtos.AlgorithmSavings;
+import br.com.kjfleets.dto.DashboardDtos.DayPoint;
 import br.com.kjfleets.dto.DashboardDtos.DriverMonth;
 import br.com.kjfleets.dto.DashboardDtos.DriverPerformance;
+import br.com.kjfleets.dto.DashboardDtos.DriverQueued;
 import br.com.kjfleets.dto.DashboardDtos.DriverRow;
+import br.com.kjfleets.dto.DashboardDtos.DriverToday;
 import br.com.kjfleets.dto.DashboardDtos.DriversPerformance;
 import br.com.kjfleets.dto.DashboardDtos.MonthPoint;
 import br.com.kjfleets.dto.DashboardDtos.Rate;
@@ -429,5 +432,50 @@ public class DashboardQueries {
                     rs.getString("subject_type"), rs.getString("subject_id"), since.toInstant(),
                     (Double) rs.getObject("n1"), (Double) rs.getObject("n2"), rs.getString("s1"));
         });
+    }
+
+    // pedidos criados e motoristas distintos com entrega concluída, por dia local do período
+    public List<DayPoint> perDay(DashboardPeriod period) {
+        String sql = "SELECT to_char(g.day, 'YYYY-MM-DD') AS day,"
+                + " (SELECT count(*) FROM orders o WHERE o.created_at >= g.day AT TIME ZONE :zone"
+                + "   AND o.created_at < (g.day + interval '1 day') AT TIME ZONE :zone AND o.created_at >= :from AND o.created_at < :to) AS created,"
+                + " (SELECT count(DISTINCT o.driver_id) FROM orders o WHERE o.status = 'COMPLETED'"
+                + "   AND o.finished_at >= g.day AT TIME ZONE :zone AND o.finished_at < (g.day + interval '1 day') AT TIME ZONE :zone"
+                + "   AND o.finished_at >= :from AND o.finished_at < :to) AS drivers"
+                + " FROM generate_series(CAST(:fromDay AS timestamp), CAST(:toDay AS timestamp), interval '1 day') AS g(day)"
+                + " ORDER BY g.day";
+        MapSqlParameterSource params = window(period, null).addValue("zone", period.zone().getId())
+                .addValue("fromDay", period.from().atZone(period.zone()).toLocalDate().toString())
+                .addValue("toDay", period.to().atZone(period.zone()).toLocalDate().toString());
+        return jdbc.query(sql, params, (rs, i) -> new DayPoint(rs.getString("day"), rs.getLong("created"),
+                rs.getLong("drivers")));
+    }
+
+    // fila do motorista: CREATED atribuídos a ele; assignedAt é o último evento "assigned"
+    public List<DriverQueued> driverQueue(UUID driverId) {
+        String sql = "SELECT o.public_id, pickup.name AS pickup_name, dropoff.name AS dropoff_name,"
+                + " COALESCE((SELECT max(t.created_at) FROM tracking_statuses t WHERE t.order_id = o.id"
+                + "   AND t.code = 'assigned'), o.created_at) AS assigned_at"
+                + " FROM orders o"
+                + " LEFT JOIN payloads pl ON pl.order_id = o.id"
+                + " LEFT JOIN places pickup ON pickup.id = pl.pickup_id"
+                + " LEFT JOIN places dropoff ON dropoff.id = pl.dropoff_id"
+                + " WHERE o.status = 'CREATED' AND o.driver_id = :driverId ORDER BY assigned_at, o.public_id";
+        return jdbc.query(sql, new MapSqlParameterSource("driverId", driverId), (rs, i) -> new DriverQueued(
+                rs.getString("public_id"), rs.getString("pickup_name"), rs.getString("dropoff_name"),
+                rs.getTimestamp("assigned_at").toInstant()));
+    }
+
+    public DriverToday driverToday(UUID driverId, String username, DashboardPeriod today) {
+        String sql = "SELECT"
+                + " (SELECT count(*) FROM orders o WHERE o.driver_id = :driverId AND o.status = 'COMPLETED'"
+                + "   AND o.finished_at >= :from AND o.finished_at < :to) AS completed,"
+                + " (SELECT count(*) FROM orders o WHERE o.driver_id = :driverId AND o.status = 'FAILED'"
+                + "   AND o.finished_at >= :from AND o.finished_at < :to) AS failed,"
+                + " (SELECT count(*) FROM route_stops s WHERE s.completed_by = :username AND s.type <> 'START'"
+                + "   AND s.visited_at >= :from AND s.visited_at < :to) AS stops";
+        MapSqlParameterSource params = window(today, null).addValue("driverId", driverId).addValue("username", username);
+        return jdbc.queryForObject(sql, params, (rs, i) -> new DriverToday(rs.getLong("completed"),
+                rs.getLong("failed"), rs.getLong("stops")));
     }
 }

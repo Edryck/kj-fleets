@@ -3,7 +3,19 @@ package br.com.kjfleets.service;
 import br.com.kjfleets.config.BusinessException;
 import br.com.kjfleets.config.DashboardProperties;
 import br.com.kjfleets.config.RoutingProperties;
+import br.com.kjfleets.dto.DashboardDtos.AdminPanel;
+import br.com.kjfleets.dto.DashboardDtos.CustomerActive;
+import br.com.kjfleets.dto.DashboardDtos.CustomerAttention;
+import br.com.kjfleets.dto.DashboardDtos.CustomerDelivered;
+import br.com.kjfleets.dto.DashboardDtos.CustomerPanel;
+import br.com.kjfleets.dto.DashboardDtos.DispatchPanel;
 import br.com.kjfleets.dto.DashboardDtos.DispatchQueue;
+import br.com.kjfleets.dto.DashboardDtos.DriverActive;
+import br.com.kjfleets.dto.DashboardDtos.DriverPanel;
+import br.com.kjfleets.dto.DashboardDtos.FleetCounts;
+import br.com.kjfleets.dto.DashboardDtos.FleetPanel;
+import br.com.kjfleets.dto.DashboardDtos.Gps;
+import br.com.kjfleets.dto.DashboardDtos.Sizing;
 import br.com.kjfleets.dto.DashboardDtos.DriversPerformance;
 import br.com.kjfleets.dto.DashboardDtos.MonthPoint;
 import br.com.kjfleets.dto.DashboardDtos.RoutingSavings;
@@ -19,6 +31,7 @@ import br.com.kjfleets.dto.DashboardDtos.QueueItem;
 import br.com.kjfleets.dto.DashboardDtos.Rate;
 import br.com.kjfleets.dto.DashboardDtos.StaleOrder;
 import br.com.kjfleets.entity.Customer;
+import br.com.kjfleets.entity.Driver;
 import br.com.kjfleets.entity.Fleet;
 import br.com.kjfleets.entity.Order;
 import br.com.kjfleets.entity.OrderStatus;
@@ -26,6 +39,7 @@ import br.com.kjfleets.entity.Route;
 import br.com.kjfleets.entity.RouteStop;
 import br.com.kjfleets.entity.StopType;
 import br.com.kjfleets.repository.CustomerRepository;
+import br.com.kjfleets.repository.DriverRepository;
 import br.com.kjfleets.repository.DashboardQueries;
 import br.com.kjfleets.repository.DashboardQueries.Counts;
 import br.com.kjfleets.repository.FleetRepository;
@@ -37,7 +51,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
+import java.util.Comparator;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -54,6 +71,9 @@ public class DashboardService {
     private static final List<OrderStatus> IN_PROGRESS = Arrays.stream(OrderStatus.values())
             .filter(OrderStatus::isActive).toList();
 
+    private static final List<OrderStatus> CUSTOMER_ACTIVE = Arrays.stream(OrderStatus.values())
+            .filter(status -> status == OrderStatus.CREATED || status.isActive()).toList();
+
     private final DashboardQueries queries;
     private final DashboardProperties props;
     private final RoutingProperties routing;
@@ -62,11 +82,14 @@ public class DashboardService {
     private final OrderRepository orders;
     private final RouteRepository routes;
     private final RouteService routeService;
+    private final AlertService alertService;
+    private final DriverRepository drivers;
     private final Clock clock = Clock.systemUTC();
 
     public DashboardService(DashboardQueries queries, DashboardProperties props, RoutingProperties routing,
                             CustomerRepository customers, FleetRepository fleets, OrderRepository orders,
-                            RouteRepository routes, RouteService routeService) {
+                            RouteRepository routes, RouteService routeService, AlertService alertService,
+                            DriverRepository drivers) {
         this.queries = queries;
         this.props = props;
         this.routing = routing;
@@ -75,6 +98,8 @@ public class DashboardService {
         this.orders = orders;
         this.routes = routes;
         this.routeService = routeService;
+        this.alertService = alertService;
+        this.drivers = drivers;
     }
 
     private static boolean hasRole(Authentication auth, String role) {
@@ -132,11 +157,11 @@ public class DashboardService {
                 .collect(Collectors.toMap(route -> route.getOrder().getId(), route -> route));
         List<InProgressItem> inProgress = active.stream().map(order -> {
             Route route = routeByOrder.get(order.getId());
-            List<RouteStop> stops = route == null ? List.of() : route.getStops().stream()
-                    .filter(stop -> stop.getType() != StopType.START).toList();
-            int done = (int) stops.stream().filter(stop -> stop.getVisitedAt() != null).count();
-            return new InProgressItem(order.getPublicId(), order.getStatus().name(), order.getDriver().getPublicId(),
-                    order.getDriver().getName(), routeService.liveEta(order, route), done, stops.size());
+            int[] stops = stopCounts(route);
+            // status ativo sem motorista é dado inconsistente (o alerta já cobre); o painel não pode cair por isso
+            Driver driver = order.getDriver();
+            return new InProgressItem(order.getPublicId(), order.getStatus().name(),
+                    driver == null ? null : driver.getPublicId(), driver == null ? null : driver.getName(), routeService.liveEta(order, route), stops[0], stops[1]);
         }).toList();
         long inProgressTotal = IN_PROGRESS.stream().mapToLong(s -> byStage.get(s.name())).sum();
 
@@ -145,6 +170,13 @@ public class DashboardService {
                 new Paged<>(queries.queueItems("ASSIGNED", now, LIST_LIMIT), byStage.get("ASSIGNED")),
                 new Paged<>(inProgress, inProgressTotal),
                 new Paged<>(queries.staleTop(props, now, LIST_LIMIT), queries.staleCount(props, now)));
+    }
+
+    // {concluídas, total}, sem a parada START
+    private static int[] stopCounts(Route route) {
+        List<RouteStop> stops = route == null ? List.of() : route.getStops().stream()
+                .filter(stop -> stop.getType() != StopType.START).toList();
+        return new int[]{(int) stops.stream().filter(stop -> stop.getVisitedAt() != null).count(), stops.size()};
     }
 
     private UUID fleetUuid(String fleetId) {
@@ -195,5 +227,96 @@ public class DashboardService {
         }
         return new YearlyTrends(Meta.now(now, props.timezone()), months,
                 customerId != null ? null : queries.completedByDriverMonth(now, props.timezone()));
+    }
+
+    private FleetCounts fleetCounts(List<DriverRow> available) {
+        return new FleetCounts(queries.driversByStatus(null), queries.vehiclesByStatus(null),
+                queries.countByStage().get("UNASSIGNED"), available.size());
+    }
+
+    private List<DriverRow> availableRows() {
+        return queries.driverRows(null, clock.instant().minusSeconds(routing.positionMaxAgeS()), true);
+    }
+
+    private Meta panelMeta(String periodName) {
+        return DashboardPeriod.resolve(periodName, props.timezone(), clock).meta(clock.instant());
+    }
+
+    @Transactional(readOnly = true)
+    public AdminPanel adminPanel(String period, Authentication auth) {
+        return new AdminPanel(panelMeta(period), ordersSummary(period, true, auth), funnel(),
+                fleetCounts(availableRows()), routingSavings(period), alertService.alerts(auth).counts());
+    }
+
+    @Transactional(readOnly = true)
+    public DispatchPanel dispatchPanel(String period, Authentication auth) {
+        List<DriverRow> available = availableRows();
+        return new DispatchPanel(panelMeta(period), dispatchQueue(), available, fleetCounts(available),
+                ordersSummary(period, false, auth), alertService.alertsFor("DISPATCHER").items());
+    }
+
+    @Transactional(readOnly = true)
+    public FleetPanel fleetPanel(String period, Authentication auth) {
+        DashboardPeriod resolved = DashboardPeriod.resolve(period, props.timezone(), clock);
+        FleetStatus fleet = fleetStatus(null, auth);
+        return new FleetPanel(resolved.meta(clock.instant()), fleet, alertService.alertsFor("FLEET_MANAGER").items(),
+                driversPerformance(period, null),
+                new Sizing(fleet.waitingOrders(), fleet.availableDrivers(), queries.perDay(resolved)));
+    }
+
+    @Transactional(readOnly = true)
+    public CustomerPanel customerPanel(String periodName, Authentication auth) {
+        Instant now = clock.instant();
+        DashboardPeriod period = DashboardPeriod.resolve(periodName, props.timezone(), clock);
+        UUID customerId = customerId(auth);
+
+        List<Order> active = orders.findByCustomerIdAndStatusInOrderByCreatedAtAsc(customerId, CUSTOMER_ACTIVE);
+        Map<UUID, Route> routeByOrder = routes.findByOrderIn(active).stream()
+                .collect(Collectors.toMap(route -> route.getOrder().getId(), route -> route));
+        List<CustomerActive> activeItems = active.stream().map(order -> {
+            Route route = routeByOrder.get(order.getId());
+            int[] stops = stopCounts(route);
+            boolean tracked = order.getStatus() == OrderStatus.DRIVER_ENROUTE
+                    || order.getStatus() == OrderStatus.ARRIVED || order.getStatus() == OrderStatus.IN_PROGRESS;
+            return new CustomerActive(order.getPublicId(), order.getTrackingNumber(), order.getStatus().name(),
+                    tracked ? routeService.liveEta(order, route) : null, stops[0], stops[1],
+                    order.getStatus() == OrderStatus.CREATED,
+                    order.getDriver() == null ? null : order.getDriver().getName());
+        }).toList();
+
+        List<CustomerAttention> attention = new ArrayList<>();
+        orders.findByCustomerIdAndStatusAndCreatedAtGreaterThanEqualOrderByCreatedAtDesc(customerId,
+                OrderStatus.FAILED, period.from()).forEach(order -> attention.add(new CustomerAttention(
+                order.getPublicId(), order.getTrackingNumber(), "FAILED", order.getReason(), null)));
+        queries.staleOrders(props, now, customerId).forEach(stale -> attention.add(new CustomerAttention(
+                stale.orderId(), stale.trackingNumber(), "STALE", "Há " + stale.minutesInStage()
+                + " min nesta etapa (limite " + stale.limitMin() + ")", stale.minutesInStage())));
+
+        List<CustomerDelivered> delivered = orders.findTop10ByCustomerIdAndStatusOrderByFinishedAtDesc(customerId,
+                OrderStatus.COMPLETED).stream().map(order -> new CustomerDelivered(order.getPublicId(),
+                order.getTrackingNumber(), order.getFinishedAt(), order.getPodValue() != null)).toList();
+        return new CustomerPanel(period.meta(now), activeItems, attention, ordersSummary(periodName, false, auth),
+                delivered);
+    }
+
+    @Transactional(readOnly = true)
+    public DriverPanel driverPanel(Authentication auth) {
+        Instant now = clock.instant();
+        Driver driver = drivers.findByUserUsernameAndActiveTrue(auth.getName())
+                .orElseThrow(() -> BusinessException.notFound("Motorista"));
+        DriverActive activeOrder = orders.findByDriverAndStatusIn(driver, IN_PROGRESS).stream().min(Comparator.comparing(Order::getCreatedAt)).map(order -> {
+            Route route = routes.findByOrder(order).orElse(null);
+            int[] stops = stopCounts(route);
+            return new DriverActive(order.getPublicId(), order.getStatus().name(), routeService.nextStop(order, route),
+                    stops[0], stops[1], order.isPodRequired() && order.getPodValue() == null);
+        }).orElse(null);
+
+        DashboardPeriod today = DashboardPeriod.resolve("today", props.timezone(), clock);
+        Long ageS = driver.getLastSeenAt() == null ? null : Duration.between(driver.getLastSeenAt(), now).toSeconds();
+        boolean valid = driver.getLat() != null && driver.getLng() != null && ageS != null
+                && ageS <= routing.positionMaxAgeS();
+        return new DriverPanel(today.meta(now), activeOrder, queries.driverQueue(driver.getId()),
+                queries.driverToday(driver.getId(), auth.getName(), today),
+                new Gps(driver.getLastSeenAt(), ageS, valid));
     }
 }

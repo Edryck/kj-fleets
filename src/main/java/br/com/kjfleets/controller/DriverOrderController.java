@@ -1,5 +1,6 @@
 package br.com.kjfleets.controller;
 
+import br.com.kjfleets.dto.DashboardDtos.DriverPanel;
 import br.com.kjfleets.dto.OrderDtos.ActivityRequest;
 import br.com.kjfleets.dto.OrderDtos.AvailableOrderResponse;
 import br.com.kjfleets.dto.OrderDtos.DriverOrderResponse;
@@ -9,6 +10,7 @@ import br.com.kjfleets.dto.PageResponse;
 import br.com.kjfleets.entity.OrderStatus;
 import br.com.kjfleets.dto.RouteDtos.RouteResponse;
 import br.com.kjfleets.dto.RouteDtos.StopCompleteRequest;
+import br.com.kjfleets.service.DashboardService;
 import br.com.kjfleets.service.OrderService;
 import br.com.kjfleets.service.RouteService;
 import jakarta.validation.Valid;
@@ -25,10 +27,17 @@ public class DriverOrderController {
 
     private final OrderService service;
     private final RouteService routeService;
+    private final DashboardService dashboard;
 
-    public DriverOrderController(OrderService service, RouteService routeService) {
+    public DriverOrderController(OrderService service, RouteService routeService, DashboardService dashboard) {
         this.service = service;
         this.routeService = routeService;
+        this.dashboard = dashboard;
+    }
+
+    @GetMapping("/driver/dashboard")
+    DriverPanel dashboard(Authentication authentication) {
+        return dashboard.driverPanel(authentication);
     }
 
     @GetMapping(value = "/driver/orders", params = "available=true")

@@ -1,5 +1,7 @@
 package br.com.kjfleets.dto;
 
+import br.com.kjfleets.dto.RouteDtos.NextStop;
+
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.List;
@@ -98,5 +100,61 @@ public final class DashboardDtos {
     }
 
     public record Alerts(Meta meta, List<Alert> items, Map<AlertType, Long> counts) {
+    }
+
+    public record FleetCounts(Map<String, Long> driversByStatus, Map<String, Long> vehiclesByStatus,
+                              long waitingOrders, long availableDrivers) {
+    }
+
+    public record AdminPanel(Meta meta, OrdersSummary summary, Funnel funnel, FleetCounts fleet,
+                             RoutingSavings routing, Map<AlertType, Long> alertCounts) {
+    }
+
+    public record DispatchPanel(Meta meta, DispatchQueue queue, List<DriverRow> availableDrivers, FleetCounts counts,
+                                OrdersSummary summary, List<Alert> alerts) {
+    }
+
+    public record DayPoint(String day, long ordersCreated, long driversWithDelivery) {
+    }
+
+    public record Sizing(long waitingOrders, long availableDrivers, List<DayPoint> perDay) {
+    }
+
+    public record FleetPanel(Meta meta, FleetStatus fleet, List<Alert> alerts, DriversPerformance performance,
+                             Sizing sizing) {
+    }
+
+    // etaMinutes só em DRIVER_ENROUTE, ARRIVED e IN_PROGRESS
+    public record CustomerActive(String orderId, String trackingNumber, String status, Integer etaMinutes,
+                                 int stopsDone, int stopsTotal, boolean cancellable, String driverName) {
+    }
+
+    // kind: FAILED ou STALE
+    public record CustomerAttention(String orderId, String trackingNumber, String kind, String reason,
+                                    Long minutesInStage) {
+    }
+
+    public record CustomerDelivered(String orderId, String trackingNumber, Instant finishedAt, boolean hasPod) {
+    }
+
+    public record CustomerPanel(Meta meta, List<CustomerActive> active, List<CustomerAttention> attention,
+                                OrdersSummary summary, List<CustomerDelivered> recentDelivered) {
+    }
+
+    public record DriverActive(String orderId, String status, NextStop nextStop, int stopsDone, int stopsTotal,
+                               boolean podPending) {
+    }
+
+    public record DriverQueued(String orderId, String pickupName, String dropoffName, Instant assignedAt) {
+    }
+
+    public record DriverToday(long completed, long failed, long stopsCompleted) {
+    }
+
+    public record Gps(Instant lastSeenAt, Long positionAgeS, boolean positionValid) {
+    }
+
+    public record DriverPanel(Meta meta, DriverActive activeOrder, List<DriverQueued> queue, DriverToday today,
+                              Gps gps) {
     }
 }
