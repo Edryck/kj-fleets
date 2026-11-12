@@ -16,13 +16,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-class OrderFixtures {
+public class OrderFixtures {
 
     private final MockMvc mvc;
     private final ObjectMapper json;
     private final Function<Role, String> bearer;
 
-    OrderFixtures(MockMvc mvc, ObjectMapper json, Function<Role, String> bearer) {
+    public OrderFixtures(MockMvc mvc, ObjectMapper json, Function<Role, String> bearer) {
         this.mvc = mvc;
         this.json = json;
         this.bearer = bearer;
@@ -38,7 +38,7 @@ class OrderFixtures {
         return json.readTree(body).get("publicId").asString();
     }
 
-    String createOrder(String bearer) throws Exception {
+    public String createOrder(String bearer) throws Exception {
         Map<String, Object> point = Map.of("name", "Ponto " + unique(), "lat", -24.87, "lng", -54.33);
         String body = json.writeValueAsString(Map.of("pickup", point, "dropoff", point));
         String response = mvc.perform(post("/orders").contentType(MediaType.APPLICATION_JSON).content(body)
@@ -47,12 +47,12 @@ class OrderFixtures {
         return json.readTree(response).get("publicId").asString();
     }
 
-    String createVehicle() throws Exception {
+    public String createVehicle() throws Exception {
         String body = json.writeValueAsString(Map.of("plate", "T" + unique().toUpperCase(), "type", "VAN"));
         return send(post("/vehicles").content(body), Role.FLEET_MANAGER, 201);
     }
 
-    String createDriver(String vehicleId, DriverStatus driverStatus) throws Exception {
+    public String createDriver(String vehicleId, DriverStatus driverStatus) throws Exception {
         Map<String, Object> body = new HashMap<>();
         body.put("username", "drv-" + unique());
         body.put("password", "password-123");

@@ -26,6 +26,7 @@ import br.com.kjfleets.entity.OrderStatus;
 import br.com.kjfleets.entity.Payload;
 import br.com.kjfleets.entity.PayloadItem;
 import br.com.kjfleets.entity.Place;
+import br.com.kjfleets.entity.StatusSubject;
 import br.com.kjfleets.entity.StopType;
 import br.com.kjfleets.entity.TrackingStatus;
 import br.com.kjfleets.entity.Vehicle;
@@ -60,6 +61,7 @@ public class OrderService {
     private final DriverRepository drivers;
     private final VehicleRepository vehicles;
     private final RouteService routeService;
+    private final StatusHistoryService history;
 
     private static final List<String> HIDDEN_CODES = List.of("assigned", "unassigned", "stop_completed",
             "route_failed");
@@ -69,7 +71,8 @@ public class OrderService {
 
     public OrderService(OrderRepository orders, TrackingStatusRepository trackings, PlaceRepository places,
                         CustomerRepository customers, DriverRepository drivers, VehicleRepository vehicles,
-                        RouteService routeService) {
+                        RouteService routeService, StatusHistoryService history) {
+        this.history = history;
         this.routeService = routeService;
         this.drivers = drivers;
         this.vehicles = vehicles;
@@ -295,9 +298,13 @@ public class OrderService {
         Vehicle vehicle = vehicles.lockById(order.getVehicle().getId()).orElseThrow();
         if (driver.getStatus() == DriverStatus.BUSY) {
             driver.setStatus(DriverStatus.AVAILABLE);
+            history.record(StatusSubject.DRIVER, driver.getId(), DriverStatus.BUSY.name(),
+                    DriverStatus.AVAILABLE.name(), "finish");
         }
         if (vehicle.getStatus() == VehicleStatus.IN_USE) {
             vehicle.setStatus(VehicleStatus.AVAILABLE);
+            history.record(StatusSubject.VEHICLE, vehicle.getId(), VehicleStatus.IN_USE.name(),
+                    VehicleStatus.AVAILABLE.name(), "finish");
         }
     }
 
@@ -342,8 +349,15 @@ public class OrderService {
     void startDelivery(Order order) {
         order.setStatus(OrderStatus.DISPATCHED);
         order.setDispatchedAt(Instant.now());
-        order.getDriver().setStatus(DriverStatus.BUSY);
-        order.getVehicle().setStatus(VehicleStatus.IN_USE);
+        Driver driver = order.getDriver();
+        Vehicle vehicle = order.getVehicle();
+        String driverBefore = driver.getStatus().name();
+        String vehicleBefore = vehicle.getStatus().name();
+        driver.setStatus(DriverStatus.BUSY);
+        vehicle.setStatus(VehicleStatus.IN_USE);
+        history.record(StatusSubject.DRIVER, driver.getId(), driverBefore, DriverStatus.BUSY.name(), "dispatch");
+        history.record(StatusSubject.VEHICLE, vehicle.getId(), vehicleBefore, VehicleStatus.IN_USE.name(),
+                "dispatch");
         track(order, "dispatched", null, null, null);
         routeService.computeOnDispatch(order).ifPresent(code -> track(order, "route_failed", code, null, null));
     }

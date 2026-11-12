@@ -5,6 +5,7 @@ import br.com.kjfleets.dto.PageResponse;
 import br.com.kjfleets.dto.VehicleDtos.VehicleRequest;
 import br.com.kjfleets.dto.VehicleDtos.VehicleResponse;
 import br.com.kjfleets.entity.Driver;
+import br.com.kjfleets.entity.StatusSubject;
 import br.com.kjfleets.entity.Vehicle;
 import br.com.kjfleets.entity.VehicleStatus;
 import br.com.kjfleets.repository.DriverRepository;
@@ -28,7 +29,11 @@ public class VehicleService {
 
     private final OrderService orderService;
 
-    public VehicleService(VehicleRepository vehicles, DriverRepository drivers, OrderService orderService) {
+    private final StatusHistoryService history;
+
+    public VehicleService(VehicleRepository vehicles, DriverRepository drivers, OrderService orderService,
+                          StatusHistoryService history) {
+        this.history = history;
         this.vehicles = vehicles;
         this.drivers = drivers;
         this.orderService = orderService;
@@ -41,7 +46,9 @@ public class VehicleService {
         Vehicle vehicle = new Vehicle();
         vehicle.setPlate(plate);
         vehicle.setType(request.type());
-        return VehicleResponse.from(vehicles.save(vehicle), null);
+        vehicles.save(vehicle);
+        history.record(StatusSubject.VEHICLE, vehicle.getId(), null, vehicle.getStatus().name(), "baseline");
+        return VehicleResponse.from(vehicle, null);
     }
 
     @Transactional(readOnly = true)
@@ -76,7 +83,9 @@ public class VehicleService {
             vehicle.setPlate(plate);
         }
         vehicle.setType(request.type());
+        VehicleStatus previous = vehicle.getStatus();
         vehicle.setStatus(status);
+        history.record(StatusSubject.VEHICLE, vehicle.getId(), previous.name(), status.name(), "manual");
         return toResponse(vehicle);
     }
 
@@ -89,6 +98,8 @@ public class VehicleService {
         orderService.releaseVehicle(vehicle);
         drivers.findByVehicleAndActiveTrue(vehicle).ifPresent(driver -> driver.setVehicle(null));
         vehicle.setActive(false);
+        String status = vehicle.getStatus().name();
+        history.record(StatusSubject.VEHICLE, vehicle.getId(), status, status, "delete", true);
     }
 
     public Vehicle findActive(String publicId) {

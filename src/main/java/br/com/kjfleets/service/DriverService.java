@@ -10,6 +10,7 @@ import br.com.kjfleets.dto.PageResponse;
 import br.com.kjfleets.entity.Driver;
 import br.com.kjfleets.entity.DriverStatus;
 import br.com.kjfleets.entity.Role;
+import br.com.kjfleets.entity.StatusSubject;
 import br.com.kjfleets.entity.Vehicle;
 import br.com.kjfleets.entity.VehicleStatus;
 import br.com.kjfleets.repository.DriverRepository;
@@ -31,9 +32,11 @@ public class DriverService {
     private final VehicleRepository vehicles;
     private final AuthService auth;
     private final OrderService orderService;
+    private final StatusHistoryService history;
 
     public DriverService(DriverRepository drivers, VehicleRepository vehicles, AuthService auth,
-                         OrderService orderService) {
+                         OrderService orderService, StatusHistoryService history) {
+        this.history = history;
         this.drivers = drivers;
         this.vehicles = vehicles;
         this.auth = auth;
@@ -48,7 +51,9 @@ public class DriverService {
         driver.setPhone(request.phone());
         driver.setLicenseNumber(request.licenseNumber());
         driver.setVehicle(resolveVehicle(request.vehicleId(), null));
-        return DriverResponse.from(drivers.save(driver));
+        drivers.save(driver);
+        history.record(StatusSubject.DRIVER, driver.getId(), null, driver.getStatus().name(), "baseline");
+        return DriverResponse.from(driver);
     }
 
     @Transactional(readOnly = true)
@@ -78,7 +83,9 @@ public class DriverService {
         driver.setName(request.name());
         driver.setPhone(request.phone());
         driver.setLicenseNumber(request.licenseNumber());
+        DriverStatus previous = driver.getStatus();
         driver.setStatus(status);
+        history.record(StatusSubject.DRIVER, driver.getId(), previous.name(), status.name(), "manual");
         return DriverResponse.from(driver);
     }
 
@@ -94,6 +101,8 @@ public class DriverService {
         driver.setActive(false);
         driver.getUser().setActive(false);
         driver.setVehicle(null);
+        String status = driver.getStatus().name();
+        history.record(StatusSubject.DRIVER, driver.getId(), status, status, "delete", true);
     }
 
     @Transactional(readOnly = true)
