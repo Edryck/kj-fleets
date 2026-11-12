@@ -69,7 +69,7 @@ Loja virtual, financeiro, estoque de armazém, IA, 2FA, webhooks, chaves de API,
 - Os algoritmos têm testes próprios: o exato (Held-Karp) bate com força bruta em instâncias pequenas, a busca local nunca é pior que o vizinho mais próximo, o Hungarian nunca é pior que o guloso, e A* acha o mesmo custo que Dijkstra.
 - Um cliente WebSocket inscrito em um pedido recebe o evento quando o status muda.
 - O fluxo completo roda de ponta a ponta: cliente cria, operador atribui e despacha, motorista avança até concluir, e o dashboard reflete tudo isso.
-- Diagrama ER e fluxos ([docs/flows.md](docs/flows.md)) batem com o que foi implementado.
+- Diagrama ER e fluxos ([docs/flows/](docs/flows/flow-index.md)) batem com o que foi implementado.
 
 ## Riscos
 

@@ -17,7 +17,7 @@ JDK 21, Docker (os testes sobem um PostgreSQL com Testcontainers) e PostgreSQL p
 1. Faça um fork e crie uma branch a partir da `main` (ex.: `feat/dispatch-batch`, `fix/pod-validation`).
 2. Siga as regras do [SYSTEM.md](SYSTEM.md): nomes em inglês, poucos arquivos, comentário só com porquê.
 3. Escreva ou ajuste os testes. Rode `./mvnw test` (com o Docker de pé).
-4. Atualize a documentação afetada (README, ARCHITECTURE, `docs/flows.md`, `.env.example`).
+4. Atualize a documentação afetada (README, ARCHITECTURE, `docs/flows/`, `.env.example`).
 5. Commits em Conventional Commits, mensagem em pt-BR: `feat(orders): bloqueia despacho sem veículo`.
 6. Abra o PR usando o modelo do repositório, descrevendo o que mudou, como testar e o que não foi validado.
 

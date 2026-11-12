@@ -16,6 +16,6 @@
 
 - [ ] `mvn test` passa
 - [ ] Regra nova tem teste
-- [ ] Atualizei a documentação afetada (README, ARCHITECTURE, `docs/flows.md`, `.env.example`)
+- [ ] Atualizei a documentação afetada (README, ARCHITECTURE, `docs/flows/`, `.env.example`)
 - [ ] Nenhum segredo, senha ou token no diff
 - [ ] Segui o [SYSTEM.md](../SYSTEM.md) e não trouxe código de outro projeto sem licença compatível
