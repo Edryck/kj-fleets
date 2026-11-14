@@ -88,6 +88,22 @@ Dois CSVs, gerados uma vez fora deste repo (por exemplo com um script Python usa
 
 Aponte as variáveis `ROUTING_GRAPH_NODES` e `ROUTING_GRAPH_EDGES` para eles e chame `POST /graph/import` como ADMIN. No modo `haversine` nada disso é necessário.
 
+## Rodando com Docker
+
+```bash
+cp .env.example .env        # ajuste os valores (senhas, API_PORT)
+docker compose up -d        # sobe banco e API; a API responde em http://localhost:$API_PORT
+docker compose up -d --build api   # depois de mudar código Java
+```
+
+Frontend em desenvolvimento (aponta o proxy do Vite para a API):
+
+```bash
+cd frontend
+npm install
+VITE_PROXY_TARGET=http://localhost:8081 npm run dev   # use a porta de API_PORT
+```
+
 ## Autenticação
 
 - `POST /auth/register` cria um CUSTOMER; `POST /auth/login` devolve um JWT. Envie em `Authorization: Bearer <token>`.

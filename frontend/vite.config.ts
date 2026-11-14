@@ -1,7 +1,10 @@
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
-const API_TARGET = "http://localhost:8080";
+// sem @types/node no projeto; só lemos uma variável de ambiente
+declare const process: { env: Record<string, string | undefined> };
+
+const API_TARGET = process.env.VITE_PROXY_TARGET ?? "http://localhost:8080";
 const API_PATHS = [
     "/auth",
     "/me",
