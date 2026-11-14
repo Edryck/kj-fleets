@@ -21,3 +21,59 @@
     grid-template-columns: 1fr;
     gap: 4px;
 }
+.table-link-button {
+    background: none;
+    border: 0;
+    padding: 0;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.checklist {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 320px;
+    overflow-y: auto;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+}
+.checklist li + li {
+    border-top: 1px solid var(--color-border);
+}
+.checklist-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 12px;
+    min-height: 48px;
+    padding: 8px 12px;
+    cursor: pointer;
+}
+.checklist-row:hover {
+    background: var(--color-surface-muted);
+}
+.checklist-name {
+    flex: 1 1 160px;
+    min-width: 0;
+    font-weight: 600;
+}
+.field-label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 0.875rem;
+}
+.field-group {
+    display: grid;
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+.field-group legend {
+    padding: 0;
+    margin-bottom: 4px;
+    color: var(--color-text-muted);
+    font-size: 0.8125rem;
+    font-weight: 600;
+}

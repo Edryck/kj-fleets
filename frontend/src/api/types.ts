@@ -1,4 +1,4 @@
-export type Role = "ADMIN" | "DISPATCHER" | "FLEET_MANAGER" | "CUSTOMER";
+export type Role = "ADMIN" | "DISPATCHER" | "FLEET_MANAGER" | "CUSTOMER" | "DRIVER";
 
 export interface ErrorResponse {
     status: number;
@@ -190,6 +190,7 @@ export interface Vehicle {
 export interface Customer {
     publicId: string;
     name: string;
+    phone: string | null;
     email: string | null;
 }
 
@@ -493,4 +494,23 @@ export interface PlaceBody {
     address: string;
     lat: number;
     lng: number;
+}
+
+export interface UserAccount {
+    publicId: string;
+    username: string;
+    role: Role;
+    active: boolean;
+}
+
+export interface FleetSummary {
+    publicId: string;
+    name: string;
+    driverCount: number;
+}
+
+export interface FleetDetail {
+    publicId: string;
+    name: string;
+    drivers: Driver[];
 }

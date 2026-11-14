@@ -39,7 +39,7 @@ export const APP_ROUTES: AppRoute[] = [
         nav: { group: "Operação", label: "Dashboard", icon: LayoutDashboard },
     },
     { path: "/dashboard/dispatch", title: "Central de despacho", roles: ["ADMIN"] },
-    { path: "/dashboard/fleet", title: "Gestão de frota", roles: ["ADMIN"] },
+    { path: "/dashboard/fleet", title: "Gestão de frota", roles: ["ADMIN", "FLEET_MANAGER"] },
     {
         path: "/map",
         title: "Mapa ao vivo",
@@ -149,6 +149,7 @@ export const ROLE_LABEL: Record<Role, string> = {
     DISPATCHER: "Despachante",
     FLEET_MANAGER: "Gestor de frota",
     CUSTOMER: "Cliente",
+    DRIVER: "Motorista",
 };
 
 export function titleFor(pathname: string): string {

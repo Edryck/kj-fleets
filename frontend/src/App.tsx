@@ -8,7 +8,12 @@ import DispatchDashboard from "./pages/DispatchDashboard";
 import FleetDashboard from "./pages/FleetDashboard";
 import Dispatch from "./pages/Dispatch";
 import DriverDetail from "./pages/DriverDetail";
+import Customers from "./pages/Customers";
 import Drivers from "./pages/Drivers";
+import FleetDetail from "./pages/FleetDetail";
+import Fleets from "./pages/Fleets";
+import Places from "./pages/Places";
+import Users from "./pages/Users";
 import MyPlaces from "./pages/MyPlaces";
 import Track from "./pages/Track";
 import Vehicles from "./pages/Vehicles";
@@ -38,6 +43,11 @@ const PAGES: Record<string, JSX.Element> = {
     "/drivers": <Drivers />,
     "/drivers/:id": <DriverDetail />,
     "/vehicles": <Vehicles />,
+    "/fleets": <Fleets />,
+    "/fleets/:id": <FleetDetail />,
+    "/places": <Places />,
+    "/customers": <Customers />,
+    "/users": <Users />,
     "/routes/optimize": <RouteLab />,
 };
 const pageFor = (path: string, title: string) => PAGES[path] ?? <PendingScreen title={title} />;
