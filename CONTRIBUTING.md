@@ -4,7 +4,7 @@ Obrigado por querer ajudar! Este é um projeto acadêmico em desenvolvimento, en
 
 ## Antes de começar
 
-1. Leia o [PRODUCT.md](PRODUCT.md) (o que entra e o que está **fora** do escopo) e o [ARCHITECTURE.md](ARCHITECTURE.md).
+1. Leia o [PRODUCT.md](docs/PRODUCT.md) (o que entra e o que está **fora** do escopo) e o [ARCHITECTURE.md](docs/ARCHITECTURE.md).
 2. Para mudança grande ou que mexa no escopo, **abra uma issue antes** e espere uma resposta. Isso evita trabalho jogado fora.
 3. Para bug pequeno ou erro de texto, pode mandar o PR direto.
 
@@ -15,7 +15,7 @@ JDK 21, Docker (os testes sobem um PostgreSQL com Testcontainers) e PostgreSQL p
 ## Fluxo
 
 1. Faça um fork e crie uma branch a partir da `main` (ex.: `feat/dispatch-batch`, `fix/pod-validation`).
-2. Siga as regras do [SYSTEM.md](SYSTEM.md): nomes em inglês, poucos arquivos, comentário só com porquê.
+2. Siga as regras do [SYSTEM.md](docs/SYSTEM.md): nomes em inglês, poucos arquivos, comentário só com porquê.
 3. Escreva ou ajuste os testes. Rode `./mvnw test` (com o Docker de pé).
 4. Atualize a documentação afetada (README, ARCHITECTURE, `docs/flows/`, `.env.example`).
 5. Commits em Conventional Commits, mensagem em pt-BR: `feat(orders): bloqueia despacho sem veículo`.

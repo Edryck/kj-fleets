@@ -27,4 +27,4 @@ Exemplos: contornar a autenticação, um perfil acessando dado de outro (cliente
 
 ## Cuidados já previstos
 
-Senhas com BCrypt, segredos só por variável de ambiente, Basic Auth restrito a `/driver/**` (use HTTPS fora de desenvolvimento) e recurso de outra pessoa respondendo `404`. Detalhes em [SYSTEM.md](SYSTEM.md#7-segurança).
+Senhas com BCrypt, segredos só por variável de ambiente, Basic Auth restrito a `/driver/**` (use HTTPS fora de desenvolvimento) e recurso de outra pessoa respondendo `404`. Detalhes em [SYSTEM.md](docs/SYSTEM.md#7-segurança).

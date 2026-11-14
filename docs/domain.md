@@ -1,8 +1,8 @@
 # Modelo de dados
 
-Diagrama ER e dicionário das tabelas. As regras de negócio estão em [ARCHITECTURE.md](../ARCHITECTURE.md#fluxo-e-regras-do-pedido); aqui fica só a forma dos dados.
+Diagrama ER e dicionário das tabelas. As regras de negócio estão em [ARCHITECTURE.md](ARCHITECTURE.md#fluxo-e-regras-do-pedido); aqui fica só a forma dos dados.
 
-> Os nomes e campos são **proposta deste projeto**. Os campos reais do Fleetbase não foram verificados (ver [CREDITS.md](../CREDITS.md)). Itens marcados com `*` são decisões minhas para fechar o desenho e podem mudar.
+> Os nomes e campos são **proposta deste projeto**. Os campos reais do Fleetbase não foram verificados (ver [CREDITS.md](CREDITS.md)). Itens marcados com `*` são decisões minhas para fechar o desenho e podem mudar.
 
 ## Diagrama
 
@@ -220,7 +220,7 @@ Motorista, veículo, frota e lugar são excluídos por soft delete: a coluna `ac
 | `payload_items` | Itens transportados `*`: `name`, `quantity` e `position` (ordem de cadastro). No máximo 100 por payload. A FK `payload_id` fica aqui (relação unidirecional a partir de `payloads`). |
 | `places` | Local reutilizável. Lugar novo criado dentro de um pedido também vira linha aqui. `contact_id` é opcional. `customer_id` é opcional: nulo = lugar da equipe (listado em `/places`); preenchido = lugar do cliente (só em `/customer/places`, e usável nos pedidos dele). |
 | `contacts` | Pessoa de contato de um local. |
-| `tracking_statuses` | Uma linha por evento, **inclusive a criação**. `status` é o estado do pedido depois do evento; `code` é o evento em texto, minúsculas (lista em [ARCHITECTURE.md](../ARCHITECTURE.md#fluxo-e-regras-do-pedido)). Nunca é alterada nem apagada. Guarda a posição quando houver. `actor_username` e `actor_role` dizem quem gerou o evento (nulos em eventos do sistema). |
+| `tracking_statuses` | Uma linha por evento, **inclusive a criação**. `status` é o estado do pedido depois do evento; `code` é o evento em texto, minúsculas (lista em [ARCHITECTURE.md](ARCHITECTURE.md#fluxo-e-regras-do-pedido)). Nunca é alterada nem apagada. Guarda a posição quando houver. `actor_username` e `actor_role` dizem quem gerou o evento (nulos em eventos do sistema). |
 | `status_changes` | Histórico de status de motorista e de veículo (`subject_type` escolhe a tabela de `subject_id`, sem FK). `changed_by` é o username ou `system`. Na subida da aplicação, quem ainda não tem histórico ganha uma linha `baseline` com o status atual. Excluir grava uma linha `delete` com `from_status` igual a `to_status`. É lida pelo painel de desempenho (tempo em `BUSY`) e pelos alertas de status e de manutenção. |
 | `routes` | 1:1 com `orders` (`order_id` único). Recalcular substitui a rota anterior. `eta_minutes` é o do cálculo; o ETA vivo não é gravado. |
 | `route_stops` | Paradas já na ordem final (`seq`). `place_id` é nulo no `START` (posição do motorista). `visited_at` marca a conclusão; `distance_m` é a distância do motorista até a parada (nulo se a equipe concluiu sem posição); `completed_by` é o username de quem concluiu. |
@@ -235,7 +235,7 @@ Motorista, veículo, frota e lugar são excluídos por soft delete: a coluna `ac
 
 ### Regras que o banco não garante sozinho
 
-Ficam no `service` e têm teste (ver [SYSTEM.md](../SYSTEM.md#10-testes)):
+Ficam no `service` e têm teste (ver [SYSTEM.md](SYSTEM.md#10-testes)):
 - um motorista só ter um pedido ativo por vez (o despacho e o aceite conferem isso com a linha dele travada);
 - a transição de status ser permitida;
 - o máximo de 50 waypoints e de 100 itens;

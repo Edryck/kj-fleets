@@ -1,6 +1,6 @@
 # ARCHITECTURE.md — KJ Fleets
 
-Como o sistema é montado: camadas, stack, modelo de domínio, regras do pedido, roteirização, API, segurança, tempo real e banco. O **porquê** do produto está em [PRODUCT.md](PRODUCT.md); as **regras de código** em [SYSTEM.md](SYSTEM.md); os **fluxos** em [docs/flows/](docs/flows/backend/flow-index.md).
+Como o sistema é montado: camadas, stack, modelo de domínio, regras do pedido, roteirização, API, segurança, tempo real e banco. O **porquê** do produto está em [PRODUCT.md](PRODUCT.md); as **regras de código** em [SYSTEM.md](SYSTEM.md); os **fluxos** em [docs/flows/](flows/backend/flow-index.md).
 
 ## Visão geral
 
@@ -72,7 +72,7 @@ Nada de segredo no repositório: o `application.properties` lê tudo de variáve
 - As demais tabelas são no plural, como as entidades do código (`drivers`, `vehicles`, `fleets`, `places`, `customers`, `payloads`, `payload_items`, `payload_waypoints`, `tracking_statuses`). Rotas (`routes`, `route_stops`) entram no subprojeto 3; grafo viário (`road_nodes`, `road_edges`), no subprojeto 6.
 ## Modelo de domínio
 
-Diagrama ER, tipos das colunas, índices e restrições em [docs/domain.md](docs/domain.md). Abaixo, o resumo das entidades.
+Diagrama ER, tipos das colunas, índices e restrições em [docs/domain.md](domain.md). Abaixo, o resumo das entidades.
 
 Nomes e campos abaixo são a proposta do projeto. Os campos reais do Fleetbase **não foram verificados**: conferir as migrations e os models do `fleetbase/fleetops-api` (pasta `server/`) antes de fechar o ER.
 

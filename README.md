@@ -15,7 +15,7 @@ API REST em Java/Spring Boot para gestão de frotas e entregas: pedidos com flux
 - Eventos em tempo real por WebSocket (STOMP)
 - Cinco perfis de usuário com JWT e Basic Auth
 
-Mais detalhes em [PRODUCT.md](PRODUCT.md). Fluxos em [docs/flows/](docs/flows/backend/flow-index.md).
+Mais detalhes em [PRODUCT.md](docs/PRODUCT.md). Fluxos em [docs/flows/](docs/flows/backend/flow-index.md).
 
 ## Perfis
 
@@ -113,7 +113,7 @@ VITE_PROXY_TARGET=http://localhost:8081 npm run dev   # use a porta de API_PORT
 
 ## Endpoints
 
-Resumo por grupo. A tabela completa, com o acesso de cada perfil, está em [ARCHITECTURE.md](ARCHITECTURE.md#api-rest) e a matriz de permissões em [ARCHITECTURE.md](ARCHITECTURE.md#perfis-e-permissões). Nas rotas, `{id}` é o `publicId`. Listagens aceitam `limit` (padrão 20, máximo 100) e `offset`.
+Resumo por grupo. A tabela completa, com o acesso de cada perfil, está em [ARCHITECTURE.md](docs/ARCHITECTURE.md#api-rest) e a matriz de permissões em [ARCHITECTURE.md](docs/ARCHITECTURE.md#perfis-e-permissões). Nas rotas, `{id}` é o `publicId`. Listagens aceitam `limit` (padrão 20, máximo 100) e `offset`.
 
 Erros de regra de negócio voltam como `422` (ou `409`) com um código estável, por exemplo `ORDER_DISPATCH_REQUIRES_DRIVER`. O recurso de outra pessoa responde `404`.
 
@@ -140,7 +140,7 @@ Tópicos:
 | `/topic/orders` | ADMIN, DISPATCHER, FLEET_MANAGER | mudanças de pedido, para atualizar a fila |
 | `/topic/orders/{publicId}` | equipe, ou o CUSTOMER dono do pedido | status, ETA e paradas do pedido (sem posição do motorista) |
 
-O cliente só envia `SUBSCRIBE`. Qualquer outro comando, inclusive `SEND`, é recusado. Cada assinatura é checada no banco, e o payload de cada tópico está em [ARCHITECTURE.md](ARCHITECTURE.md#websocket).
+O cliente só envia `SUBSCRIBE`. Qualquer outro comando, inclusive `SEND`, é recusado. Cada assinatura é checada no banco, e o payload de cada tópico está em [ARCHITECTURE.md](docs/ARCHITECTURE.md#websocket).
 
 Exemplo com `@stomp/stompjs` (cliente do navegador ou Node):
 
@@ -183,16 +183,16 @@ Cada motorista roda numa thread virtual. Ele envia posições em linha reta até
 
 | Arquivo | Conteúdo |
 |---|---|
-| [PRODUCT.md](PRODUCT.md) | Para quem é, o que faz e o que fica de fora |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Camadas, domínio, regras, roteirização, API, segurança e banco |
-| [SYSTEM.md](SYSTEM.md) | Regras e padrões de código |
-| [DESIGN.md](DESIGN.md) | Design visual (a preencher quando o frontend começar) |
+| [PRODUCT.md](docs/PRODUCT.md) | Para quem é, o que faz e o que fica de fora |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Camadas, domínio, regras, roteirização, API, segurança e banco |
+| [SYSTEM.md](docs/SYSTEM.md) | Regras e padrões de código |
+| [DESIGN.md](docs/DESIGN.md) | Design visual (a preencher quando o frontend começar) |
 | [docs/domain.md](docs/domain.md) | Diagrama ER e dicionário das tabelas |
 | [docs/flows/](docs/flows/backend/flow-index.md) | Fluxos em Mermaid |
 | [docs/kjfleets.postman_collection.json](docs/kjfleets.postman_collection.json) | Collection para testar a API (importa no Postman e no Insomnia) |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Como contribuir |
 | [SECURITY.md](SECURITY.md) | Como reportar vulnerabilidade |
-| [CREDITS.md](CREDITS.md) | Fontes, referências e atribuição |
+| [CREDITS.md](docs/CREDITS.md) | Fontes, referências e atribuição |
 
 ## Contribuindo e segurança
 
@@ -204,4 +204,4 @@ Projeto acadêmico, mas contribuições são bem-vindas: veja [CONTRIBUTING.md](
 
 ## Créditos
 
-Inspirado no [Fleetbase](https://github.com/fleetbase/fleetbase) (AGPL-3.0). Este projeto reaproveita apenas ideias de modelo de domínio e regras de negócio, sem tradução de código. A roteirização e o dashboard são contribuição própria. Detalhes e referências em [CREDITS.md](CREDITS.md).
+Inspirado no [Fleetbase](https://github.com/fleetbase/fleetbase) (AGPL-3.0). Este projeto reaproveita apenas ideias de modelo de domínio e regras de negócio, sem tradução de código. A roteirização e o dashboard são contribuição própria. Detalhes e referências em [CREDITS.md](docs/CREDITS.md).

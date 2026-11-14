@@ -4,7 +4,7 @@ labels: ["enhancement"]
 body:
   - type: markdown
     attributes:
-      value: Antes de sugerir, confira o que está **fora do escopo** no PRODUCT.md.
+      value: Antes de sugerir, confira o que está **fora do escopo** no docs/PRODUCT.md.
   - type: textarea
     id: problem
     attributes:

@@ -1,6 +1,6 @@
 # Fluxos — WebSocket
 
-Conexão STOMP, autorização das assinaturas, publicação com throttle e expiração de sessão. Índice em [flow-index.md](flow-index.md). Payloads e regras em [ARCHITECTURE.md](../../../ARCHITECTURE.md#websocket).
+Conexão STOMP, autorização das assinaturas, publicação com throttle e expiração de sessão. Índice em [flow-index.md](flow-index.md). Payloads e regras em [ARCHITECTURE.md](../../ARCHITECTURE.md#websocket).
 
 ## 22. Conexão e assinatura
 

@@ -1,6 +1,6 @@
 # KJ Fleets — Frontend
 
-SPA em React + TypeScript (Vite) que consome a API do backend. O visual segue o `DESIGN.md` da raiz do projeto.
+SPA em React + TypeScript (Vite) que consome a API do backend. O visual segue o `docs/DESIGN.md` do projeto.
 
 ## Pré-requisitos
 
