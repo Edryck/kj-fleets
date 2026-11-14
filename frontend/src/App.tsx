@@ -2,8 +2,10 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { RequireAuth, RequireRole } from "./auth/guards";
 import Toasts from "./components/Toasts";
 import Shell from "./layout/Shell";
+import Dispatch from "./pages/Dispatch";
 import Account from "./pages/Account";
 import LiveMap from "./pages/LiveMap";
+import RouteLab from "./pages/RouteLab";
 import NewOrder from "./pages/NewOrder";
 import OrderDetail from "./pages/OrderDetail";
 import OrdersList from "./pages/OrdersList";
@@ -18,6 +20,8 @@ const PAGES: Record<string, JSX.Element> = {
     "/orders": <OrdersList />,
     "/orders/new": <NewOrder />,
     "/orders/:id": <OrderDetail />,
+    "/dispatch": <Dispatch />,
+    "/routes/optimize": <RouteLab />,
 };
 const pageFor = (path: string, title: string) => PAGES[path] ?? <PendingScreen title={title} />;
 

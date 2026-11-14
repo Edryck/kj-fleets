@@ -402,7 +402,9 @@
 .map-legend {
     top: 8px;
     left: 8px;
-    color: var(--color-text-muted);
+    padding: 6px 12px;
+    font-size: 0.8125rem;
+    font-weight: 500;
 }
 .map-marker {
     display: grid;
@@ -455,5 +457,210 @@
     }
     .item-row {
         grid-template-columns: 1fr 90px 40px;
+    }
+}
+
+/* Rota no detalhe do pedido */
+.route-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    margin: 0;
+}
+.route-kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+}
+.route-kpis .card {
+    padding: 14px;
+    background: var(--color-surface-muted);
+}
+.route-kpis .kpi-value {
+    font-size: 1.25rem;
+}
+.route-form {
+    display: grid;
+    gap: 12px;
+    margin-top: 12px;
+    padding-top: 16px;
+    border-top: 1px solid var(--color-border);
+}
+.route-form .field {
+    margin-bottom: 0;
+}
+.route-form .btn {
+    justify-self: start;
+}
+
+/* Despacho em lote */
+.dispatch-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+    gap: 20px;
+    align-items: start;
+}
+.dispatch-grid > * {
+    min-width: 0;
+}
+.planner-controls {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+.plan-result {
+    display: grid;
+    gap: 16px;
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid var(--color-border);
+}
+.plan-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+.plan-total {
+    font-family: var(--font-heading);
+    font-size: 1.5rem;
+}
+.plan-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+}
+.compare {
+    display: grid;
+    gap: 8px;
+}
+.compare-summary {
+    margin: 0;
+    font-weight: 600;
+}
+.compare-row {
+    display: grid;
+    grid-template-columns: 72px 1fr 80px;
+    align-items: center;
+    gap: 12px;
+    font-size: 0.875rem;
+}
+.compare-track {
+    height: 10px;
+    border-radius: 999px;
+    background: var(--color-surface-muted);
+    overflow: hidden;
+}
+.compare-bar {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+}
+.compare-hungarian {
+    background: var(--color-primary);
+}
+.compare-greedy {
+    background: var(--color-text-subtle);
+}
+.queue-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+}
+.queue-columns h3 {
+    margin: 0 0 8px;
+    font-size: 0.9375rem;
+}
+.plain-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+}
+.plain-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+    border-top: 1px solid var(--color-border);
+}
+.plain-list a {
+    color: var(--color-primary);
+    text-decoration: none;
+}
+.plain-list a:hover {
+    text-decoration: underline;
+}
+
+/* Simulador de rota */
+.lab-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 420px);
+    gap: 20px;
+    align-items: start;
+}
+.lab-grid > * {
+    min-width: 0;
+}
+.lab-map {
+    position: sticky;
+    top: 16px;
+    padding: 0;
+    overflow: hidden;
+}
+.lab-map .map-view {
+    height: 560px;
+    border: 0;
+    border-radius: 0;
+}
+.point-list {
+    margin: 12px 0;
+}
+.point-list li {
+    padding: 4px 0 4px 0;
+}
+.point-list li > span:first-child {
+    flex: 0 0 76px;
+}
+.point-list li > .data {
+    flex: 1;
+}
+.import-row {
+    display: flex;
+    align-items: end;
+    gap: 12px;
+    margin-top: 16px;
+}
+.import-row .field {
+    flex: 1;
+    margin-bottom: 0;
+    min-width: 0;
+}
+.import-row select {
+    width: 100%;
+}
+.lab-error {
+    margin-top: 12px;
+}
+.lab-compare {
+    margin-top: 16px;
+}
+
+@media (max-width: 1100px) {
+    .dispatch-grid,
+    .lab-grid,
+    .queue-columns {
+        grid-template-columns: 1fr;
+    }
+    .lab-map {
+        position: static;
+    }
+    .lab-map .map-view {
+        height: 380px;
     }
 }

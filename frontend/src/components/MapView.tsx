@@ -208,7 +208,9 @@ export default function MapView({
                 drawn.current.set(p.id, item);
             }
             item.marker.setLngLat([p.lng, p.lat]);
+            // sem a classe do MapLibre o marcador perde o position:absolute e empilha no fluxo
             item.el.className = [
+                "maplibregl-marker",
                 "map-marker",
                 `map-marker-${p.kind}`,
                 p.dimmed && "is-dimmed",
@@ -239,7 +241,12 @@ export default function MapView({
         m.resize();
         const bounds = new LngLatBounds();
         markers.forEach((p) => bounds.extend([p.lng, p.lat]));
-        m.fitBounds(bounds, { padding: 56, maxZoom: 15, duration: 0 });
+        // topo maior: a legenda fica sobre o mapa
+        m.fitBounds(bounds, {
+            padding: { top: 64, bottom: 48, left: 48, right: 48 },
+            maxZoom: 15,
+            duration: 0,
+        });
         // eslint-disable-next-line react-hooks/exhaustive-deps -- signature representa markers
     }, [signature, line]);
 

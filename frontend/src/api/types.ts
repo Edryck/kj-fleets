@@ -203,3 +203,69 @@ export interface CreateOrderRequest {
     podRequired: boolean;
     notes?: string;
 }
+
+export interface QueueItem {
+    orderId: string;
+    trackingNumber: string;
+    pickupName: string;
+    dropoffName: string;
+    minutesInStage: number;
+}
+
+export interface InProgressItem {
+    orderId: string;
+    status: string;
+    driverId: string | null;
+    driverName: string | null;
+    etaMinutes: number | null;
+    stopsDone: number;
+    stopsTotal: number;
+}
+
+export interface Paged<T> {
+    items: T[];
+    total: number;
+}
+
+export interface DispatchQueue {
+    unassigned: Paged<QueueItem>;
+    assignedNotDispatched: Paged<QueueItem>;
+    inProgress: Paged<InProgressItem>;
+}
+
+export type AssignmentAlgorithm = "HUNGARIAN" | "GREEDY";
+
+export interface PlannedAssignment {
+    orderId: string;
+    driverId: string;
+    vehicleId: string;
+    km: number;
+}
+
+export interface PlanResponse {
+    algorithm: AssignmentAlgorithm;
+    applied: boolean;
+    assignments: PlannedAssignment[];
+    unassigned: string[];
+    totalKm: number;
+    comparison: Partial<Record<AssignmentAlgorithm, number>>;
+}
+
+export interface OptimizedStop {
+    seq: number;
+    type: StopType;
+    lat: number;
+    lng: number;
+    legKm: number;
+    waypointIndex: number | null;
+}
+
+export interface OptimizeResponse {
+    algorithm: string;
+    stops: OptimizedStop[];
+    totalKm: number;
+    baselineKm: number;
+    savingsPct: number;
+    etaMinutes: number;
+    comparison: Record<string, { totalKm: number; ms: number }> | null;
+}

@@ -37,6 +37,7 @@ import {
     nextAction,
     TIMELINE_LABEL,
 } from "./orderActions";
+import RouteBlock from "./RouteBlock";
 import { NotFound } from "./SystemPages";
 
 type Dialog = "assign" | "pod" | "fail" | "cancel" | null;
@@ -676,7 +677,26 @@ export default function OrderDetail() {
                         </section>
                     )}
 
-                    {/* bloco da rota (Task 5) entra aqui */}
+                    {isStaff && route.isError && (
+                        <ErrorState
+                            message="Não foi possível carregar a rota."
+                            onRetry={() => route.refetch()}
+                        />
+                    )}
+                    {isStaff && !route.isLoading && !route.isError && (
+                        <RouteBlock
+                            orderId={id}
+                            route={route.data}
+                            waypointCount={
+                                route.data
+                                    ? route.data.stops.filter(
+                                          (s) => s.type === "WAYPOINT" && !s.visitedAt,
+                                      ).length
+                                    : o.waypoints.length
+                            }
+                            canRecalculate={canAct && isActive(o.status)}
+                        />
+                    )}
 
                     <section className="card">
                         <h2>Linha do tempo</h2>
