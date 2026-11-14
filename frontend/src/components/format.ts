@@ -41,3 +41,14 @@ export function formatTime(iso: string, timeZone?: string): string {
         new Date(iso),
     );
 }
+
+// "há 12 s", "há 5 min"; chamada com `now` para a tela poder atualizar sem refetch
+export function formatAgo(iso: string | null | undefined, now = Date.now()): string {
+    if (!iso) return EMPTY;
+    const seconds = Math.max(0, Math.round((now - Date.parse(iso)) / 1000));
+    if (seconds < 60) return `há ${seconds} s`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `há ${minutes} min`;
+    const hours = Math.floor(minutes / 60);
+    return hours < 24 ? `há ${hours} h` : `há ${Math.floor(hours / 24)} d`;
+}

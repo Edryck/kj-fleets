@@ -3,6 +3,7 @@ import { RequireAuth, RequireRole } from "./auth/guards";
 import Toasts from "./components/Toasts";
 import Shell from "./layout/Shell";
 import Account from "./pages/Account";
+import LiveMap from "./pages/LiveMap";
 import NewOrder from "./pages/NewOrder";
 import OrderDetail from "./pages/OrderDetail";
 import OrdersList from "./pages/OrdersList";
@@ -13,6 +14,7 @@ import { APP_ROUTES } from "./routes";
 
 const PAGES: Record<string, JSX.Element> = {
     "/account": <Account />,
+    "/map": <LiveMap />,
     "/orders": <OrdersList />,
     "/orders/new": <NewOrder />,
     "/orders/:id": <OrderDetail />,

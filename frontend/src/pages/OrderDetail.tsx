@@ -22,9 +22,10 @@ import type {
     Vehicle,
 } from "../api/types";
 import { useSession } from "../auth/session";
+import { useTopic, type LocationEvent } from "../realtime/useTopic";
 import { EmptyState, ErrorState, Skeleton } from "../components/blocks";
 import { formatDateTime, formatKm } from "../components/format";
-import MapView, { type MapMarker } from "../components/MapView";
+import MapView, { stopMarkers, type MapMarker } from "../components/MapView";
 import { ConfirmDialog, Modal } from "../components/overlays";
 import StatusBadge from "../components/StatusBadge";
 import { toast } from "../components/Toasts";
@@ -236,6 +237,24 @@ export default function OrderDetail() {
         enabled: isStaff && !!driverId,
     });
 
+    // status, ETA e paradas chegam por aqui para todos os perfis (cliente dono incluso)
+    useTopic<unknown>(`/topic/orders/${id}`, () =>
+        client.invalidateQueries({ queryKey: ["order", id] }),
+    );
+    // a posição do motorista só circula para a equipe
+    useTopic<LocationEvent>(isStaff && driverId ? "/topic/fleet/locations" : null, (e) => {
+        if (e.driverId !== driverId) return;
+        client.setQueryData<Driver>(["drivers", driverId], (d) =>
+            d
+                ? {
+                      ...d,
+                      status: e.status,
+                      ...(e.lat != null && e.lng != null ? { lat: e.lat, lng: e.lng } : {}),
+                  }
+                : d,
+        );
+    });
+
     const refresh = () => {
         void client.invalidateQueries({ queryKey: ["order", id] });
         void client.invalidateQueries({ queryKey: ["orders"] });
@@ -273,34 +292,7 @@ export default function OrderDetail() {
         const r = route.data;
         const list: MapMarker[] = [];
         if (r) {
-            let waypointNumber = 0;
-            for (const s of r.stops) {
-                if (s.lat == null || s.lng == null) continue;
-                if (s.type === "WAYPOINT") waypointNumber++;
-                list.push({
-                    id: `s${s.seq}`,
-                    lat: s.lat,
-                    lng: s.lng,
-                    kind:
-                        s.type === "PICKUP"
-                            ? "pickup"
-                            : s.type === "DROPOFF"
-                              ? "dropoff"
-                              : s.type === "START"
-                                ? "start"
-                                : "waypoint",
-                    label:
-                        s.type === "PICKUP"
-                            ? "R"
-                            : s.type === "DROPOFF"
-                              ? "E"
-                              : s.type === "WAYPOINT"
-                                ? String(waypointNumber)
-                                : "",
-                    title: s.name,
-                    dimmed: s.visitedAt != null,
-                });
-            }
+            list.push(...stopMarkers(r.stops));
         } else {
             const points: [string, MapMarker["kind"], string, (typeof o)["pickup"]][] = [
                 ["pickup", "pickup", "R", o.pickup],

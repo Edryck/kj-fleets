@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatKm, formatMinutes, formatPercent, formatRate } from "./format";
+import { formatAgo, formatKm, formatMinutes, formatPercent, formatRate } from "./format";
 
 describe("format", () => {
     it("rate nulo vira traço, nunca 0%", () => {
@@ -24,5 +24,15 @@ describe("format", () => {
     it("km", () => {
         expect(formatKm(12.34)).toBe("12,3 km");
         expect(formatKm(null)).toBe("—");
+    });
+});
+
+describe("formatAgo", () => {
+    const now = Date.parse("2026-11-14T12:00:00Z");
+    it("formats seconds, minutes, hours and null", () => {
+        expect(formatAgo("2026-11-14T11:59:48Z", now)).toBe("há 12 s");
+        expect(formatAgo("2026-11-14T11:55:00Z", now)).toBe("há 5 min");
+        expect(formatAgo("2026-11-14T09:00:00Z", now)).toBe("há 3 h");
+        expect(formatAgo(null, now)).toBe("—");
     });
 });

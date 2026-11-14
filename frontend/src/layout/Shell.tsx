@@ -1,5 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Outlet } from "react-router-dom";
+import { useSession } from "../auth/session";
+import { connect, disconnect } from "../realtime/stomp";
+import { useOrderEventsInvalidation, useReloadOnReconnect } from "../realtime/useTopic";
 import Sidebar from "./Sidebar";
 import TopBar from "./TopBar";
 
@@ -16,6 +19,18 @@ function readCollapsed(): boolean {
 export default function Shell() {
     const [collapsed, setCollapsed] = useState(readCollapsed);
     const [mobileOpen, setMobileOpen] = useState(false);
+    const session = useSession();
+    const token = session?.token;
+    const isStaff = session?.role !== "CUSTOMER";
+
+    // uma conexão STOMP por sessão; sair do shell (logout) fecha o socket
+    useEffect(() => {
+        if (!token) return;
+        connect(token);
+        return disconnect;
+    }, [token]);
+    useReloadOnReconnect();
+    useOrderEventsInvalidation(isStaff);
 
     const toggle = () => {
         setCollapsed((c) => {

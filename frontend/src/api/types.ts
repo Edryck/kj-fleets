@@ -168,6 +168,8 @@ export interface Driver {
     status: DriverStatus;
     lat: number | null;
     lng: number | null;
+    lastSeenAt: string | null;
+    fleets: Ref[];
     vehicle: { publicId: string; plate: string } | null;
 }
 

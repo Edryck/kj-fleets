@@ -9,6 +9,7 @@ import {
 import "maplibre-gl/dist/maplibre-gl.css";
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import { useEffect, useRef } from "react";
+import type { RouteStop } from "../api/types";
 
 export interface MapMarker {
     id: string;
@@ -18,6 +19,43 @@ export interface MapMarker {
     label?: string;
     title?: string;
     dimmed?: boolean;
+    // motorista: o marcador mostra as iniciais e o estado vai no formato, não só na cor
+    status?: "AVAILABLE" | "BUSY" | "OFFLINE";
+    selected?: boolean;
+}
+
+// paradas da rota gravada viram marcadores numerados; visitadas ficam atenuadas
+export function stopMarkers(stops: RouteStop[]): MapMarker[] {
+    const list: MapMarker[] = [];
+    let waypointNumber = 0;
+    for (const s of stops) {
+        if (s.lat == null || s.lng == null) continue;
+        if (s.type === "WAYPOINT") waypointNumber++;
+        list.push({
+            id: `s${s.seq}`,
+            lat: s.lat,
+            lng: s.lng,
+            kind:
+                s.type === "PICKUP"
+                    ? "pickup"
+                    : s.type === "DROPOFF"
+                      ? "dropoff"
+                      : s.type === "START"
+                        ? "start"
+                        : "waypoint",
+            label:
+                s.type === "PICKUP"
+                    ? "R"
+                    : s.type === "DROPOFF"
+                      ? "E"
+                      : s.type === "WAYPOINT"
+                        ? String(waypointNumber)
+                        : "",
+            title: s.name,
+            dimmed: s.visitedAt != null,
+        });
+    }
+    return list;
 }
 
 interface Props {
@@ -25,6 +63,9 @@ interface Props {
     // liga os marcadores (exceto motorista) na ordem recebida, em linha reta
     line?: boolean;
     onPick?: (lat: number, lng: number) => void;
+    onMarkerClick?: (id: string) => void;
+    // centraliza neste marcador quando muda (ex.: motorista escolhido na lista)
+    focusId?: string | null;
     pickHint?: string;
     className?: string;
 }
@@ -40,15 +81,23 @@ const FALLBACK_CENTER: [number, number] = [-54.34, -24.86];
 
 const currentTheme = () => (document.documentElement.dataset.theme === "light" ? "light" : "dark");
 
-export default function MapView({ markers, line, onPick, pickHint, className }: Props) {
+export default function MapView({
+    markers,
+    line,
+    onPick,
+    onMarkerClick,
+    focusId,
+    pickHint,
+    className,
+}: Props) {
     const container = useRef<HTMLDivElement>(null);
     const map = useRef<MapLibreMap | null>(null);
-    const drawn = useRef<Marker[]>([]);
+    const drawn = useRef(new Map<string, { marker: Marker; el: HTMLDivElement }>());
     const lastFit = useRef("");
     const styleReady = useRef(false);
     // handlers e dados mais recentes, lidos pelos callbacks do mapa sem recriá-lo
-    const latest = useRef({ markers, line, onPick });
-    latest.current = { markers, line, onPick };
+    const latest = useRef({ markers, line, onPick, onMarkerClick });
+    latest.current = { markers, line, onPick, onMarkerClick };
 
     function drawLine() {
         const m = map.current;
@@ -104,6 +153,7 @@ export default function MapView({ markers, line, onPick, pickHint, className }: 
         m.on("click", (e) => latest.current.onPick?.(e.lngLat.lat, e.lngLat.lng));
         map.current = m;
 
+        const items = drawn.current;
         let applied = currentTheme();
         const observer = new MutationObserver(() => {
             const next = currentTheme();
@@ -118,6 +168,10 @@ export default function MapView({ markers, line, onPick, pickHint, className }: 
         });
         return () => {
             observer.disconnect();
+            // marcadores velhos apontariam para o mapa destruído (StrictMode remonta o efeito)
+            items.forEach((item) => item.marker.remove());
+            items.clear();
+            lastFit.current = "";
             m.remove();
             map.current = null;
             styleReady.current = false;
@@ -130,18 +184,51 @@ export default function MapView({ markers, line, onPick, pickHint, className }: 
     useEffect(() => {
         const m = map.current;
         if (!m) return;
-        drawn.current.forEach((marker) => marker.remove());
-        drawn.current = markers.map((p) => {
-            const el = document.createElement("div");
-            el.className = `map-marker map-marker-${p.kind}${p.dimmed ? " is-dimmed" : ""}`;
-            el.textContent = p.label ?? "";
-            if (p.title) el.title = p.title;
-            return new Marker({ element: el }).setLngLat([p.lng, p.lat]).addTo(m);
+        // atualiza os marcadores no lugar: recriar a cada posição perderia cliques e tooltips
+        const ids = new Set(markers.map((p) => p.id));
+        drawn.current.forEach((item, id) => {
+            if (ids.has(id)) return;
+            item.marker.remove();
+            drawn.current.delete(id);
         });
+        for (const p of markers) {
+            let item = drawn.current.get(p.id);
+            if (!item) {
+                const el = document.createElement("div");
+                const id = p.id;
+                el.addEventListener("click", (e) => {
+                    if (!latest.current.onMarkerClick) return;
+                    e.stopPropagation();
+                    latest.current.onMarkerClick(id);
+                });
+                item = {
+                    marker: new Marker({ element: el }).setLngLat([p.lng, p.lat]).addTo(m),
+                    el,
+                };
+                drawn.current.set(p.id, item);
+            }
+            item.marker.setLngLat([p.lng, p.lat]);
+            item.el.className = [
+                "map-marker",
+                `map-marker-${p.kind}`,
+                p.dimmed && "is-dimmed",
+                p.selected && "is-selected",
+                onMarkerClick && "is-clickable",
+            ]
+                .filter(Boolean)
+                .join(" ");
+            if (p.status) item.el.dataset.status = p.status;
+            else delete item.el.dataset.status;
+            item.el.textContent = p.label ?? "";
+            if (p.title) item.el.title = p.title;
+        }
         drawLine();
 
         // só reenquadra quando o conjunto de pontos muda, não a cada clique
-        const key = markers.map((p) => `${p.id}:${p.lat}:${p.lng}`).join("|");
+        // motorista andando não reenquadra: só entra/sai do conjunto
+        const key = markers
+            .map((p) => (p.kind === "driver" ? p.id : `${p.id}:${p.lat}:${p.lng}`))
+            .join("|");
         if (key === lastFit.current || markers.length === 0) return;
         lastFit.current = key;
         if (markers.length === 1) {
@@ -155,6 +242,16 @@ export default function MapView({ markers, line, onPick, pickHint, className }: 
         m.fitBounds(bounds, { padding: 56, maxZoom: 15, duration: 0 });
         // eslint-disable-next-line react-hooks/exhaustive-deps -- signature representa markers
     }, [signature, line]);
+
+    useEffect(() => {
+        const target = focusId ? latest.current.markers.find((p) => p.id === focusId) : null;
+        if (!target) return;
+        map.current?.easeTo({
+            center: [target.lng, target.lat],
+            zoom: Math.max(map.current.getZoom(), 14),
+            duration: 500,
+        });
+    }, [focusId]);
 
     return (
         <div className={`map-view${onPick ? " is-picking" : ""} ${className ?? ""}`}>

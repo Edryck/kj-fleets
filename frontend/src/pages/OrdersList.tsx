@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Search, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
@@ -6,6 +6,7 @@ import { messageFor } from "../api/errors";
 import { ApiError, request } from "../api/http";
 import type { Customer, Driver, OrderStatus, OrderSummary, Page } from "../api/types";
 import { useSession } from "../auth/session";
+import { useTopics } from "../realtime/useTopic";
 import DataTable, { type Column } from "../components/DataTable";
 import { formatDateTime } from "../components/format";
 import StatusBadge from "../components/StatusBadge";
@@ -98,6 +99,12 @@ export default function OrdersList() {
             }),
         placeholderData: (previous) => previous,
     });
+    // cliente não tem tópico geral: assina o de cada pedido visível
+    const queryClient = useQueryClient();
+    useTopics<unknown>(
+        isStaff ? [] : (orders.data?.items.map((o) => `/topic/orders/${o.publicId}`) ?? []),
+        () => queryClient.invalidateQueries({ queryKey: ["orders"] }),
+    );
     const drivers = useQuery({
         queryKey: ["drivers", "all"],
         queryFn: () => request<Page<Driver>>("GET", "/drivers", undefined, { limit: 100 }),

@@ -3,13 +3,21 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { logout, useMe, useSession } from "../auth/session";
 import { ROLE_LABEL, titleFor } from "../routes";
+import { useConnectionState } from "../realtime/useTopic";
 import { readTheme, toggleTheme, type Theme } from "../theme";
 
-// Slots de período, conexão STOMP e sino entram nas tarefas seguintes; só aparecem quando existirem de verdade
+const CONNECTION_LABEL = {
+    connected: "Conectado",
+    reconnecting: "Reconectando",
+    offline: "Offline",
+};
+
+// Slots de período e sino entram nas tarefas seguintes; só aparecem quando existirem de verdade
 export default function TopBar({ onMenu }: { onMenu: () => void }) {
     const { pathname } = useLocation();
     const session = useSession();
     const me = useMe();
+    const connection = useConnectionState();
     const [theme, setTheme] = useState<Theme>(readTheme);
     const [menuOpen, setMenuOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
@@ -44,6 +52,14 @@ export default function TopBar({ onMenu }: { onMenu: () => void }) {
             </button>
             <h1 className="topbar-title">{titleFor(pathname)}</h1>
             <div className="topbar-actions">
+                <span
+                    className={`conn conn-${connection}`}
+                    role="status"
+                    aria-label={`Tempo real: ${CONNECTION_LABEL[connection]}`}
+                >
+                    <span className="conn-dot" aria-hidden="true" />
+                    <span className="conn-label">{CONNECTION_LABEL[connection]}</span>
+                </span>
                 <button
                     type="button"
                     className="btn btn-ghost btn-icon"
