@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowDown, ArrowLeft, ArrowUp, Crosshair, Loader2, Plus, Trash2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useFieldArray, useForm, useFormContext, FormProvider } from "react-hook-form";
@@ -68,14 +68,14 @@ function toNumber(v: string) {
 function PointFields({
     path,
     label,
-    canPickPlaces,
+    placesPath,
     picking,
     onPick,
     extra,
 }: {
     path: PointPath;
     label: string;
-    canPickPlaces: boolean;
+    placesPath: string;
     picking: boolean;
     onPick: () => void;
     extra?: React.ReactNode;
@@ -95,10 +95,10 @@ function PointFields({
 
     // só busca depois do primeiro foco: com 50 paradas, não dispara 50 requisições na tela
     const places = useQuery({
-        queryKey: ["places", debounced],
+        queryKey: [placesPath, debounced],
         queryFn: () =>
-            request<Page<Place>>("GET", "/places", undefined, { q: debounced, limit: 8 }),
-        enabled: canPickPlaces && point.mode === "place" && focused,
+            request<Page<Place>>("GET", placesPath, undefined, { q: debounced, limit: 8 }),
+        enabled: point.mode === "place" && focused,
     });
 
     const setMode = (mode: PointValues["mode"]) => setValue(`${path}.mode`, mode);
@@ -111,26 +111,24 @@ function PointFields({
         <fieldset className="point">
             <legend>{label}</legend>
             {extra}
-            {canPickPlaces && (
-                <div className="segmented" role="group" aria-label={`Tipo de ponto: ${label}`}>
-                    <button
-                        type="button"
-                        aria-pressed={point.mode === "place"}
-                        onClick={() => setMode("place")}
-                    >
-                        Lugar cadastrado
-                    </button>
-                    <button
-                        type="button"
-                        aria-pressed={point.mode === "manual"}
-                        onClick={() => setMode("manual")}
-                    >
-                        Novo ponto
-                    </button>
-                </div>
-            )}
+            <div className="segmented" role="group" aria-label={`Tipo de ponto: ${label}`}>
+                <button
+                    type="button"
+                    aria-pressed={point.mode === "place"}
+                    onClick={() => setMode("place")}
+                >
+                    {placesPath === "/places" ? "Lugar cadastrado" : "Meu endereço"}
+                </button>
+                <button
+                    type="button"
+                    aria-pressed={point.mode === "manual"}
+                    onClick={() => setMode("manual")}
+                >
+                    Novo ponto
+                </button>
+            </div>
 
-            {point.mode === "place" && canPickPlaces ? (
+            {point.mode === "place" ? (
                 <div className="field">
                     <input
                         type="hidden"
@@ -166,7 +164,11 @@ function PointFields({
                             {places.data && (
                                 <ul className="place-results">
                                     {places.data.items.length === 0 && (
-                                        <li className="caption">Nenhum lugar encontrado</li>
+                                        <li className="caption">
+                                            {placesPath === "/places"
+                                                ? "Nenhum lugar encontrado"
+                                                : 'Nenhum endereço encontrado. Use "Novo ponto" e ele fica salvo em Meus endereços.'}
+                                        </li>
                                     )}
                                     {places.data.items.map((p) => (
                                         <li key={p.publicId}>
@@ -254,9 +256,11 @@ function PointFields({
 
 export default function NewOrder() {
     const navigate = useNavigate();
+    const client = useQueryClient();
     const session = useSession();
     const isCustomer = session?.role === "CUSTOMER";
-    const startMode = isCustomer ? "manual" : "place";
+    const startMode = "place";
+    const placesPath = isCustomer ? "/customer/places" : "/places";
     const form = useForm<FormValues>({
         defaultValues: {
             customerId: "",
@@ -336,6 +340,8 @@ export default function NewOrder() {
         mutationFn: (body: CreateOrderRequest) => request<OrderDetail>("POST", "/orders", body),
         onSuccess: (order) => {
             toast.success("Pedido criado.");
+            // ponto novo digitado vira endereço do cliente
+            if (isCustomer) void client.invalidateQueries({ queryKey: ["/customer/places"] });
             navigate(`/orders/${order.publicId}`);
         },
         onError: (e: ApiError) => setError("root", { message: messageFor(e.code, e.message) }),
@@ -372,7 +378,7 @@ export default function NewOrder() {
 
     const pickProps = (path: PointPath) => ({
         path,
-        canPickPlaces: !isCustomer,
+        placesPath,
         picking: picking === path,
         onPick: () => setPicking(picking === path ? null : path),
     });

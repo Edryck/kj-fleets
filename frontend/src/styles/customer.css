@@ -1,0 +1,201 @@
+/* Área do cliente e rastreio público */
+
+/* Trilha de etapas: o status vai no texto e no ícone, a cor só reforça */
+.rail {
+    list-style: none;
+    margin: 4px 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+}
+.rail-step {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    text-align: center;
+    color: var(--color-text-subtle);
+    font-size: 0.8125rem;
+}
+.rail-step::before {
+    content: "";
+    position: absolute;
+    top: 9px;
+    right: 50%;
+    width: 100%;
+    height: 2px;
+    background: var(--color-border);
+}
+.rail-step:first-child::before {
+    display: none;
+}
+.rail-done::before,
+.rail-now::before {
+    background: var(--color-primary);
+}
+.rail-dot {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 2px solid var(--color-border);
+    background: var(--color-background);
+}
+.rail-done .rail-dot {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: var(--color-on-primary);
+}
+.rail-now .rail-dot {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 4px var(--color-primary-soft);
+}
+.rail-done,
+.rail-now {
+    color: var(--color-text);
+}
+.rail-now .rail-label {
+    font-weight: 600;
+}
+@media (max-width: 480px) {
+    .rail-step {
+        font-size: 0.6875rem;
+    }
+}
+
+.status-help {
+    margin: 0;
+    font-size: 1.0625rem;
+    font-weight: 500;
+}
+.status-card {
+    display: grid;
+    gap: 12px;
+}
+.status-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 24px;
+}
+.status-fact {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    color: var(--color-text-muted);
+}
+.status-fact strong {
+    color: var(--color-text);
+}
+.status-fact svg {
+    color: var(--color-primary);
+}
+
+/* Dashboard do cliente */
+.active-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr));
+    gap: 16px;
+}
+.active-card {
+    display: grid;
+    gap: 14px;
+    align-content: start;
+}
+.active-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.attention {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    border: 1px solid var(--color-warning);
+    border-radius: var(--radius-card);
+    color: var(--color-warning);
+    background: var(--color-surface);
+    text-decoration: none;
+}
+.attention span {
+    color: var(--color-text);
+}
+.attention-bad {
+    border-color: var(--color-danger);
+    color: var(--color-danger);
+}
+.delivered-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+.delivered-list li {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--color-border);
+}
+.delivered-list li:last-child {
+    border-bottom: 0;
+}
+.bell-list li > .bell-message:only-child {
+    grid-column: 1 / -1;
+}
+.row-actions {
+    display: inline-flex;
+    gap: 4px;
+}
+
+/* Rastreio público: página leve, sem sidebar */
+.track {
+    min-height: 100vh;
+    background: var(--color-background);
+}
+.track-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 20px 16px;
+}
+.track-top a {
+    text-decoration: none;
+}
+.track-main {
+    display: grid;
+    gap: 16px;
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 8px 16px 48px;
+}
+.track-form {
+    display: flex;
+    gap: 8px;
+}
+.track-form input {
+    flex: 1;
+    min-width: 0;
+}
+.track-card {
+    display: grid;
+    gap: 16px;
+}
+.track-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.track-code {
+    font-size: 1.25rem;
+    font-weight: 600;
+}

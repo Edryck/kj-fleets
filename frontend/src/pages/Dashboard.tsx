@@ -32,7 +32,7 @@ import { usePeriod } from "../components/PeriodSelect";
 import { ALERT_LABEL } from "./alerts";
 import DispatchDashboard from "./DispatchDashboard";
 import FleetDashboard from "./FleetDashboard";
-import { PendingScreen } from "./SystemPages";
+import CustomerDashboard from "./CustomerDashboard";
 import {
     DashHeader,
     DeltaHint,
@@ -49,13 +49,13 @@ const stageLink = (stage: string) =>
         ? "/dispatch"
         : `/orders?status=${stage}&active=true`;
 
-// /dashboard escolhe o painel pelo perfil; o cliente entra na tarefa seguinte
+// /dashboard escolhe o painel pelo perfil
 export default function Dashboard() {
     const role = useSession()?.role;
     if (role === "ADMIN") return <AdminDashboard />;
     if (role === "DISPATCHER") return <DispatchDashboard />;
     if (role === "FLEET_MANAGER") return <FleetDashboard />;
-    return <PendingScreen title="Dashboard" />;
+    return <CustomerDashboard />;
 }
 
 function AdminDashboard() {

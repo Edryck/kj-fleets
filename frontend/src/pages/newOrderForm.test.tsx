@@ -11,7 +11,7 @@ vi.mock("../auth/session", () => ({ useSession: () => ({ role: "CUSTOMER" }) }))
 
 afterEach(cleanup);
 
-const renderForm = () =>
+function renderForm() {
     render(
         <QueryClientProvider client={new QueryClient()}>
             <MemoryRouter>
@@ -19,6 +19,9 @@ const renderForm = () =>
             </MemoryRouter>
         </QueryClientProvider>,
     );
+    // cliente começa em "Meu endereço"; os testes de validação usam o formulário de ponto novo
+    for (const b of screen.getAllByRole("button", { name: "Novo ponto" })) fireEvent.click(b);
+}
 
 describe("novo pedido", () => {
     it("exige retirada e entrega", async () => {

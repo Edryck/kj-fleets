@@ -142,10 +142,15 @@ export default function OrdersList() {
             ),
         },
         { header: "Motorista", render: (o) => o.driver?.name ?? "—" },
-        {
-            header: "Veículo",
-            render: (o) => (o.vehicle ? <span className="data">{o.vehicle.plate}</span> : "—"),
-        },
+        ...(isStaff
+            ? [
+                  {
+                      header: "Veículo",
+                      render: (o: OrderSummary) =>
+                          o.vehicle ? <span className="data">{o.vehicle.plate}</span> : "—",
+                  },
+              ]
+            : []),
         ...(isStaff
             ? [{ header: "Cliente", render: (o: OrderSummary) => o.customer?.name ?? "—" }]
             : []),

@@ -31,8 +31,10 @@ export async function request<T>(
     path: string,
     body?: unknown,
     query?: Query,
+    { anonymous = false }: { anonymous?: boolean } = {},
 ): Promise<T> {
-    const session = getSession();
+    // rota pública: nunca manda o token (um token vencido derrubaria a sessão à toa)
+    const session = anonymous ? null : getSession();
     const headers: Record<string, string> = {};
     if (body !== undefined) headers["Content-Type"] = "application/json";
     if (session) headers.Authorization = `Bearer ${session.token}`;

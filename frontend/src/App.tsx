@@ -7,6 +7,8 @@ import Dashboard from "./pages/Dashboard";
 import DispatchDashboard from "./pages/DispatchDashboard";
 import FleetDashboard from "./pages/FleetDashboard";
 import Dispatch from "./pages/Dispatch";
+import MyPlaces from "./pages/MyPlaces";
+import Track from "./pages/Track";
 import Account from "./pages/Account";
 import LiveMap from "./pages/LiveMap";
 import RouteLab from "./pages/RouteLab";
@@ -29,6 +31,7 @@ const PAGES: Record<string, JSX.Element> = {
     "/orders/new": <NewOrder />,
     "/orders/:id": <OrderDetail />,
     "/dispatch": <Dispatch />,
+    "/my/places": <MyPlaces />,
     "/routes/optimize": <RouteLab />,
 };
 const pageFor = (path: string, title: string) => PAGES[path] ?? <PendingScreen title={title} />;
@@ -39,11 +42,8 @@ export default function App() {
             <Routes>
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
-                <Route path="/track" element={<PendingScreen title="Rastreio público" />} />
-                <Route
-                    path="/track/:trackingNumber"
-                    element={<PendingScreen title="Rastreio público" />}
-                />
+                <Route path="/track" element={<Track />} />
+                <Route path="/track/:trackingNumber" element={<Track />} />
                 <Route element={<RequireAuth />}>
                     <Route element={<Shell />}>
                         <Route path="/" element={<Navigate to="/dashboard" replace />} />

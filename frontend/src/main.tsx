@@ -16,6 +16,7 @@ import "./styles/layout.css";
 import "./styles/orders.css";
 import "./styles/map.css";
 import "./styles/dashboard.css";
+import "./styles/customer.css";
 import App from "./App";
 import { getSession, subscribeSession } from "./auth/session";
 import { applyTheme, readTheme } from "./theme";

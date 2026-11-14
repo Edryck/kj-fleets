@@ -437,3 +437,53 @@ export interface FleetPanel {
         perDay: DayPoint[];
     };
 }
+
+export interface CustomerActive {
+    orderId: string;
+    trackingNumber: string;
+    status: OrderStatus;
+    etaMinutes: number | null;
+    stopsDone: number;
+    stopsTotal: number;
+    cancellable: boolean;
+    driverName: string | null;
+}
+
+export interface CustomerAttention {
+    orderId: string;
+    trackingNumber: string;
+    kind: "FAILED" | "STALE";
+    reason: string | null;
+    minutesInStage: number | null;
+}
+
+export interface CustomerDelivered {
+    orderId: string;
+    trackingNumber: string;
+    finishedAt: string;
+    hasPod: boolean;
+}
+
+export interface CustomerPanel {
+    meta: Meta;
+    active: CustomerActive[];
+    attention: CustomerAttention[];
+    summary: OrdersSummary;
+    recentDelivered: CustomerDelivered[];
+}
+
+export interface TrackResponse {
+    trackingNumber: string;
+    status: OrderStatus;
+    createdAt: string;
+    finishedAt: string | null;
+    etaMinutes: number | null;
+    timeline: { code: string; status: OrderStatus; at: string }[];
+}
+
+export interface PlaceBody {
+    name: string;
+    address: string;
+    lat: number;
+    lng: number;
+}

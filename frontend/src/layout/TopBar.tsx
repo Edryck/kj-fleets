@@ -4,7 +4,7 @@ import { Link, useLocation } from "react-router-dom";
 import { logout, useMe, useSession } from "../auth/session";
 import { ROLE_LABEL, titleFor } from "../routes";
 import { useConnectionState } from "../realtime/useTopic";
-import AlertsBell from "./AlertsBell";
+import AlertsBell, { CustomerBell } from "./AlertsBell";
 import { readTheme, toggleTheme, type Theme } from "../theme";
 
 const CONNECTION_LABEL = {
@@ -13,7 +13,6 @@ const CONNECTION_LABEL = {
     offline: "Offline",
 };
 
-// o sino do cliente (attention do /customer/dashboard) entra na tarefa do dashboard do cliente
 export default function TopBar({ onMenu }: { onMenu: () => void }) {
     const { pathname } = useLocation();
     const session = useSession();
@@ -61,7 +60,7 @@ export default function TopBar({ onMenu }: { onMenu: () => void }) {
                     <span className="conn-dot" aria-hidden="true" />
                     <span className="conn-label">{CONNECTION_LABEL[connection]}</span>
                 </span>
-                {session && session.role !== "CUSTOMER" && <AlertsBell />}
+                {session && (session.role === "CUSTOMER" ? <CustomerBell /> : <AlertsBell />)}
                 <button
                     type="button"
                     className="btn btn-ghost btn-icon"

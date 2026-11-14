@@ -57,3 +57,19 @@ export const TIMELINE_LABEL: Record<string, string> = {
     stop_completed: "Parada concluída",
     route_failed: "Falha ao calcular rota",
 };
+
+// o cliente só vê previsão de chegada com o motorista em movimento
+export const showsEta = (status: OrderStatus) =>
+    ["DRIVER_ENROUTE", "ARRIVED", "IN_PROGRESS"].includes(status);
+
+// frase simples para o cliente e para o rastreio público
+export const STATUS_HELP: Record<OrderStatus, string> = {
+    CREATED: "Recebemos o pedido. Em breve um motorista será escolhido.",
+    DISPATCHED: "O pedido foi liberado e o motorista vai iniciar o trajeto.",
+    DRIVER_ENROUTE: "O motorista está a caminho do local de retirada.",
+    ARRIVED: "O motorista chegou ao local de retirada.",
+    IN_PROGRESS: "O pedido está em rota de entrega.",
+    COMPLETED: "Pedido entregue.",
+    CANCELLED: "Este pedido foi cancelado.",
+    FAILED: "Não foi possível concluir a entrega.",
+};

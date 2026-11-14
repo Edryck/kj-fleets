@@ -5,6 +5,7 @@ import {
     Check,
     Copy,
     Loader2,
+    Timer,
     TriangleAlert,
     UserRoundPen,
     XCircle,
@@ -19,13 +20,15 @@ import type {
     OrderRoute,
     Page,
     TrackingEntry,
+    TrackResponse,
     Vehicle,
 } from "../api/types";
 import { useSession } from "../auth/session";
 import { useTopic, type LocationEvent } from "../realtime/useTopic";
 import { EmptyState, ErrorState, Skeleton } from "../components/blocks";
-import { formatDateTime, formatKm } from "../components/format";
+import { formatDateTime, formatKm, formatMinutes } from "../components/format";
 import MapView, { stopMarkers, type MapMarker } from "../components/MapView";
+import JourneyRail from "../components/JourneyRail";
 import { ConfirmDialog, Modal } from "../components/overlays";
 import StatusBadge from "../components/StatusBadge";
 import { toast } from "../components/Toasts";
@@ -35,10 +38,18 @@ import {
     canFail,
     isActive,
     nextAction,
+    showsEta,
+    STATUS_HELP,
     TIMELINE_LABEL,
 } from "./orderActions";
 import RouteBlock from "./RouteBlock";
 import { NotFound } from "./SystemPages";
+
+interface LiveProgress {
+    etaMinutes: number | null;
+    stopsDone: number;
+    stopsTotal: number;
+}
 
 type Dialog = "assign" | "pod" | "fail" | "cancel" | null;
 
@@ -210,13 +221,22 @@ export default function OrderDetail() {
     const client = useQueryClient();
     const session = useSession();
     const isStaff = session?.role !== "CUSTOMER";
+    const isCustomer = !isStaff;
     const canAct = session?.role === "ADMIN" || session?.role === "DISPATCHER";
+    const [live, setLive] = useState<LiveProgress | null>(null);
     const [dialog, setDialog] = useState<Dialog>(null);
     const [copied, setCopied] = useState(false);
 
     const order = useQuery({
         queryKey: ["order", id],
         queryFn: () => request<Order>("GET", `/orders/${id}`),
+    });
+    const trackingNumber = order.data?.trackingNumber;
+    // a previsão de chegada só vem no rastreio; o detalhe do pedido não traz ETA
+    const track = useQuery({
+        queryKey: ["track", trackingNumber],
+        queryFn: () => request<TrackResponse>("GET", `/track/${trackingNumber}`),
+        enabled: isCustomer && !!trackingNumber,
     });
     const tracking = useQuery({
         queryKey: ["order", id, "tracking"],
@@ -239,9 +259,11 @@ export default function OrderDetail() {
     });
 
     // status, ETA e paradas chegam por aqui para todos os perfis (cliente dono incluso)
-    useTopic<unknown>(`/topic/orders/${id}`, () =>
-        client.invalidateQueries({ queryKey: ["order", id] }),
-    );
+    useTopic<LiveProgress>(`/topic/orders/${id}`, (event) => {
+        setLive(event);
+        void client.invalidateQueries({ queryKey: ["order", id] });
+        void client.invalidateQueries({ queryKey: ["track"] });
+    });
     // a posição do motorista só circula para a equipe
     useTopic<LocationEvent>(isStaff && driverId ? "/topic/fleet/locations" : null, (e) => {
         if (e.driverId !== driverId) return;
@@ -350,6 +372,8 @@ export default function OrderDetail() {
         [o.pickup, ...o.waypoints, o.dropoff].map((p) => [p.publicId, p.address]),
     );
     const busy = act.isPending;
+    const customerCanCancel = isCustomer && o.status === "CREATED";
+    const eta = live ? live.etaMinutes : (track.data?.etaMinutes ?? null);
     const run = (vars: Parameters<typeof act.mutate>[0]) => act.mutate(vars);
 
     const copyLink = async () => {
@@ -393,6 +417,16 @@ export default function OrderDetail() {
                         )}
                         {copied ? "Link copiado" : "Copiar link público"}
                     </button>
+                    {customerCanCancel && (
+                        <button
+                            type="button"
+                            className="btn btn-secondary btn-danger-ghost"
+                            onClick={() => setDialog("cancel")}
+                        >
+                            <Ban size={16} aria-hidden="true" />
+                            Cancelar pedido
+                        </button>
+                    )}
                     {canAct && (
                         <>
                             {canAssign(o.status) && (
@@ -470,15 +504,42 @@ export default function OrderDetail() {
                 </p>
             )}
 
+            {isCustomer && (
+                <section className="card status-card" aria-live="polite">
+                    <p className="status-help">{STATUS_HELP[o.status]}</p>
+                    <JourneyRail status={o.status} />
+                    <div className="status-facts">
+                        {showsEta(o.status) && (
+                            <span className="status-fact">
+                                <Timer size={18} aria-hidden="true" />
+                                <span>
+                                    Chegada em <strong>{formatMinutes(eta)}</strong>
+                                </span>
+                            </span>
+                        )}
+                        {live && live.stopsTotal > 0 && (
+                            <span className="status-fact progress">
+                                <progress value={live.stopsDone} max={live.stopsTotal} />
+                                <span>
+                                    {live.stopsDone} de {live.stopsTotal} paradas
+                                </span>
+                            </span>
+                        )}
+                    </div>
+                </section>
+            )}
+
             <div className="order-grid">
                 <div className="stack">
                     <section className="card">
                         <h2>Envolvidos</h2>
                         <dl className="dl">
-                            <div>
-                                <dt>Cliente</dt>
-                                <dd>{o.customer?.name ?? "—"}</dd>
-                            </div>
+                            {isStaff && (
+                                <div>
+                                    <dt>Cliente</dt>
+                                    <dd>{o.customer?.name ?? "—"}</dd>
+                                </div>
+                            )}
                             <div>
                                 <dt>Motorista</dt>
                                 <dd>
@@ -495,12 +556,14 @@ export default function OrderDetail() {
                                     )}
                                 </dd>
                             </div>
-                            <div>
-                                <dt>Veículo</dt>
-                                <dd className={o.vehicle ? "data" : undefined}>
-                                    {o.vehicle?.plate ?? "—"}
-                                </dd>
-                            </div>
+                            {isStaff && (
+                                <div>
+                                    <dt>Veículo</dt>
+                                    <dd className={o.vehicle ? "data" : undefined}>
+                                        {o.vehicle?.plate ?? "—"}
+                                    </dd>
+                                </div>
+                            )}
                         </dl>
                     </section>
 
@@ -718,8 +781,10 @@ export default function OrderDetail() {
                                             <strong>{TIMELINE_LABEL[t.code] ?? t.code}</strong>
                                             <span className="caption">{formatDateTime(t.at)}</span>
                                         </div>
-                                        {t.details && <div className="tl-details">{t.details}</div>}
-                                        {t.lat != null && t.lng != null && (
+                                        {isStaff && t.details && (
+                                            <div className="tl-details">{t.details}</div>
+                                        )}
+                                        {isStaff && t.lat != null && t.lng != null && (
                                             <div className="caption data">
                                                 {t.lat.toFixed(5)}, {t.lng.toFixed(5)}
                                             </div>
