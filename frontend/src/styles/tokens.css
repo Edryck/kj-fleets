@@ -1,0 +1,58 @@
+/* Paleta da marca (DESIGN.md §2.1), igual nos dois temas */
+:root {
+    --color-brand-orange: #ff6a00;
+    --color-brand-graphite: #0f1115;
+    --color-brand-gray: #687280;
+    --color-brand-white: #ffffff;
+
+    --radius-card: 12px;
+    --radius-control: 8px;
+    --control-height: 40px;
+    --motion-fast: 140ms;
+    --motion-base: 220ms;
+}
+
+/* Tema escuro (padrão) */
+:root,
+[data-theme="dark"] {
+    color-scheme: dark;
+    --color-background: #0f1115;
+    --color-surface: #171a20;
+    --color-surface-raised: #20242c;
+    --color-surface-muted: #252a33;
+    --color-border: #343a45;
+    --color-text: #f5f6f7;
+    --color-text-muted: #a7afba;
+    --color-text-subtle: #7e8794;
+    --color-primary: #ff6a00;
+    --color-primary-hover: #e85f00;
+    --color-primary-soft: #3a2115;
+    --color-on-primary: #ffffff;
+    --color-success: #35b878;
+    --color-warning: #f0b34a;
+    --color-danger: #f06464;
+    --color-info: #69a9e8;
+    --color-offline: #7e8794;
+}
+
+/* Tema claro */
+[data-theme="light"] {
+    color-scheme: light;
+    --color-background: #f3f4f6;
+    --color-surface: #ffffff;
+    --color-surface-raised: #ffffff;
+    --color-surface-muted: #f0f1f3;
+    --color-border: #d9dde3;
+    --color-text: #171a20;
+    --color-text-muted: #59616d;
+    --color-text-subtle: #737d89;
+    --color-primary: #f56600;
+    --color-primary-hover: #d95700;
+    --color-primary-soft: #fff0e5;
+    --color-on-primary: #ffffff;
+    --color-success: #168653;
+    --color-warning: #946000;
+    --color-danger: #c43d3d;
+    --color-info: #246aa8;
+    --color-offline: #687280;
+}

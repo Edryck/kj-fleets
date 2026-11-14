@@ -1,0 +1,42 @@
+.tokens-page {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    padding: 16px;
+}
+
+.tokens-panel {
+    padding: 16px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    background: var(--color-background);
+    color: var(--color-text);
+}
+
+.tokens-panel ul {
+    display: grid;
+    gap: 8px;
+    margin: 0 0 16px;
+    padding: 0;
+    list-style: none;
+}
+
+.swatch {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.swatch-chip {
+    width: 40px;
+    height: 24px;
+    flex-shrink: 0;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+}
+
+@media (max-width: 720px) {
+    .tokens-page {
+        grid-template-columns: 1fr;
+    }
+}
