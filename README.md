@@ -96,13 +96,41 @@ docker compose up -d        # sobe banco e API; a API responde em http://localho
 docker compose up -d --build api   # depois de mudar código Java
 ```
 
-Frontend em desenvolvimento (aponta o proxy do Vite para a API):
+## Frontend
+
+Interface web em `frontend/` (React, Vite, TypeScript). Ela consome a API por REST e STOMP e não tem backend próprio. Telas e fluxos em [docs/flows/frontend/](docs/flows/frontend/flow-index.md).
+
+Pré-requisitos: Node 20 e a API no ar.
 
 ```bash
 cd frontend
 npm install
-VITE_PROXY_TARGET=http://localhost:8081 npm run dev   # use a porta de API_PORT
+cp .env.example .env.local   # ajuste VITE_PROXY_TARGET e, se quiser, os logins de teste
+npm run dev                  # http://localhost:5173
 ```
+
+Scripts:
+
+| Comando | Para quê |
+|---|---|
+| `npm run dev` | servidor de desenvolvimento, com proxy para a API |
+| `npm run build` | checagem de tipos e build de produção em `dist/` |
+| `npm run test -- --run` | testes (Vitest e Testing Library), sem modo de espera |
+| `npm run lint` | ESLint e Prettier |
+
+Variáveis (no `.env.example`, com valor vazio e comentário; o `.env.local` fica fora do Git):
+
+| Variável | Para quê |
+|---|---|
+| `VITE_API_URL` | URL base da API. Vazio (padrão) usa a mesma origem, e o Vite faz o proxy |
+| `VITE_WS_URL` | URL do WebSocket. Vazio deriva `/ws` da origem atual |
+| `VITE_PROXY_TARGET` | só em desenvolvimento: para onde o Vite manda `/auth`, `/orders`, `/dashboard`, `/ws` e os demais caminhos da API. Use a porta que a API publica, por exemplo `http://localhost:8081` com o Docker |
+| `VITE_DEV_LOGINS` | só em desenvolvimento: lista JSON de logins de teste, mostrada na tela de login e some no build. Formato: `[{"label":"Admin","username":"admin","password":"..."}]`. Não commite este valor |
+
+Se `VITE_PROXY_TARGET` não estiver definido, o Vite aponta para `http://localhost:8080`.
+
+Para a demo com dados que se mexem, rode o simulador de motoristas (seção [Simulador de motoristas](#simulador-de-motoristas)) com a API e o frontend no ar. Os motoristas andam pelos pedidos despachados, e o mapa ao vivo e as listas de despacho se atualizam pelo STOMP. Antes disso, atribua e despache pelo menos um pedido na tela de despacho. O mapa viário por ruas ainda não existe: a tela `/graph` mostra só o aviso de "em breve".
+
 
 ## Autenticação
 

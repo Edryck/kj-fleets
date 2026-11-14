@@ -13,6 +13,9 @@ import Drivers from "./pages/Drivers";
 import FleetDetail from "./pages/FleetDetail";
 import Fleets from "./pages/Fleets";
 import Places from "./pages/Places";
+import RoadGraph from "./pages/RoadGraph";
+import Routing from "./pages/Routing";
+import Trends from "./pages/Trends";
 import Users from "./pages/Users";
 import MyPlaces from "./pages/MyPlaces";
 import Track from "./pages/Track";
@@ -49,6 +52,9 @@ const PAGES: Record<string, JSX.Element> = {
     "/customers": <Customers />,
     "/users": <Users />,
     "/routes/optimize": <RouteLab />,
+    "/analytics/trends": <Trends />,
+    "/analytics/routing": <Routing />,
+    "/graph": <RoadGraph />,
 };
 const pageFor = (path: string, title: string) => PAGES[path] ?? <PendingScreen title={title} />;
 

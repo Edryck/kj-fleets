@@ -347,6 +347,35 @@ export interface RoutingSavings {
     batchDispatchPct: Rate;
 }
 
+export interface RoutingReport extends RoutingSavings {
+    meta: Meta;
+}
+
+export interface MonthPoint {
+    month: string;
+    created: number;
+    completed: number;
+    failed: number;
+    cancelled: number;
+    successRate: Rate;
+    avgCycleMinutes: number | null;
+    savedKm: number | null;
+    avgSavingsPct: number | null;
+}
+
+export interface DriverMonth {
+    driverId: string;
+    name: string;
+    month: string;
+    completed: number;
+}
+
+export interface YearlyTrends {
+    meta: Meta;
+    months: MonthPoint[];
+    byDriver: DriverMonth[];
+}
+
 export type AlertType =
     | "STALE_ORDER"
     | "DRIVER_NO_SIGNAL"

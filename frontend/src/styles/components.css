@@ -326,6 +326,20 @@ input[aria-invalid="true"] {
     text-align: right;
     font-variant-numeric: tabular-nums;
 }
+/* a última coluna (ações) fica presa à direita quando a tabela rola no celular */
+.table-scroll .table th:last-child,
+.table-scroll .table td:last-child {
+    position: sticky;
+    right: 0;
+    background: var(--color-surface);
+    border-left: 1px solid var(--color-border);
+}
+.table-scroll .table th:last-child {
+    background: var(--color-surface-muted);
+}
+.table-scroll .table tbody tr:hover td:last-child {
+    background: var(--color-surface-muted);
+}
 .table-footer {
     display: flex;
     align-items: center;

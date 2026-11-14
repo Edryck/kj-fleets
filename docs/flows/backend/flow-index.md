@@ -15,3 +15,5 @@ A numeração dos fluxos é estável: specs e planos citam "fluxo N".
 | Rastreio público | [flow-rastreio.md](flow-rastreio.md) | 17 |
 | Dashboard | [flow-dashboard.md](flow-dashboard.md) | 16, 19, 20, 21 |
 | WebSocket | [flow-websocket.md](flow-websocket.md) | 22, 23, 24 |
+
+Telas do frontend, que consomem estes fluxos: [../frontend/flow-index.md](../frontend/flow-index.md).
