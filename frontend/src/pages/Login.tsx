@@ -46,6 +46,7 @@ export default function Login() {
         register,
         handleSubmit,
         setError,
+        setValue,
         formState: { errors, isSubmitting },
     } = useForm<Values>();
 
@@ -142,12 +143,49 @@ export default function Login() {
                             Entrar
                         </button>
                     </form>
+                    <DevLogins
+                        onPick={(u, p) => {
+                            setValue("username", u);
+                            setValue("password", p);
+                        }}
+                    />
                     <p className="auth-links">
                         <Link to="/register">Criar conta</Link>
                         <Link to="/track">Rastrear pedido</Link>
                     </p>
                 </div>
             </section>
+        </div>
+    );
+}
+
+type DevLogin = { label: string; username: string; password: string };
+
+// atalho só de desenvolvimento: lê os logins de frontend/.env.local (fora do Git) e some no build
+function DevLogins({ onPick }: { onPick: (username: string, password: string) => void }) {
+    if (!import.meta.env.DEV) return null;
+    let logins: DevLogin[] = [];
+    try {
+        logins = JSON.parse(import.meta.env.VITE_DEV_LOGINS ?? "[]") as DevLogin[];
+    } catch {
+        return null;
+    }
+    if (logins.length === 0) return null;
+    return (
+        <div className="dev-logins" aria-label="Logins de teste">
+            <p className="dev-logins-title">Logins de teste (só em desenvolvimento)</p>
+            <div className="dev-logins-list">
+                {logins.map((l) => (
+                    <button
+                        key={l.username}
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => onPick(l.username, l.password)}
+                    >
+                        {l.label}
+                    </button>
+                ))}
+            </div>
         </div>
     );
 }

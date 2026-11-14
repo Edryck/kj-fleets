@@ -18,3 +18,6 @@ Thumbs.db
 # Frontend
 frontend/node_modules/
 frontend/dist/
+
+# Config local do front (logins de teste)
+*.local
