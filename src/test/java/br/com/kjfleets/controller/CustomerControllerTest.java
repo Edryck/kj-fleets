@@ -36,4 +36,10 @@ class CustomerControllerTest extends IntegrationTest {
         mvc.perform(get("/customers").header("Authorization", bearer(Role.ADMIN))).andExpect(status().isOk());
         mvc.perform(get("/customers").header("Authorization", bearer(Role.CUSTOMER))).andExpect(status().isForbidden());
     }
+
+    @Test
+    void searchOver100CharsRejected() throws Exception {
+        mvc.perform(get("/customers").param("q", "a".repeat(101)).header("Authorization", bearer(Role.ADMIN)))
+                .andExpect(status().isBadRequest());
+    }
 }

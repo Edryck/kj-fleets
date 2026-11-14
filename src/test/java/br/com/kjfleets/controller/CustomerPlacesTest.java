@@ -151,9 +151,29 @@ class CustomerPlacesTest extends IntegrationTest {
     }
 
     @Test
-    void staffCanUseCustomerPlace() throws Exception {
+    void staffCannotUseOtherCustomersPlace() throws Exception {
         String id = createPlace(newCustomer(), "/customer/places", "Do cliente " + unique());
+        String other = authService.register(registerRequest()).publicId();
 
-        order(bearer(Role.DISPATCHER), Map.of("placeId", id), Map.of("placeId", id)).andExpect(status().isCreated());
+        send(post("/orders"), bearer(Role.DISPATCHER), Map.of("customerId", other, "pickup", Map.of("placeId", id),
+                "dropoff", Map.of("placeId", id))).andExpect(status().isNotFound());
+        order(bearer(Role.DISPATCHER), Map.of("placeId", id), Map.of("placeId", id)).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void staffCanUseOrderCustomersPlace() throws Exception {
+        String suffix = unique();
+        String customerId = authService.register(new RegisterRequest("cp-" + suffix, "password-123",
+                "Cliente " + suffix, null, suffix + "@mail.com")).publicId();
+        String bearer = "Bearer " + jwtService.generate(userRepository.findByUsername("cp-" + suffix).orElseThrow());
+        String id = createPlace(bearer, "/customer/places", "Do cliente " + unique());
+
+        send(post("/orders"), bearer(Role.DISPATCHER), Map.of("customerId", customerId, "pickup",
+                Map.of("placeId", id), "dropoff", Map.of("placeId", id))).andExpect(status().isCreated());
+    }
+
+    private RegisterRequest registerRequest() {
+        String suffix = unique();
+        return new RegisterRequest("cp-" + suffix, "password-123", "Cliente " + suffix, null, suffix + "@mail.com");
     }
 }

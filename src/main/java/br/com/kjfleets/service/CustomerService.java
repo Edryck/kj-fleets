@@ -28,10 +28,10 @@ public class CustomerService {
     @Transactional(readOnly = true)
     public PageResponse<CustomerResponse> list(String q, Integer limit, Integer offset) {
         Pageable pageable = PageResponse.pageable(limit, offset);
-        Page<Customer> page = q == null || q.isBlank()
+        String pattern = Search.pattern(q);
+        Page<Customer> page = pattern == null
                 ? customers.findAllByOrderByNameAscPublicIdAsc(pageable)
-                : customers.findByNameContainingIgnoreCaseOrEmailContainingIgnoreCaseOrderByNameAscPublicIdAsc(
-                        q.trim(), q.trim(), pageable);
+                : customers.search(pattern, pageable);
         return PageResponse.of(page, CustomerResponse::from, pageable.getPageSize(), (int) pageable.getOffset());
     }
 }

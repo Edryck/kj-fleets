@@ -102,7 +102,7 @@ Criar um motorista (`POST /drivers`) cria também o `AppUser` com role DRIVER (u
 - **Username e placa continuam ocupados** depois da desativação: o username do motorista desativado e a placa do veículo desativado não podem ser reaproveitados (409 `USERNAME_TAKEN` e `PLATE_TAKEN`). Por isso a reativação não encontra colisão pela API; o check de placa na reativação do veículo é só salvaguarda.
 - **Lugares têm dono opcional** (`places.customer_id`). Lugar sem dono é da equipe: aparece em `GET /places` e é editado por ADMIN e DISPATCHER. Lugar com dono é do cliente: só aparece em `/customer/places`, e só o dono o vê ou edita (para os outros, 404).
 - Cliente cria lugar em `/customer/places` ou inline no pedido (lugar novo): o lugar inline é dele. Lugar novo criado pela equipe no pedido é da equipe.
-- No pedido, o cliente usa `placeId` dos próprios lugares ou dos da equipe. Lugar de outro cliente responde 404 (`NOT_FOUND`).
+- No pedido, o cliente usa `placeId` dos próprios lugares ou dos da equipe. Lugar de outro cliente responde 404 (`NOT_FOUND`). A equipe também só usa lugares da equipe ou do cliente do pedido (sem cliente no pedido, só os da equipe).
 - Editar lugar do cliente usado por pedido não terminal (de `CREATED` a `IN_PROGRESS`) responde 409 `RESOURCE_IN_USE`. Desativar sempre pode (soft delete); pedidos já criados continuam apontando para o lugar.
 - **Normalização:** username vira minúsculo, placa vira maiúscula, e os dois perdem espaços nas bordas. O login também normaliza o username.
 - **Motorista nasce `OFFLINE`.** `BUSY` é definido pelas rotas, não à mão: `PUT` com `BUSY` responde 400. Motorista `BUSY` não muda de status nem pode ser removido (409 `RESOURCE_IN_USE`).
@@ -191,7 +191,7 @@ Listagens paginadas por `limit` e `offset`: padrão 20, máximo 100 (acima disso
 { "items": [], "total": 0, "limit": 20, "offset": 0 }
 ```
 
-**Busca (`q`)** nas listagens de pedidos, motoristas, veículos, lugares e clientes: texto literal, sem diferenciar maiúsculas. `%`, `_` e `\` valem como caractere comum, não como curinga. Depois de aparar espaços, até 100 caracteres (mais que isso responde 400 `VALIDATION_ERROR`; a busca de clientes não aplica esse limite). `q` vazio não filtra. Campos pesquisados: pedido (código de rastreio, nome da origem e do destino), motorista (nome, username e CNH), veículo (placa e tipo), lugar (nome e endereço) e cliente (nome e e-mail).
+**Busca (`q`)** nas listagens de pedidos, motoristas, veículos, lugares e clientes: texto literal, sem diferenciar maiúsculas. `%`, `_` e `\` valem como caractere comum, não como curinga. Depois de aparar espaços, até 100 caracteres (mais que isso responde 400 `VALIDATION_ERROR`). `q` vazio não filtra. Campos pesquisados: pedido (código de rastreio, nome da origem e do destino), motorista (nome, username e CNH), veículo (placa e tipo), lugar (nome e endereço) e cliente (nome e e-mail).
 
 **Ordenação de pedidos**: `sort` aceita `createdAt` (padrão) ou `status`, e `dir` aceita `asc` ou `desc` (padrão `desc`). O desempate é sempre `createdAt` e `publicId`, em ordem decrescente. `sort=status` ordena pelo texto do enum, não pela ordem do fluxo.
 

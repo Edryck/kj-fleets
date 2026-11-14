@@ -105,10 +105,10 @@ public class OrderService {
         Payload payload = new Payload();
         payload.setOrder(order);
         Customer owner = isCustomer(auth) ? order.getCustomer() : null;
-        payload.setPickup(resolvePoint(request.pickup(), owner));
-        payload.setDropoff(resolvePoint(request.dropoff(), owner));
+        payload.setPickup(resolvePoint(request.pickup(), owner, order.getCustomer()));
+        payload.setDropoff(resolvePoint(request.dropoff(), owner, order.getCustomer()));
         if (request.waypoints() != null) {
-            request.waypoints().forEach(point -> payload.getWaypoints().add(resolvePoint(point, owner)));
+            request.waypoints().forEach(point -> payload.getWaypoints().add(resolvePoint(point, owner, order.getCustomer())));
         }
         if (request.items() != null) {
             for (ItemDto dto : request.items()) {
@@ -577,7 +577,7 @@ public class OrderService {
         return customers.findByPublicId(customerId).orElseThrow(() -> BusinessException.notFound("Cliente"));
     }
 
-    private Place resolvePoint(PointRequest point, Customer owner) {
+    private Place resolvePoint(PointRequest point, Customer owner, Customer orderCustomer) {
         boolean hasPlaceId = point.placeId() != null && !point.placeId().isBlank();
         boolean hasNew = point.name() != null || point.address() != null || point.lat() != null
                 || point.lng() != null;
@@ -586,10 +586,10 @@ public class OrderService {
                     "ponto: informe placeId ou um lugar novo (name, lat, lng), nunca os dois");
         }
         if (hasPlaceId) {
-            // cliente usa os próprios lugares ou os da equipe; o de outro cliente some (404)
+            // vale lugar da equipe ou do cliente do pedido; o de outro cliente some (404), até pra equipe
             return places.findByPublicIdAndActiveTrue(point.placeId())
-                    .filter(found -> owner == null || found.getCustomer() == null
-                            || found.getCustomer().getId().equals(owner.getId()))
+                    .filter(found -> found.getCustomer() == null
+                            || orderCustomer != null && found.getCustomer().getId().equals(orderCustomer.getId()))
                     .orElseThrow(() -> BusinessException.notFound("Lugar"));
         }
         if (point.name() == null || point.name().isBlank() || point.lat() == null || point.lng() == null) {

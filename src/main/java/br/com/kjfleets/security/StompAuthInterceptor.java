@@ -70,6 +70,10 @@ public class StompAuthInterceptor implements ChannelInterceptor {
         };
     }
 
+    public int openSockets() {
+        return sockets.size();
+    }
+
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
         StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
