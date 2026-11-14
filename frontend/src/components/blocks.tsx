@@ -1,5 +1,6 @@
 import { Inbox, WifiOff, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
+import { Link } from "react-router-dom";
 
 export function Skeleton({
     height = 16,
@@ -52,20 +53,29 @@ export function KpiCard({
     value,
     icon: Icon,
     hint,
+    to,
 }: {
     label: string;
     value: ReactNode;
     icon?: LucideIcon;
     hint?: ReactNode;
+    to?: string;
 }) {
-    return (
-        <div className="card kpi">
+    const body = (
+        <>
             <div className="kpi-head">
                 <span className="kpi-label">{label}</span>
                 {Icon && <Icon size={18} aria-hidden="true" />}
             </div>
             <div className="kpi-value">{value}</div>
-            {hint && <div className="caption">{hint}</div>}
-        </div>
+            {hint && <div className="kpi-hint">{hint}</div>}
+        </>
+    );
+    return to ? (
+        <Link className="card kpi kpi-link" to={to}>
+            {body}
+        </Link>
+    ) : (
+        <div className="card kpi">{body}</div>
     );
 }

@@ -2,6 +2,10 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { RequireAuth, RequireRole } from "./auth/guards";
 import Toasts from "./components/Toasts";
 import Shell from "./layout/Shell";
+import Alerts from "./pages/Alerts";
+import Dashboard from "./pages/Dashboard";
+import DispatchDashboard from "./pages/DispatchDashboard";
+import FleetDashboard from "./pages/FleetDashboard";
 import Dispatch from "./pages/Dispatch";
 import Account from "./pages/Account";
 import LiveMap from "./pages/LiveMap";
@@ -15,6 +19,10 @@ import { Forbidden, NotFound, PendingScreen } from "./pages/SystemPages";
 import { APP_ROUTES } from "./routes";
 
 const PAGES: Record<string, JSX.Element> = {
+    "/dashboard": <Dashboard />,
+    "/dashboard/dispatch": <DispatchDashboard />,
+    "/dashboard/fleet": <FleetDashboard />,
+    "/alerts": <Alerts />,
     "/account": <Account />,
     "/map": <LiveMap />,
     "/orders": <OrdersList />,

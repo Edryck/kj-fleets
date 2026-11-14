@@ -38,6 +38,8 @@ export const APP_ROUTES: AppRoute[] = [
         roles: ALL,
         nav: { group: "Operação", label: "Dashboard", icon: LayoutDashboard },
     },
+    { path: "/dashboard/dispatch", title: "Central de despacho", roles: ["ADMIN"] },
+    { path: "/dashboard/fleet", title: "Gestão de frota", roles: ["ADMIN"] },
     {
         path: "/map",
         title: "Mapa ao vivo",

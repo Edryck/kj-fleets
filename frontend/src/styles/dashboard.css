@@ -1,0 +1,531 @@
+/* Dashboards e alertas */
+.dash > * {
+    min-width: 0;
+}
+.dash-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 12px 24px;
+}
+.dash-tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px 16px;
+}
+.dash-subnav {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid var(--color-border);
+}
+.dash-subnav a {
+    padding: 8px 14px;
+    margin-bottom: -1px;
+    border-bottom: 2px solid transparent;
+    color: var(--color-text-muted);
+    font-weight: 500;
+    text-decoration: none;
+}
+.dash-subnav a:hover {
+    color: var(--color-text);
+}
+.dash-subnav a.active {
+    color: var(--color-text);
+    border-bottom-color: var(--color-primary);
+}
+.dash-notice {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 16px;
+    margin: 0;
+}
+.dash-notice a {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: inherit;
+    font-weight: 600;
+}
+.notice-info {
+    color: var(--color-info);
+    border-color: var(--color-info);
+}
+
+/* KPIs */
+.kpi-row {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+}
+.kpi-link {
+    display: block;
+    color: inherit;
+    text-decoration: none;
+    transition: border-color var(--motion-fast);
+}
+.kpi-link:hover {
+    border-color: var(--color-primary);
+}
+.kpi-hint {
+    margin-top: 6px;
+    font-size: 0.75rem;
+    color: var(--color-text-subtle);
+    min-height: 1.1rem;
+}
+.kpi-value .caption {
+    font-weight: 400;
+}
+.delta {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 600;
+    color: var(--tone);
+}
+.delta .caption {
+    font-weight: 400;
+}
+.delta-success {
+    --tone: var(--color-success);
+}
+.delta-danger {
+    --tone: var(--color-danger);
+}
+.delta-neutral {
+    --tone: var(--color-text-muted);
+}
+
+/* Métricas em grade (taxas, tempos, economia) */
+.metrics {
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 20px 24px;
+}
+.metrics-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.metrics-1 {
+    grid-template-columns: 1fr;
+    gap: 12px;
+}
+.metrics dt {
+    font-size: 0.8125rem;
+    color: var(--color-text-muted);
+}
+.metrics dd {
+    margin: 4px 0 0;
+    font-family: var(--font-heading);
+    font-size: 1.25rem;
+    font-weight: 700;
+}
+.metrics-1 > div {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--color-border);
+}
+.metrics-1 > div:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+}
+.metrics dd .caption {
+    font-family: var(--font-ui);
+    font-weight: 400;
+}
+
+/* Grades */
+.dash-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+    gap: 20px;
+    align-items: start;
+}
+.dash-grid-even {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+}
+.dash-grid-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.dash-grid > *,
+.dash-side > *,
+.dash-cols > * {
+    min-width: 0;
+}
+.dash-side {
+    display: grid;
+    gap: 20px;
+}
+.dash-cols {
+    display: grid;
+    grid-template-columns: minmax(0, 13fr) minmax(0, 7fr);
+    gap: 20px;
+    align-items: start;
+}
+.dash .card-head > h2 {
+    margin-bottom: 14px;
+}
+.dash .state {
+    padding: 28px 12px;
+}
+
+/* Gráficos */
+.chart {
+    position: relative;
+    width: 100%;
+    font-family: var(--font-ui);
+}
+.chart svg {
+    overflow: visible;
+}
+.stage-links {
+    list-style: none;
+    margin: 12px 0 0;
+    padding: 12px 0 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    border-top: 1px solid var(--color-border);
+    font-size: 0.8125rem;
+}
+.stage-links a {
+    color: var(--color-text-muted);
+}
+.stage-links a:hover {
+    color: var(--color-primary);
+}
+.donut-wrap {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: center;
+    gap: 16px;
+}
+.donut-center {
+    position: absolute;
+    inset: 0 0 32px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+.donut-center b {
+    font-family: var(--font-heading);
+    font-size: 1.375rem;
+}
+.count-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 10px;
+}
+.count-list li:not(.caption) {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* Contagens da frota */
+.count-groups {
+    display: grid;
+    gap: 16px;
+}
+.count-groups > div > .caption {
+    margin: 0 0 4px;
+}
+.count-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 8px;
+    margin: 0 -8px;
+    border-radius: 6px;
+    color: inherit;
+    text-decoration: none;
+}
+.count-row:hover {
+    background: var(--color-surface-muted);
+}
+.count-foot {
+    display: grid;
+    gap: 6px;
+    padding-top: 12px;
+    border-top: 1px solid var(--color-border);
+    color: var(--color-text-muted);
+    font-size: 0.875rem;
+}
+.count-foot span {
+    display: flex;
+    justify-content: space-between;
+}
+.count-foot b {
+    color: var(--color-text);
+}
+
+/* Chips como links e contagem */
+a.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    text-decoration: none;
+}
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.chip-count {
+    min-width: 22px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    text-align: center;
+}
+ul.chips {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+.idle-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--color-border);
+}
+
+/* Filas */
+.scroll-box {
+    max-height: 340px;
+    overflow-y: auto;
+}
+.scroll-tall {
+    max-height: 460px;
+}
+.scroll-box thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+.row-critical td:first-child {
+    box-shadow: inset 3px 0 0 var(--color-danger);
+}
+.row-critical td.num {
+    color: var(--color-danger);
+    font-weight: 600;
+}
+.cell-stack {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+}
+.progress {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.progress progress {
+    width: 72px;
+    height: 6px;
+    appearance: none;
+    border: 0;
+    border-radius: 3px;
+    overflow: hidden;
+    background: var(--color-surface-muted);
+}
+.progress progress::-webkit-progress-bar {
+    background: var(--color-surface-muted);
+}
+.progress progress::-webkit-progress-value {
+    background: var(--color-primary);
+}
+.progress progress::-moz-progress-bar {
+    background: var(--color-primary);
+}
+
+/* Motoristas livres e alertas */
+.driver-list,
+.alert-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+.driver-list li,
+.alert-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--color-border);
+}
+.driver-list li:last-child,
+.alert-row:last-child {
+    border-bottom: 0;
+}
+.driver-main,
+.alert-text {
+    display: grid;
+    min-width: 0;
+    line-height: 1.35;
+}
+.alert-row {
+    justify-content: flex-start;
+    align-items: flex-start;
+}
+.alert-text {
+    flex: 1;
+}
+
+/* Sino */
+.bell {
+    position: relative;
+}
+.bell > .btn {
+    position: relative;
+}
+.bell-badge {
+    position: absolute;
+    top: 2px;
+    right: 0;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: var(--color-danger);
+    color: var(--color-brand-graphite);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    line-height: 18px;
+    text-align: center;
+}
+.bell-popover {
+    width: min(380px, calc(100vw - 32px));
+    padding: 8px;
+}
+.bell-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+.bell-list li {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 10px;
+    padding: 10px 6px;
+    border-bottom: 1px solid var(--color-border);
+}
+.bell-message {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+.bell-list .caption {
+    grid-column: 2;
+}
+.bell-empty {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    padding: 16px 8px;
+    color: var(--color-success);
+}
+.popover .bell-all {
+    justify-content: center;
+    margin-top: 6px;
+    color: var(--color-primary);
+    font-weight: 600;
+}
+
+@media (max-width: 1100px) {
+    .kpi-row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .metrics {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .dash-grid,
+    .dash-grid-even,
+    .dash-grid-3,
+    .dash-cols {
+        grid-template-columns: 1fr;
+    }
+}
+@media (max-width: 600px) {
+    .dash-head {
+        grid-template-columns: 1fr;
+    }
+    .dash-tools {
+        justify-content: flex-start;
+    }
+    .dash-subnav {
+        overflow-x: auto;
+    }
+    .kpi-row {
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+    }
+    .kpi-value {
+        font-size: 1.5rem;
+    }
+    .metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .donut-wrap {
+        grid-template-columns: 1fr;
+    }
+}
+[data-theme="light"] .bell-badge {
+    color: var(--color-on-primary);
+}
+.dash-grid:has(.card-fill) {
+    align-items: stretch;
+}
+.card-fill {
+    display: flex;
+    flex-direction: column;
+}
+.card-fill .chart-fill {
+    flex: 1;
+    min-height: 300px;
+}
+.bell-list .badge {
+    align-self: start;
+}
+.filters .segmented {
+    justify-self: start;
+}
+@media (max-width: 600px) {
+    .alerts-table thead {
+        display: none;
+    }
+    .alerts-table tr {
+        display: grid;
+        gap: 4px;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--color-border);
+    }
+    .alerts-table td {
+        display: block;
+        padding: 0;
+        border: 0;
+    }
+    .alerts-table td:nth-child(2),
+    .alerts-table td:nth-child(4),
+    .alerts-table td:nth-child(5) {
+        color: var(--color-text-muted);
+        font-size: 0.8125rem;
+    }
+}

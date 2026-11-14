@@ -227,10 +227,19 @@ export interface Paged<T> {
     total: number;
 }
 
+export interface StaleOrder {
+    orderId: string;
+    trackingNumber: string;
+    stage: string;
+    minutesInStage: number;
+    limitMin: number;
+}
+
 export interface DispatchQueue {
     unassigned: Paged<QueueItem>;
     assignedNotDispatched: Paged<QueueItem>;
     inProgress: Paged<InProgressItem>;
+    stale?: Paged<StaleOrder>;
 }
 
 export type AssignmentAlgorithm = "HUNGARIAN" | "GREEDY";
@@ -268,4 +277,163 @@ export interface OptimizeResponse {
     savingsPct: number;
     etaMinutes: number;
     comparison: Record<string, { totalKm: number; ms: number }> | null;
+}
+
+export interface Meta {
+    generatedAt: string;
+    timezone: string;
+    period: string;
+    from: string | null;
+    to: string | null;
+}
+
+export interface ReasonCount {
+    reason: string;
+    count: number;
+}
+
+export interface OrdersSummary {
+    meta: Meta;
+    created: number;
+    completed: number;
+    failed: number;
+    cancelled: number;
+    cancelledByCustomer: number;
+    cancelledByStaff: number;
+    cancelledByUnknown: number;
+    successRate: Rate;
+    failureRate: Rate;
+    cancelRate: Rate;
+    topFailureReasons: ReasonCount[];
+    avgWaitMinutes: number | null;
+    avgCycleMinutes: number | null;
+    podRate: Rate;
+    previous: OrdersSummary | null;
+}
+
+export interface Funnel {
+    byStage: Record<string, number>;
+    staleByStage: Record<string, number>;
+}
+
+export interface FleetCounts {
+    driversByStatus: Record<string, number>;
+    vehiclesByStatus: Record<string, number>;
+    waitingOrders: number;
+    availableDrivers: number;
+}
+
+export interface AlgorithmSavings {
+    routes: number;
+    savedKm: number;
+    avgSavingsPct: number | null;
+}
+
+export interface RoutingSavings {
+    routes: number;
+    plannedKm: number;
+    baselineKm: number;
+    savedKm: number;
+    avgSavingsPct: number | null;
+    byAlgorithm: Record<string, AlgorithmSavings>;
+    batchDispatchPct: Rate;
+}
+
+export type AlertType =
+    | "STALE_ORDER"
+    | "DRIVER_NO_SIGNAL"
+    | "STATUS_INCONSISTENT"
+    | "VEHICLE_MAINTENANCE_ON_AVAILABLE_DRIVER"
+    | "DEMAND_OVER_CAPACITY"
+    | "SUSPICIOUS_STOP"
+    | "ROUTE_MISSING"
+    | "LONG_MAINTENANCE";
+
+export interface Alert {
+    type: AlertType;
+    severity: Severity;
+    subjectType: string;
+    subjectId: string | null;
+    message: string;
+    suggestedAction: string;
+    since: string;
+}
+
+export interface Alerts {
+    meta: Meta;
+    items: Alert[];
+    counts: Partial<Record<AlertType, number>>;
+}
+
+export interface AdminPanel {
+    meta: Meta;
+    summary: OrdersSummary;
+    funnel: Funnel;
+    fleet: FleetCounts;
+    routing: RoutingSavings;
+    alertCounts: Partial<Record<AlertType, number>>;
+}
+
+export interface DriverRow {
+    driverId: string;
+    name: string;
+    status: DriverStatus;
+    vehiclePlate: string | null;
+    vehicleStatus: VehicleStatus | null;
+    activeOrderId: string | null;
+    queueSize: number;
+    lastSeenAt: string | null;
+    pingStale: boolean;
+    lat: number | null;
+    lng: number | null;
+}
+
+export interface DispatchPanel {
+    meta: Meta;
+    queue: DispatchQueue;
+    availableDrivers: DriverRow[];
+    counts: FleetCounts;
+    summary: OrdersSummary;
+    alerts: Alert[];
+}
+
+export interface FleetStatus extends FleetCounts {
+    meta: Meta;
+    drivers: DriverRow[];
+    availableDriversList: DriverRow[];
+}
+
+export interface DriverPerformance {
+    driverId: string;
+    name: string;
+    completed: number;
+    failed: number;
+    successRate: Rate;
+    avgDispatchToArrivedMinutes: number | null;
+    busyPct: number | null;
+    orders: number;
+}
+
+export interface DriversPerformance {
+    meta: Meta;
+    drivers: DriverPerformance[];
+    idleDriverIds: string[];
+}
+
+export interface DayPoint {
+    day: string;
+    ordersCreated: number;
+    driversWithDelivery: number;
+}
+
+export interface FleetPanel {
+    meta: Meta;
+    fleet: FleetStatus;
+    alerts: Alert[];
+    performance: DriversPerformance;
+    sizing: {
+        waitingOrders: number;
+        availableDrivers: number;
+        perDay: DayPoint[];
+    };
 }
