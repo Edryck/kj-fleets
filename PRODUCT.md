@@ -39,7 +39,7 @@ Quem despacha entregas com poucos motoristas costuma controlar tudo por planilha
 ### Importante
 - Eventos em tempo real por WebSocket: mudança de pedido e posição do motorista.
 - Sugestão de motoristas disponíveis mais próximos de um ponto.
-- **Mapa viário:** menor caminho por Dijkstra e A* num grafo importado de CSV, em vez de distância em linha reta ajustada.
+- **Mapa viário:** distância e caminho pelas ruas reais, calculados pelo GraphHopper (biblioteca Java) sobre dados do OpenStreetMap, em vez de distância em linha reta ajustada. A ordem das paradas e a escolha de motorista continuam com os algoritmos próprios.
 
 ### Se sobrar tempo
 - Aceite ad hoc: o primeiro motorista que aceita leva o pedido, sem corrida entre dois motoristas.
@@ -60,23 +60,23 @@ Quem despacha entregas com poucos motoristas costuma controlar tudo por planilha
 
 ## Fora do escopo
 
-Loja virtual, financeiro, estoque de armazém, IA, 2FA, webhooks, chaves de API, trânsito em tempo real, janelas de entrega, capacidade de carga, uso de bibliotecas prontas de roteirização, upload de fotos/assinaturas, vários clientes/empresas no mesmo sistema (multi-tenant) e interface gráfica. A interface virá em outro projeto e consumirá esta API.
+Loja virtual, financeiro, estoque de armazém, IA, 2FA, webhooks, chaves de API, trânsito em tempo real, janelas de entrega, capacidade de carga, uso de bibliotecas prontas de roteirização (exceto o GraphHopper, só para o mapa viário), upload de fotos/assinaturas, vários clientes/empresas no mesmo sistema (multi-tenant). O essencial é a API (avaliada via Postman/Insomnia); a interface é opcional e fica no mesmo repositório, em `frontend/`, consumindo esta API.
 
 ## Como saber que está pronto
 
 - Todo endpoint responde com o status certo no Insomnia/Postman, com uma collection exportada junto do projeto.
 - Cada regra acima tem um caso de teste que falha com o código de erro esperado (422/409/404).
-- Os algoritmos têm testes próprios: o exato (Held-Karp) bate com força bruta em instâncias pequenas, a busca local nunca é pior que o vizinho mais próximo, o Hungarian nunca é pior que o guloso, e A* acha o mesmo custo que Dijkstra.
+- Os algoritmos têm testes próprios: o exato (Held-Karp) bate com força bruta em instâncias pequenas, a busca local nunca é pior que o vizinho mais próximo, e o Hungarian nunca é pior que o guloso. No modo viário, a distância pelas ruas nunca é menor que a linha reta.
 - Um cliente WebSocket inscrito em um pedido recebe o evento quando o status muda.
 - O fluxo completo roda de ponta a ponta: cliente cria, operador atribui e despacha, motorista avança até concluir, e o dashboard reflete tudo isso.
-- Diagrama ER e fluxos ([docs/flows/](docs/flows/flow-index.md)) batem com o que foi implementado.
+- Diagrama ER e fluxos ([docs/flows/](docs/flows/backend/flow-index.md)) batem com o que foi implementado.
 
 ## Riscos
 
 | Risco | Como lidar |
 |---|---|
 | Escopo crescer (o Fleetbase é enorme e agora há roteirização) | Manter a lista "Fora do escopo" e cortar o "Se sobrar tempo" primeiro |
-| Grafo viário dar trabalho (dados, importação) | O modo `haversine` funciona sem ele; o mapa viário é "Importante", não "Essencial" |
+| Grafo viário dar trabalho (dados, importação) | O GraphHopper lê o arquivo do OpenStreetMap; o modo `haversine` funciona sem ele; o mapa viário é "Importante", não "Essencial" |
 | WebSocket com JWT dar trabalho | Fazer o REST completo antes; o WebSocket entra por último |
 | Concorrência (dois motoristas, um pedido) | Só no modo ad hoc, que é opcional |
 | Parecer cópia do Fleetbase | Citar a inspiração; a roteirização e o dashboard são contribuição própria |
