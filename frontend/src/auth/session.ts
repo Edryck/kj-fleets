@@ -117,9 +117,25 @@ export function useMe() {
     const session = useSession();
     return useQuery({
         queryKey: ["me", session?.token],
-        queryFn: () => request<Me>("GET", "/me"),
+        queryFn: () =>
+            request<Me>("GET", "/me").then((me) => {
+                syncRole(me.role);
+                return me;
+            }),
         enabled: !!session,
     });
+}
+
+// o perfil pode mudar no servidor (admin trocou); a API já usa o novo, então o menu e as guardas acompanham
+function syncRole(role: Role) {
+    if (!current || current.role === role) return;
+    current = { ...current, role };
+    try {
+        sessionStorage.setItem(ROLE_KEY, role);
+    } catch {
+        // sem storage: vale só em memória
+    }
+    notify();
 }
 
 // só para testes

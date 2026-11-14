@@ -1,5 +1,7 @@
 /* Paleta da marca (DESIGN.md §2.1), igual nos dois temas */
 :root {
+    /* véu atrás de modal e drawer, igual nos dois temas */
+    --color-scrim: rgb(0 0 0 / 0.55);
     --color-brand-orange: #ff6a00;
     --color-brand-graphite: #0f1115;
     --color-brand-gray: #687280;
