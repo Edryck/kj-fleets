@@ -164,13 +164,17 @@ export interface OrderRoute {
 
 export interface Driver {
     publicId: string;
+    username: string;
     name: string;
+    phone: string | null;
+    licenseNumber: string | null;
     status: DriverStatus;
     lat: number | null;
     lng: number | null;
     lastSeenAt: string | null;
     fleets: Ref[];
-    vehicle: { publicId: string; plate: string } | null;
+    vehicle: { publicId: string; plate: string; type: string } | null;
+    active: boolean;
 }
 
 export interface Vehicle {
@@ -178,6 +182,9 @@ export interface Vehicle {
     plate: string;
     type: string;
     status: VehicleStatus;
+    driverId: string | null;
+    driverName: string | null;
+    active: boolean;
 }
 
 export interface Customer {
