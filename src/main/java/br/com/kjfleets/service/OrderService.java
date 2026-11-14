@@ -458,8 +458,12 @@ public class OrderService {
 
     @Transactional(readOnly = true)
     public List<TrackingResponse> tracking(String publicId, Authentication auth) {
+        boolean customer = isCustomer(auth);
         return trackings.findByOrderOrderByCreatedAtAscIdAsc(findVisible(publicId, auth)).stream()
-                .map(TrackingResponse::from).toList();
+                .filter(t -> !customer || !HIDDEN_CODES.contains(t.getCode()))
+                // cliente não vê detalhes nem posição: o evento do motorista guarda a posição dele
+                .map(t -> customer ? new TrackingResponse(t.getCode(), t.getStatus(), null, null, null,
+                        t.getCreatedAt()) : TrackingResponse.from(t)).toList();
     }
 
     @Transactional(readOnly = true)

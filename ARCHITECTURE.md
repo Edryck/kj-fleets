@@ -210,7 +210,7 @@ Listagens paginadas por `limit` e `offset`: padrão 20, máximo 100 (acima disso
 - `POST /orders`: cria pedido (equipe ou cliente)
 - `GET /orders`: paginado, filtros `status` (repetível), `driverId`, `customerId`, `active=true`, `from` e `to` (ISO-8601 sobre `createdAt`), `q`, `sort` e `dir` (ver Busca e Ordenação acima). Cliente vê só os seus e ignora `driverId` e `customerId`
 - `GET /orders/{id}`: detalhe
-- `GET /orders/{id}/tracking`: histórico
+- `GET /orders/{id}/tracking`: histórico. Para o cliente vem sem `details`, `lat` e `lng` e sem os eventos internos (`assigned`, `unassigned`, `stop_completed`, `route_failed`), a mesma regra do `GET /track`: o cliente nunca vê a posição do motorista
 - `POST /orders/{id}/assign`: motorista (+ veículo opcional), só em `CREATED`; o motorista pode estar em vários pedidos `CREATED`
 - `POST /orders/{id}/dispatch`
 - `POST /orders/{id}/activity`: avança o fluxo (`FAILED` exige `reason`)

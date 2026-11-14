@@ -233,4 +233,26 @@ class OrderQueryTest extends IntegrationTest {
                 .andExpect(jsonPath("$[1].lng").value(-54.4))
                 .andExpect(jsonPath("$[1].at").exists());
     }
+
+    @Test
+    void customerTrackingHidesDetailsPositionAndInternalCodes() throws Exception {
+        Registered c = registerCustomer();
+        String id = create(body(), c.bearer());
+        Order order = orders.findByPublicId(id).orElseThrow();
+        trackings.save(TrackingStatus.of(order, "assigned", "Atribuído a Fulano", -24.9, -54.4, null, null));
+        trackings.save(TrackingStatus.of(order, "stop_completed", "Parada 1", -24.9, -54.4, null, null));
+        trackings.save(TrackingStatus.of(order, "dispatched", "Saiu para entrega", -24.9, -54.4, null, null));
+
+        mvc.perform(get("/orders/" + id + "/tracking").header("Authorization", c.bearer()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].code", contains("created", "dispatched")))
+                .andExpect(jsonPath("$[*].details", not(hasItem(org.hamcrest.Matchers.notNullValue()))))
+                .andExpect(jsonPath("$[*].lat", not(hasItem(org.hamcrest.Matchers.notNullValue()))))
+                .andExpect(jsonPath("$[*].lng", not(hasItem(org.hamcrest.Matchers.notNullValue()))));
+
+        mvc.perform(get("/orders/" + id + "/tracking").header("Authorization", bearer(Role.ADMIN)))
+                .andExpect(jsonPath("$[*].code", hasItems("assigned", "stop_completed", "dispatched")))
+                .andExpect(jsonPath("$[?(@.code == 'assigned')].details").value("Atribuído a Fulano"))
+                .andExpect(jsonPath("$[?(@.code == 'assigned')].lat").value(-24.9));
+    }
 }
