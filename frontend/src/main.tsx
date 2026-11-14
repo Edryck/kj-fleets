@@ -13,6 +13,7 @@ import "./styles/tokens.css";
 import "./styles/base.css";
 import "./styles/components.css";
 import "./styles/layout.css";
+import "./styles/orders.css";
 import App from "./App";
 import { getSession, subscribeSession } from "./auth/session";
 import { applyTheme, readTheme } from "./theme";

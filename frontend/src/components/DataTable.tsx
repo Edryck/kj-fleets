@@ -21,6 +21,7 @@ interface Props<T> {
     onRetry?: () => void;
     emptyTitle: string;
     emptyAction?: ReactNode;
+    onRowClick?: (row: T) => void;
 }
 
 export default function DataTable<T>({
@@ -36,6 +37,7 @@ export default function DataTable<T>({
     onRetry,
     emptyTitle,
     emptyAction,
+    onRowClick,
 }: Props<T>) {
     if (error) return <ErrorState message={error} onRetry={onRetry} />;
     if (!loading && rows?.length === 0)
@@ -72,7 +74,11 @@ export default function DataTable<T>({
                                   </tr>
                               ))
                             : rows?.map((row) => (
-                                  <tr key={rowKey(row)}>
+                                  <tr
+                                      key={rowKey(row)}
+                                      className={onRowClick ? "is-clickable" : undefined}
+                                      onClick={onRowClick && (() => onRowClick(row))}
+                                  >
                                       {columns.map((c) => (
                                           <td
                                               key={c.header}

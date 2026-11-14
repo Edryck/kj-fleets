@@ -1,10 +1,10 @@
 import react from "@vitejs/plugin-react";
+import { loadEnv } from "vite";
 import { defineConfig } from "vitest/config";
 
 // sem @types/node no projeto; só lemos uma variável de ambiente
-declare const process: { env: Record<string, string | undefined> };
+declare const process: { env: Record<string, string | undefined>; cwd: () => string };
 
-const API_TARGET = process.env.VITE_PROXY_TARGET ?? "http://localhost:8080";
 const API_PATHS = [
     "/auth",
     "/me",
@@ -27,17 +27,23 @@ const API_PATHS = [
 const spaRoute = (req: { headers: { accept?: string } }) =>
     req.headers.accept?.includes("text/html") ? "/index.html" : undefined;
 
-export default defineConfig({
-    plugins: [react()],
-    server: {
-        proxy: {
-            ...Object.fromEntries(
-                API_PATHS.map((path) => [path, { target: API_TARGET, bypass: spaRoute }]),
-            ),
-            "/ws": { target: API_TARGET, ws: true },
+export default defineConfig(({ mode }) => {
+    // o vite.config não recebe o .env.local em process.env, então lê com loadEnv
+    const env = loadEnv(mode, process.cwd(), "VITE_");
+    const API_TARGET =
+        process.env.VITE_PROXY_TARGET ?? env.VITE_PROXY_TARGET ?? "http://localhost:8080";
+    return {
+        plugins: [react()],
+        server: {
+            proxy: {
+                ...Object.fromEntries(
+                    API_PATHS.map((path) => [path, { target: API_TARGET, bypass: spaRoute }]),
+                ),
+                "/ws": { target: API_TARGET, ws: true },
+            },
         },
-    },
-    test: {
-        environment: "jsdom",
-    },
+        test: {
+            environment: "jsdom",
+        },
+    };
 });

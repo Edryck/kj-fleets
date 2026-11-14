@@ -66,6 +66,7 @@ export function ConfirmDialog({
     confirmLabel,
     destructive,
     askReason,
+    reasonRequired,
     busy,
     onConfirm,
     onClose,
@@ -75,6 +76,7 @@ export function ConfirmDialog({
     confirmLabel: string;
     destructive?: boolean;
     askReason?: boolean;
+    reasonRequired?: boolean;
     busy?: boolean;
     onConfirm: (reason?: string) => void;
     onClose: () => void;
@@ -93,7 +95,7 @@ export function ConfirmDialog({
                     <button
                         type="button"
                         className={`btn ${destructive ? "btn-danger" : "btn-primary"}`}
-                        disabled={busy}
+                        disabled={busy || (askReason && reasonRequired && !reason.trim())}
                         onClick={() =>
                             onConfirm(askReason ? reason.trim() || undefined : undefined)
                         }

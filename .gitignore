@@ -21,3 +21,4 @@ frontend/dist/
 
 # Config local do front (logins de teste)
 *.local
+*.tsbuildinfo

@@ -3,10 +3,21 @@ import { RequireAuth, RequireRole } from "./auth/guards";
 import Toasts from "./components/Toasts";
 import Shell from "./layout/Shell";
 import Account from "./pages/Account";
+import NewOrder from "./pages/NewOrder";
+import OrderDetail from "./pages/OrderDetail";
+import OrdersList from "./pages/OrdersList";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import { Forbidden, NotFound, PendingScreen } from "./pages/SystemPages";
 import { APP_ROUTES } from "./routes";
+
+const PAGES: Record<string, JSX.Element> = {
+    "/account": <Account />,
+    "/orders": <OrdersList />,
+    "/orders/new": <NewOrder />,
+    "/orders/:id": <OrderDetail />,
+};
+const pageFor = (path: string, title: string) => PAGES[path] ?? <PendingScreen title={title} />;
 
 export default function App() {
     return (
@@ -26,13 +37,7 @@ export default function App() {
                             <Route key={route.path} element={<RequireRole roles={route.roles} />}>
                                 <Route
                                     path={route.path}
-                                    element={
-                                        route.path === "/account" ? (
-                                            <Account />
-                                        ) : (
-                                            <PendingScreen title={route.title} />
-                                        )
-                                    }
+                                    element={pageFor(route.path, route.title)}
                                 />
                             </Route>
                         ))}
