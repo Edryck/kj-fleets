@@ -28,8 +28,12 @@ Implementados à mão a partir das descrições clássicas:
 
 ## Bibliotecas e ferramentas
 
-Spring Boot (Web, Data JPA, Security, WebSocket, Validation), Lombok, driver JDBC do PostgreSQL, jjwt, PostgreSQL, Maven. Cada uma segue a própria licença; as versões estão no `pom.xml`.
-Opcionais: Chart.js (página estática do dashboard) e osmnx (script externo que gera os CSVs do grafo viário).
+Spring Boot (Web, Data JPA, Security, WebSocket, Validation), GraphHopper (Apache-2.0, roteamento pelas ruas no modo road), Lombok, driver JDBC do PostgreSQL, jjwt, PostgreSQL, Maven. Cada uma segue a própria licença; as versões estão no `pom.xml`.
+Opcional: Chart.js (página estática do dashboard).
+
+## Dados de mapa
+
+No modo `road`, o grafo viário vem do extrato da região Sul do Brasil da [Geofabrik](https://download.geofabrik.de/south-america/brazil.html), baixado em runtime (fora do Git). Dados © contribuidores do [OpenStreetMap](https://www.openstreetmap.org/copyright), sob a [ODbL 1.0](https://opendatacommons.org/licenses/odbl/1-0/). Os testes usam um mapa sintético escrito à mão, sem atribuição necessária.
 
 ## Design
 

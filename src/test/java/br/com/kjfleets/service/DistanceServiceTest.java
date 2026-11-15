@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class DistanceServiceTest {
 
     private final DistanceService haversine = new DistanceService(
-            new RoutingProperties(Mode.HAVERSINE, 1.3, 40, 200, 300));
+            new RoutingProperties(Mode.HAVERSINE, 1.3, 40, 200, 300, null, null));
 
     @Test
     void haversineTimesDetour() {
@@ -22,7 +22,7 @@ class DistanceServiceTest {
 
     @Test
     void roadModeThrowsGraphNotLoaded() {
-        DistanceService road = new DistanceService(new RoutingProperties(Mode.ROAD, 1.3, 40, 200, 300));
+        DistanceService road = new DistanceService(new RoutingProperties(Mode.ROAD, 1.3, 40, 200, 300, null, null));
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> road.km(-23.5505, -46.6333, -22.9068, -43.1729));

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<osm version="0.6" generator="kjfleets-fixture">
+  <node id="1" lat="-24.860000" lon="-54.330000"/>
+  <node id="2" lat="-24.860000" lon="-54.327000"/>
+  <node id="3" lat="-24.860000" lon="-54.324000"/>
+  <node id="4" lat="-24.860000" lon="-54.321000"/>
+  <node id="5" lat="-24.863000" lon="-54.330000"/>
+  <node id="6" lat="-24.863000" lon="-54.327000"/>
+  <node id="7" lat="-24.863000" lon="-54.324000"/>
+  <node id="8" lat="-24.863000" lon="-54.321000"/>
+  <node id="9" lat="-24.866000" lon="-54.330000"/>
+  <node id="10" lat="-24.866000" lon="-54.327000"/>
+  <node id="11" lat="-24.866000" lon="-54.324000"/>
+  <node id="12" lat="-24.866000" lon="-54.321000"/>
+  <node id="13" lat="-24.860000" lon="-54.300000"/>
+  <node id="14" lat="-24.860000" lon="-54.297000"/>
+  <node id="15" lat="-24.860000" lon="-54.294000"/>
+  <node id="20" lat="-24.870000" lon="-54.280000"/>
+  <node id="21" lat="-24.870000" lon="-54.277000"/>
+  <way id="101"><nd ref="1"/><nd ref="2"/><nd ref="3"/><nd ref="4"/><tag k="highway" v="residential"/><tag k="name" v="Rua H0"/></way>
+  <way id="102"><nd ref="5"/><nd ref="6"/><nd ref="7"/><nd ref="8"/><tag k="highway" v="residential"/><tag k="name" v="Rua H1"/></way>
+  <way id="103"><nd ref="9"/><nd ref="10"/><nd ref="11"/><nd ref="12"/><tag k="highway" v="residential"/><tag k="name" v="Rua H2"/><tag k="oneway" v="yes"/></way>
+  <way id="104"><nd ref="1"/><nd ref="5"/><nd ref="9"/><tag k="highway" v="residential"/><tag k="name" v="Rua V0"/></way>
+  <way id="105"><nd ref="2"/><nd ref="6"/><nd ref="10"/><tag k="highway" v="residential"/><tag k="name" v="Rua V1"/></way>
+  <way id="106"><nd ref="3"/><nd ref="7"/><nd ref="11"/><tag k="highway" v="residential"/><tag k="name" v="Rua V2"/></way>
+  <way id="107"><nd ref="4"/><nd ref="8"/><nd ref="12"/><tag k="highway" v="residential"/><tag k="name" v="Rua V3"/></way>
+  <way id="108"><nd ref="13"/><nd ref="14"/><nd ref="15"/><tag k="highway" v="residential"/><tag k="name" v="Rua Ilha"/></way>
+  <way id="200"><nd ref="20"/><nd ref="21"/><tag k="highway" v="footway"/><tag k="name" v="Calçadão"/></way>
+</osm>

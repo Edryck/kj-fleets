@@ -15,7 +15,9 @@ public record RoutingProperties(
         @DecimalMin("1.0") @DecimalMax("3.0") double detourFactor,
         @Min(5) @Max(150) double avgSpeedKmh,
         @Min(20) @Max(5000) int arrivalRadiusM,
-        @Min(30) @Max(3600) int positionMaxAgeS) {
+        @Min(30) @Max(3600) int positionMaxAgeS,
+        String osmFile,
+        String graphDir) {
 
     public enum Mode { HAVERSINE, ROAD }
 }

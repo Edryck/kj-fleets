@@ -22,3 +22,6 @@ frontend/dist/
 # Config local do front (logins de teste)
 *.local
 *.tsbuildinfo
+
+# Mapas e cache do grafo (nunca no Git)
+data/
