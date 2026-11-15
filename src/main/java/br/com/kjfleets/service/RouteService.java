@@ -4,6 +4,7 @@ import br.com.kjfleets.config.BusinessException;
 import br.com.kjfleets.config.RoutingProperties;
 import br.com.kjfleets.dto.RealtimeDtos.DriverMoved;
 import br.com.kjfleets.dto.RealtimeDtos.OrderTracked;
+import br.com.kjfleets.dto.RouteDtos;
 import br.com.kjfleets.dto.RouteDtos.AlgorithmResult;
 import br.com.kjfleets.dto.RouteDtos.NextStop;
 import br.com.kjfleets.dto.RouteDtos.OptimizeRequest;
@@ -13,6 +14,8 @@ import br.com.kjfleets.dto.RouteDtos.PointDto;
 import br.com.kjfleets.dto.RouteDtos.RouteRequest;
 import br.com.kjfleets.dto.RouteDtos.RouteResponse;
 import br.com.kjfleets.dto.RouteDtos.StopCompleteRequest;
+import br.com.kjfleets.dto.RouteDtos.StopResponse;
+import br.com.kjfleets.entity.DistanceSource;
 import br.com.kjfleets.entity.Driver;
 import br.com.kjfleets.entity.Order;
 import br.com.kjfleets.entity.OrderStatus;
@@ -23,6 +26,9 @@ import br.com.kjfleets.entity.RouteStop;
 import br.com.kjfleets.entity.StopType;
 import br.com.kjfleets.entity.TrackingStatus;
 import br.com.kjfleets.repository.DriverRepository;
+import br.com.kjfleets.service.DistanceService.Distance;
+import br.com.kjfleets.service.DistanceService.DistanceMatrix;
+import br.com.kjfleets.service.RoadRouter.RoadPath;
 import br.com.kjfleets.repository.OrderRepository;
 import br.com.kjfleets.repository.RouteRepository;
 import br.com.kjfleets.repository.TrackingStatusRepository;
@@ -121,7 +127,8 @@ public class RouteService {
         pendingWaypoints.forEach(p -> points.add(Point.of(StopType.WAYPOINT, p)));
         points.add(Point.of(StopType.DROPOFF, payload.getDropoff()));
 
-        double[][] km = distance.matrix(points.stream().map(p -> new double[]{p.lat(), p.lng()}).toList());
+        DistanceMatrix matrix = distance.matrix(points.stream().map(p -> new double[]{p.lat(), p.lng()}).toList());
+        double[][] km = matrix.km();
         int visitedCount = visited.size();
         double visitedKm = 0;
         for (int i = 0; i < visitedCount; i++) {
@@ -142,7 +149,14 @@ public class RouteService {
         route.setOrder(order);
         route.setAlgorithm(chosen);
         route.setMode(distance.props().mode().name());
-        double totalKm = visitedKm + legsKm(km, plan.order(), visitedCount);
+        // pernas pendentes medidas no sentido real da rota (a matriz é simétrica)
+        Distance[] legs = new Distance[plan.order().size()];
+        double legsKm = 0;
+        for (int seq = Math.max(visitedCount, 1); seq < legs.length; seq++) {
+            legs[seq] = leg(matrix, points, plan.order().get(seq - 1), plan.order().get(seq));
+            legsKm += legs[seq].km();
+        }
+        double totalKm = visitedKm + legsKm;
         route.setTotalKm(totalKm);
         route.setBaselineKm(baselineKm);
         route.setSavingsPct(savingsPct(baselineKm, totalKm));
@@ -162,8 +176,10 @@ public class RouteService {
                 stop.setVisitedAt(point.visited().getVisitedAt());
                 stop.setDistanceM(point.visited().getDistanceM());
                 stop.setCompletedBy(point.visited().getCompletedBy());
+                stop.setDistanceSource(point.visited().getDistanceSource());
             } else {
-                stop.setLegKm(seq == 0 ? 0 : km[plan.order().get(seq - 1)][plan.order().get(seq)]);
+                stop.setLegKm(legs[seq] == null ? 0 : legs[seq].km());
+                stop.setDistanceSource(legs[seq] == null || point.type() == StopType.START ? null : legs[seq].source());
             }
             route.getStops().add(stop);
         }
@@ -178,7 +194,7 @@ public class RouteService {
                     "Pedido em " + order.getStatus() + " não aceita esta ação");
         }
         Route route = compute(order, request.algorithm(), request.seed());
-        return RouteResponse.from(route, eta(order, route));
+        return response(route, eta(order, route));
     }
 
     // sem @Transactional de propósito: roda na transação do chamador, e um proxy que lança marcaria rollback-only
@@ -204,6 +220,32 @@ public class RouteService {
         return route == null ? null : eta(order, route);
     }
 
+    // path só para pernas ROAD e só se o grafo estiver carregado agora; senão o front desenha tracejado
+    private RouteResponse response(Route route, Integer etaMinutes) {
+        List<RouteStop> stops = route.getStops().stream().sorted(Comparator.comparingInt(RouteStop::getSeq)).toList();
+        List<StopResponse> responses = new ArrayList<>();
+        for (int i = 0; i < stops.size(); i++) {
+            RouteStop stop = stops.get(i);
+            List<double[]> path = null;
+            if (i > 0 && stop.getDistanceSource() == DistanceSource.ROAD) {
+                RouteStop prev = stops.get(i - 1);
+                path = distance.roadPath(prev.getLat(), prev.getLng(), stop.getLat(), stop.getLng())
+                        .map(RoadPath::points).orElse(null);
+            }
+            responses.add(StopResponse.from(stop, path));
+        }
+        return RouteResponse.from(route, etaMinutes, responses);
+    }
+
+    private Distance leg(DistanceMatrix matrix, List<Point> points, int from, int to) {
+        if (matrix.fallback()[from][to]) {
+            return new Distance(matrix.km()[from][to], DistanceSource.HAVERSINE);
+        }
+        Point a = points.get(from);
+        Point b = points.get(to);
+        return distance.distance(a.lat(), a.lng(), b.lat(), b.lng());
+    }
+
     private Integer eta(Order order, Route route) {
         if (order.getStatus().isTerminal()) {
             return null;
@@ -220,11 +262,8 @@ public class RouteService {
         double km = pending.stream().mapToDouble(RouteStop::getLegKm).sum();
         if (fresh && !pending.isEmpty()) {
             RouteStop next = pending.get(0);
-            try {
-                km += distance.km(driver.getLat(), driver.getLng(), next.getLat(), next.getLng()) - next.getLegKm();
-            } catch (BusinessException e) {
-                // modo trocado para road com rota antiga gravada: leitura não pode falhar, vale a soma das pernas
-            }
+            // leitura frequente: motorista→próxima fica em linha reta × desvio, sem chamar o grafo
+            km += distance.straightKm(driver.getLat(), driver.getLng(), next.getLat(), next.getLng()) - next.getLegKm();
         }
         return distance.etaMinutes(km);
     }
@@ -274,7 +313,7 @@ public class RouteService {
                     actor.role()));
             events.publishEvent(new OrderTracked(order.getId(), "stop_completed"));
         }
-        return RouteResponse.from(route, eta(order, route));
+        return response(route, eta(order, route));
     }
 
     public void requireNearDropoff(Order order, Double lat, Double lng) {
@@ -373,7 +412,7 @@ public class RouteService {
         Order order = orders.findByPublicId(orderPublicId).orElseThrow(() -> BusinessException.notFound("Pedido"));
         Route route = routes.findByOrder(order).orElseThrow(() -> new BusinessException("ROUTE_NOT_FOUND",
                 HttpStatus.NOT_FOUND, "Pedido sem rota calculada"));
-        return RouteResponse.from(route, eta(order, route));
+        return response(route, eta(order, route));
     }
 
     // avulsa: mesma matriz, mesmos totais e economia de compute, mas sem pedido nem gravação
@@ -388,20 +427,29 @@ public class RouteService {
         waypoints.forEach(w -> points.add(Point.at(StopType.WAYPOINT, w)));
         points.add(Point.at(StopType.DROPOFF, request.dropoff()));
 
-        double[][] km = distance.matrix(points.stream().map(p -> new double[]{p.lat(), p.lng()}).toList());
+        DistanceMatrix matrix = distance.matrix(points.stream().map(p -> new double[]{p.lat(), p.lng()}).toList());
+        double[][] km = matrix.km();
         RouteAlgorithm chosen = request.algorithm() != null ? request.algorithm()
                 : RouteOptimizer.defaultFor(waypoints.size());
         Plan plan = solveOrder(km, fixedPrefix, chosen, request.seed());
-        double totalKm = legsKm(km, plan.order(), 0);
         double baselineKm = legsKm(km, IntStream.range(0, points.size()).boxed().toList(), 0);
 
         List<OptimizedStop> stops = new ArrayList<>();
+        double totalKm = 0;
         for (int seq = 0; seq < plan.order().size(); seq++) {
             int index = plan.order().get(seq);
             Point point = points.get(index);
-            stops.add(new OptimizedStop(seq, point.type(), point.lat(), point.lng(),
-                    seq == 0 ? 0 : km[plan.order().get(seq - 1)][index],
-                    point.type() == StopType.WAYPOINT ? index - fixedPrefix : null));
+            Distance leg = seq == 0 ? null : leg(matrix, points, plan.order().get(seq - 1), index);
+            List<double[]> path = null;
+            if (leg != null && leg.source() == DistanceSource.ROAD) {
+                Point prev = points.get(plan.order().get(seq - 1));
+                path = distance.roadPath(prev.lat(), prev.lng(), point.lat(), point.lng()).map(RoadPath::points)
+                        .orElse(null);
+            }
+            totalKm += leg == null ? 0 : leg.km();
+            stops.add(new OptimizedStop(seq, point.type(), point.lat(), point.lng(), leg == null ? 0 : leg.km(),
+                    point.type() == StopType.WAYPOINT ? index - fixedPrefix : null,
+                    leg == null || point.type() == StopType.START ? null : leg.source(), path));
         }
 
         Map<RouteAlgorithm, AlgorithmResult> comparison = null;
@@ -418,7 +466,8 @@ public class RouteService {
             }
         }
         return new OptimizeResponse(chosen, stops, totalKm, baselineKm, savingsPct(baselineKm, totalKm),
-                distance.etaMinutes(totalKm), comparison);
+                distance.etaMinutes(totalKm), comparison,
+                RouteDtos.fallbackLegs(distance.props().mode().name(), stops.stream().map(OptimizedStop::distanceSource)));
     }
 
     private static Plan solveOrder(double[][] km, int fixedPrefix, RouteAlgorithm algorithm, Long seed) {

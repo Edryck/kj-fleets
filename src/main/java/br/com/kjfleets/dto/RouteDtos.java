@@ -1,5 +1,6 @@
 package br.com.kjfleets.dto;
 
+import br.com.kjfleets.entity.DistanceSource;
 import br.com.kjfleets.entity.Route;
 import br.com.kjfleets.entity.RouteStop;
 import br.com.kjfleets.entity.StopType;
@@ -14,6 +15,7 @@ import jakarta.validation.constraints.Size;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 public final class RouteDtos {
 
@@ -28,29 +30,37 @@ public final class RouteDtos {
     }
 
     public record StopResponse(int seq, StopType type, String placeId, String name, double lat, double lng,
-                               double legKm, Instant visitedAt, Double distanceM) {
+                               double legKm, Instant visitedAt, Double distanceM, DistanceSource distanceSource,
+                               List<double[]> path) {
 
-        public static StopResponse from(RouteStop stop) {
+        // path é calculado na leitura (só pernas ROAD com o grafo carregado); a geometria não é gravada
+        public static StopResponse from(RouteStop stop, List<double[]> path) {
             boolean hasPlace = stop.getPlace() != null;
             return new StopResponse(stop.getSeq(), stop.getType(), hasPlace ? stop.getPlace().getPublicId() : null,
                     hasPlace ? stop.getPlace().getName() : null, stop.getLat(), stop.getLng(), stop.getLegKm(),
-                    stop.getVisitedAt(), stop.getDistanceM());
+                    stop.getVisitedAt(), stop.getDistanceM(), stop.getDistanceSource(), path);
         }
+    }
+
+    // só conta no modo road: em haversine toda perna é linha reta por definição
+    public static int fallbackLegs(String mode, Stream<DistanceSource> sources) {
+        return "ROAD".equals(mode) ? (int) sources.filter(s -> s == DistanceSource.HAVERSINE).count() : 0;
     }
 
     public record RouteResponse(String orderId, RouteAlgorithm algorithm, String mode, double totalKm,
                                 double baselineKm, double savingsPct, Integer etaMinutes, Instant computedAt,
-                                List<StopResponse> stops, NextStop nextStop) {
+                                int fallbackLegs, List<StopResponse> stops, NextStop nextStop) {
 
-        public static RouteResponse from(Route route, Integer etaMinutes) {
+        public static RouteResponse from(Route route, Integer etaMinutes, List<StopResponse> stops) {
             return new RouteResponse(route.getOrder().getPublicId(), route.getAlgorithm(), route.getMode(),
                     route.getTotalKm(), route.getBaselineKm(), route.getSavingsPct(), etaMinutes,
-                    route.getComputedAt(), route.getStops().stream().map(StopResponse::from).toList(), null);
+                    route.getComputedAt(), RouteDtos.fallbackLegs(route.getMode(), stops.stream().map(StopResponse::distanceSource)),
+                    stops, null);
         }
 
         public RouteResponse withNextStop(NextStop next) {
             return new RouteResponse(orderId, algorithm, mode, totalKm, baselineKm, savingsPct, etaMinutes,
-                    computedAt, stops, next);
+                    computedAt, fallbackLegs, stops, next);
         }
     }
 
@@ -70,7 +80,7 @@ public final class RouteDtos {
     }
 
     public record OptimizedStop(int seq, StopType type, double lat, double lng, double legKm,
-                                Integer waypointIndex) {
+                                Integer waypointIndex, DistanceSource distanceSource, List<double[]> path) {
     }
 
     public record AlgorithmResult(double totalKm, long ms) {
@@ -78,6 +88,6 @@ public final class RouteDtos {
 
     public record OptimizeResponse(RouteAlgorithm algorithm, List<OptimizedStop> stops, double totalKm,
                                    double baselineKm, double savingsPct, int etaMinutes,
-                                   Map<RouteAlgorithm, AlgorithmResult> comparison) {
+                                   Map<RouteAlgorithm, AlgorithmResult> comparison, int fallbackLegs) {
     }
 }

@@ -48,6 +48,10 @@ public class RouteStop {
 
     private double legKm;
 
+    // nulo no START e em linhas antigas
+    @Enumerated(EnumType.STRING)
+    private DistanceSource distanceSource;
+
     private Instant visitedAt;
 
     private Double distanceM;

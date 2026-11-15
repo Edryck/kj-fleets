@@ -20,14 +20,15 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.time.Instant;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.contains;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@TestPropertySource(properties = "kjfleets.routing.mode=road")
+// arquivo inexistente de propósito: o grafo nunca carrega e tudo cai na linha reta marcada
+@TestPropertySource(properties = {"kjfleets.routing.mode=road",
+        "kjfleets.routing.osm-file=target/missing.osm.pbf", "kjfleets.routing.graph-dir=target/graph-missing"})
 class RouteRoadModeTest extends IntegrationTest {
 
     @Autowired
@@ -40,7 +41,7 @@ class RouteRoadModeTest extends IntegrationTest {
     private TransactionTemplate tx;
 
     @Test
-    void liveEtaFallsBackToLegsWhenRoadModeReadsStoredRoute() throws Exception {
+    void liveEtaUsesStraightLegForDriverToNextStop() throws Exception {
         OrderFixtures fixtures = new OrderFixtures(mvc, json, this::bearer);
         String driverId = fixtures.createDriver(fixtures.createVehicle(), DriverStatus.AVAILABLE);
         String orderId = fixtures.createOrder(bearer(Role.DISPATCHER));
@@ -55,6 +56,9 @@ class RouteRoadModeTest extends IntegrationTest {
             driver.setLat(-24.87);
             driver.setLng(-54.33);
             driver.setLastSeenAt(Instant.now());
+            // o dispatch já calculou uma rota; troca pela de pernas conhecidas
+            routes.findByOrder(order).ifPresent(routes::delete);
+            routes.flush();
             Route route = new Route();
             route.setOrder(order);
             route.setAlgorithm(RouteAlgorithm.NEAREST_NEIGHBOR);
@@ -81,13 +85,13 @@ class RouteRoadModeTest extends IntegrationTest {
                 .get("trackingNumber").asString();
 
         mvc.perform(get("/track/" + trackingNumber)).andExpect(status().isOk())
-                .andExpect(jsonPath("$.etaMinutes").value(45));
+                .andExpect(jsonPath("$.etaMinutes").value(15));
         mvc.perform(get("/orders/" + orderId + "/route").header("Authorization", bearer(Role.DISPATCHER)))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.etaMinutes").value(45));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.etaMinutes").value(15));
     }
 
     @Test
-    void roadModeDispatchStillWorks() throws Exception {
+    void roadModeWithoutFile() throws Exception {
         OrderFixtures fixtures = new OrderFixtures(mvc, json, this::bearer);
         String driverId = fixtures.createDriver(fixtures.createVehicle(), DriverStatus.AVAILABLE);
         String orderId = fixtures.createOrder(bearer(Role.DISPATCHER));
@@ -100,10 +104,15 @@ class RouteRoadModeTest extends IntegrationTest {
 
         assertEquals("DISPATCHED", orders.findByPublicId(orderId).orElseThrow().getStatus().name());
         mvc.perform(get("/orders/" + orderId + "/route").header("Authorization", bearer(Role.DISPATCHER)))
-                .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("ROUTE_NOT_FOUND"));
-        mvc.perform(get("/orders/" + orderId + "/tracking").header("Authorization", bearer(Role.DISPATCHER)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[*].code").value(contains("created", "assigned", "dispatched", "route_failed")))
-                .andExpect(jsonPath("$[3].details").value("GRAPH_NOT_LOADED"));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.mode").value("ROAD"))
+                .andExpect(jsonPath("$.fallbackLegs").value(1))
+                .andExpect(jsonPath("$.stops[1].distanceSource").value("HAVERSINE"))
+                .andExpect(jsonPath("$.stops[1].path").doesNotExist());
+        mvc.perform(get("/graph/status").header("Authorization", bearer(Role.ADMIN)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.loaded").value(false))
+                .andExpect(jsonPath("$.reason").exists());
+        mvc.perform(get("/graph/route?fromLat=-24.86&fromLng=-54.33&toLat=-24.87&toLng=-54.32")
+                        .header("Authorization", bearer(Role.ADMIN)))
+                .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.code").value("GRAPH_NOT_LOADED"));
     }
 }

@@ -1,42 +1,68 @@
 package br.com.kjfleets.service;
 
-import br.com.kjfleets.config.BusinessException;
 import br.com.kjfleets.config.RoutingProperties;
 import br.com.kjfleets.config.RoutingProperties.Mode;
+import br.com.kjfleets.entity.DistanceSource;
 import br.com.kjfleets.routing.Haversine;
-import org.springframework.http.HttpStatus;
+import br.com.kjfleets.service.RoadRouter.RoadPath;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class DistanceService {
 
-    private final RoutingProperties props;
+    public record Distance(double km, DistanceSource source) {
+    }
 
-    public DistanceService(RoutingProperties props) {
+    // fallback[i][j] = par medido em linha reta × desvio (modo haversine ou sem caminho nas ruas)
+    public record DistanceMatrix(double[][] km, boolean[][] fallback) {
+    }
+
+    private final RoutingProperties props;
+    private final Optional<RoadRouter> road;
+
+    public DistanceService(RoutingProperties props, Optional<RoadRouter> road) {
         this.props = props;
+        this.road = props.mode() == Mode.ROAD ? road : Optional.empty();
+    }
+
+    public Distance distance(double lat1, double lng1, double lat2, double lng2) {
+        Optional<RoadPath> path = roadPath(lat1, lng1, lat2, lng2);
+        if (path.isPresent()) {
+            return new Distance(path.get().meters() / 1000, DistanceSource.ROAD);
+        }
+        return new Distance(straightKm(lat1, lng1, lat2, lng2), DistanceSource.HAVERSINE);
     }
 
     public double km(double lat1, double lng1, double lat2, double lng2) {
-        if (props.mode() == Mode.ROAD) {
-            throw new BusinessException("GRAPH_NOT_LOADED", HttpStatus.UNPROCESSABLE_ENTITY,
-                    "Modo road exige o grafo de vias, que ainda não está carregado");
-        }
-        return Haversine.km(lat1, lng1, lat2, lng2) * props.detourFactor();
+        return distance(lat1, lng1, lat2, lng2).km();
     }
 
-    public double[][] matrix(List<double[]> points) {
+    public Optional<RoadPath> roadPath(double lat1, double lng1, double lat2, double lng2) {
+        return road.flatMap(r -> r.route(lat1, lng1, lat2, lng2));
+    }
+
+    // simétrica de propósito (i<j espelhado): os otimizadores assumem isso e corta as chamadas pela metade
+    public DistanceMatrix matrix(List<double[]> points) {
         int n = points.size();
-        double[][] m = new double[n][n];
+        double[][] km = new double[n][n];
+        boolean[][] fallback = new boolean[n][n];
         for (int i = 0; i < n; i++) {
             for (int j = i + 1; j < n; j++) {
                 double[] a = points.get(i);
                 double[] b = points.get(j);
-                m[i][j] = m[j][i] = km(a[0], a[1], b[0], b[1]);
+                Distance d = distance(a[0], a[1], b[0], b[1]);
+                km[i][j] = km[j][i] = d.km();
+                fallback[i][j] = fallback[j][i] = d.source() == DistanceSource.HAVERSINE;
             }
         }
-        return m;
+        return new DistanceMatrix(km, fallback);
+    }
+
+    public double straightKm(double lat1, double lng1, double lat2, double lng2) {
+        return Haversine.km(lat1, lng1, lat2, lng2) * props.detourFactor();
     }
 
     public int etaMinutes(double km) {

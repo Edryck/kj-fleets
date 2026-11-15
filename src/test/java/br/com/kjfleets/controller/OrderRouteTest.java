@@ -137,6 +137,17 @@ class OrderRouteTest extends IntegrationTest {
     }
 
     @Test
+    void haversineModeUnchanged() throws Exception {
+        String orderId = scatteredOrder();
+
+        compute(orderId, null, Role.DISPATCHER).andExpect(status().isOk())
+                .andExpect(jsonPath("$.fallbackLegs").value(0))
+                .andExpect(jsonPath("$.stops[0].distanceSource").doesNotExist())
+                .andExpect(jsonPath("$.stops[1].distanceSource").value("HAVERSINE"))
+                .andExpect(jsonPath("$.stops[1].path").doesNotExist());
+    }
+
+    @Test
     void computesWithDriverStart() throws Exception {
         String orderId = scatteredOrder();
         String vehicleId = fixtures.createVehicle();

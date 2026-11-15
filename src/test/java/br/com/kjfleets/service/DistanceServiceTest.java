@@ -1,19 +1,20 @@
 package br.com.kjfleets.service;
 
-import br.com.kjfleets.config.BusinessException;
+import br.com.kjfleets.entity.DistanceSource;
+import br.com.kjfleets.service.DistanceService.Distance;
 import br.com.kjfleets.config.RoutingProperties;
 import br.com.kjfleets.config.RoutingProperties.Mode;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class DistanceServiceTest {
 
     private final DistanceService haversine = new DistanceService(
-            new RoutingProperties(Mode.HAVERSINE, 1.3, 40, 200, 300, null, null));
+            new RoutingProperties(Mode.HAVERSINE, 1.3, 40, 200, 300, null, null), Optional.empty());
 
     @Test
     void haversineTimesDetour() {
@@ -21,14 +22,14 @@ class DistanceServiceTest {
     }
 
     @Test
-    void roadModeThrowsGraphNotLoaded() {
-        DistanceService road = new DistanceService(new RoutingProperties(Mode.ROAD, 1.3, 40, 200, 300, null, null));
+    void roadModeWithoutRouterFallsBackMarked() {
+        DistanceService road = new DistanceService(new RoutingProperties(Mode.ROAD, 1.3, 40, 200, 300, null, null),
+                Optional.empty());
 
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> road.km(-23.5505, -46.6333, -22.9068, -43.1729));
+        Distance d = road.distance(-23.5505, -46.6333, -22.9068, -43.1729);
 
-        assertEquals("GRAPH_NOT_LOADED", ex.code());
-        assertEquals(422, ex.status().value());
+        assertEquals(DistanceSource.HAVERSINE, d.source());
+        assertEquals(360.75 * 1.3, d.km(), 0.2);
     }
 
     @Test
@@ -47,7 +48,7 @@ class DistanceServiceTest {
         double[][] m = haversine.matrix(List.of(
                 new double[]{-23.5505, -46.6333},
                 new double[]{-22.9068, -43.1729},
-                new double[]{-25.4284, -49.2733}));
+                new double[]{-25.4284, -49.2733})).km();
 
         assertEquals(3, m.length);
         for (int i = 0; i < 3; i++) {

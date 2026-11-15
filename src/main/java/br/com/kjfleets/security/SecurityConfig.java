@@ -131,6 +131,7 @@ public class SecurityConfig {
                         .requestMatchers("/dashboard/dispatch").hasAnyRole("ADMIN", "DISPATCHER")
                         .requestMatchers("/dashboard/fleet").hasAnyRole("ADMIN", "FLEET_MANAGER")
                         .requestMatchers("/customer/**").hasRole("CUSTOMER")
+                        .requestMatchers("/graph/**").hasAnyRole("ADMIN", "DISPATCHER", "FLEET_MANAGER")
                         .requestMatchers("/dashboard/alerts").hasAnyRole("ADMIN", "DISPATCHER", "FLEET_MANAGER")
                         .requestMatchers("/dashboard/trends/yearly").hasAnyRole("ADMIN", "FLEET_MANAGER", "CUSTOMER")
                         .anyRequest().authenticated())
