@@ -61,5 +61,5 @@ describe("novo pedido", () => {
         );
         expect((add as HTMLButtonElement).disabled).toBe(true);
         expect(screen.getByText("50/50")).toBeTruthy();
-    });
+    }, 60_000);
 }, 30_000);

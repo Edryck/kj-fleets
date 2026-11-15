@@ -148,7 +148,11 @@ export interface RouteStop {
     legKm: number | null;
     visitedAt: string | null;
     distanceM: number | null;
+    distanceSource: DistanceSource | null;
+    path: [number, number][] | null;
 }
+
+export type DistanceSource = "ROAD" | "HAVERSINE";
 
 export interface OrderRoute {
     orderId: string;
@@ -159,6 +163,7 @@ export interface OrderRoute {
     savingsPct: number | null;
     etaMinutes: number | null;
     computedAt: string;
+    fallbackLegs: number;
     stops: RouteStop[];
 }
 
@@ -275,6 +280,8 @@ export interface OptimizedStop {
     lng: number;
     legKm: number;
     waypointIndex: number | null;
+    distanceSource: DistanceSource | null;
+    path: [number, number][] | null;
 }
 
 export interface OptimizeResponse {
@@ -285,6 +292,26 @@ export interface OptimizeResponse {
     savingsPct: number;
     etaMinutes: number;
     comparison: Record<string, { totalKm: number; ms: number }> | null;
+    fallbackLegs: number;
+}
+
+export interface GraphStatus {
+    mode: string;
+    loaded: boolean;
+    region: string | null;
+    osmFile: string | null;
+    nodes: number;
+    edges: number;
+    importedAt: string | null;
+    loadMillis: number;
+    reason: string | null;
+}
+
+export interface GraphRoute {
+    km: number;
+    path: [number, number][];
+    distanceSource: DistanceSource;
+    ms: number;
 }
 
 export interface Meta {

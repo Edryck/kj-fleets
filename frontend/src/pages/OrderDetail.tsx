@@ -18,6 +18,7 @@ import type {
     Driver,
     OrderDetail as Order,
     OrderRoute,
+    OrderStatus,
     Page,
     TrackingEntry,
     TrackResponse,
@@ -28,6 +29,7 @@ import { useTopic, type LocationEvent } from "../realtime/useTopic";
 import { EmptyState, ErrorState, Skeleton } from "../components/blocks";
 import { formatDateTime, formatKm, formatMinutes } from "../components/format";
 import MapView, { stopMarkers, type MapMarker } from "../components/MapView";
+import { legsFromStops } from "../components/RouteLegs";
 import JourneyRail from "../components/JourneyRail";
 import { ConfirmDialog, Modal } from "../components/overlays";
 import StatusBadge from "../components/StatusBadge";
@@ -52,6 +54,9 @@ interface LiveProgress {
 }
 
 type Dialog = "assign" | "pod" | "fail" | "cancel" | null;
+
+// concluir parada só vale de DISPATCHED a IN_PROGRESS (ARCHITECTURE: Concluir parada)
+const STOP_COMPLETABLE: OrderStatus[] = ["DISPATCHED", "DRIVER_ENROUTE", "ARRIVED", "IN_PROGRESS"];
 
 interface Nearest {
     driver: Driver;
@@ -647,7 +652,7 @@ export default function OrderDetail() {
                                                     <td>
                                                         {s.type === "WAYPOINT" &&
                                                             !full.visitedAt &&
-                                                            isActive(o.status) && (
+                                                            STOP_COMPLETABLE.includes(o.status) && (
                                                                 <button
                                                                     type="button"
                                                                     className="btn btn-secondary btn-sm"
@@ -730,7 +735,18 @@ export default function OrderDetail() {
                         <section className="card map-card">
                             <h2>Mapa</h2>
                             {markers.length > 0 ? (
-                                <MapView markers={markers} line />
+                                <MapView
+                                    markers={markers}
+                                    line
+                                    legs={
+                                        route.data
+                                            ? legsFromStops(
+                                                  route.data.stops,
+                                                  route.data.mode === "HAVERSINE",
+                                              )
+                                            : undefined
+                                    }
+                                />
                             ) : (
                                 <EmptyState title="Sem pontos com coordenadas" />
                             )}

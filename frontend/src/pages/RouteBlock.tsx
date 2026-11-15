@@ -6,10 +6,11 @@ import { ApiError, request } from "../api/http";
 import type { OrderRoute } from "../api/types";
 import AlgorithmFields, { ALGORITHM_LABEL } from "../components/AlgorithmFields";
 import { EmptyState, KpiCard } from "../components/blocks";
+import { FallbackNotice } from "../components/RouteLegs";
 import { formatDateTime, formatKm, formatMinutes, formatPercent } from "../components/format";
 import { toast } from "../components/Toasts";
 
-const MODE_LABEL: Record<string, string> = { HAVERSINE: "Linha reta" };
+const MODE_LABEL: Record<string, string> = { HAVERSINE: "Linha reta", ROAD: "Pelas ruas" };
 
 interface Props {
     orderId: string;
@@ -97,6 +98,7 @@ export default function RouteBlock({ orderId, route, waypointCount, canRecalcula
                             {formatDateTime(route.computedAt)}
                         </span>
                     </p>
+                    {route.fallbackLegs > 0 && <FallbackNotice count={route.fallbackLegs} />}
                     <div className="route-kpis">
                         <KpiCard label="Distância" value={formatKm(route.totalKm)} />
                         <KpiCard label="Sem otimizar" value={formatKm(route.baselineKm)} />

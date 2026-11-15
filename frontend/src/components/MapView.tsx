@@ -10,6 +10,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import { useEffect, useRef } from "react";
 import type { RouteStop } from "../api/types";
+import { MapLegend, type MapLeg } from "./RouteLegs";
 
 export interface MapMarker {
     id: string;
@@ -62,6 +63,10 @@ interface Props {
     markers: MapMarker[];
     // liga os marcadores (exceto motorista) na ordem recebida, em linha reta
     line?: boolean;
+    // pernas já resolvidas (ruas ou trecho estimado); tem prioridade sobre line
+    legs?: MapLeg[];
+    // false: não reenquadra ao mudar os pontos (clicar para marcar não pode mover o mapa)
+    fit?: boolean;
     onPick?: (lat: number, lng: number) => void;
     onMarkerClick?: (id: string) => void;
     // centraliza neste marcador quando muda (ex.: motorista escolhido na lista)
@@ -84,6 +89,8 @@ const currentTheme = () => (document.documentElement.dataset.theme === "light" ?
 export default function MapView({
     markers,
     line,
+    legs,
+    fit = true,
     onPick,
     onMarkerClick,
     focusId,
@@ -96,22 +103,32 @@ export default function MapView({
     const lastFit = useRef("");
     const styleReady = useRef(false);
     // handlers e dados mais recentes, lidos pelos callbacks do mapa sem recriá-lo
-    const latest = useRef({ markers, line, onPick, onMarkerClick });
-    latest.current = { markers, line, onPick, onMarkerClick };
+    const drawnLegs: MapLeg[] =
+        legs ??
+        (line && markers.filter((p) => p.kind !== "driver").length > 1
+            ? [
+                  {
+                      kind: "straight",
+                      points: markers.filter((p) => p.kind !== "driver").map((p) => [p.lat, p.lng]),
+                  },
+              ]
+            : []);
+    const latest = useRef({ markers, legs: drawnLegs, onPick, onMarkerClick });
+    latest.current = { markers, legs: drawnLegs, onPick, onMarkerClick };
 
     function drawLine() {
         const m = map.current;
         if (!m) return;
-        const coords = latest.current.markers
-            .filter((p) => p.kind !== "driver")
-            .map((p) => [p.lng, p.lat]);
         const data = {
-            type: "Feature" as const,
-            properties: {},
-            geometry: {
-                type: "LineString" as const,
-                coordinates: latest.current.line && coords.length > 1 ? coords : [],
-            },
+            type: "FeatureCollection" as const,
+            features: latest.current.legs.map((leg) => ({
+                type: "Feature" as const,
+                properties: { kind: leg.kind },
+                geometry: {
+                    type: "LineString" as const,
+                    coordinates: leg.points.map(([lat, lng]) => [lng, lat]),
+                },
+            })),
         };
         // antes do estilo carregar não dá para mexer nas fontes; o style.load chama de novo
         if (!styleReady.current) return;
@@ -121,17 +138,28 @@ export default function MapView({
             return;
         }
         m.addSource("route", { type: "geojson", data });
+        // o paint do MapLibre não lê var(); resolve os tokens aqui
+        const css = getComputedStyle(document.documentElement);
+        const primary = css.getPropertyValue("--color-primary").trim();
+        const warning = css.getPropertyValue("--color-warning").trim();
         m.addLayer({
-            id: "route-line",
+            id: "route-solid",
             type: "line",
             source: "route",
+            filter: ["==", ["get", "kind"], "road"],
+            layout: { "line-join": "round", "line-cap": "round" },
+            paint: { "line-color": primary, "line-width": 4, "line-opacity": 0.95 },
+        });
+        m.addLayer({
+            id: "route-dashed",
+            type: "line",
+            source: "route",
+            filter: ["!=", ["get", "kind"], "road"],
             paint: {
-                // o paint do MapLibre não lê var(); resolve o token aqui
-                "line-color": getComputedStyle(document.documentElement)
-                    .getPropertyValue("--color-primary")
-                    .trim(),
+                "line-color": ["match", ["get", "kind"], "estimated", warning, primary],
                 "line-width": 3,
                 "line-opacity": 0.9,
+                "line-dasharray": [2, 2],
             },
         });
     }
@@ -180,6 +208,7 @@ export default function MapView({
 
     // quem chama pode recriar o array a cada render; só redesenha se o conteúdo mudou
     const signature = JSON.stringify(markers);
+    const legsSignature = JSON.stringify(drawnLegs);
 
     useEffect(() => {
         const m = map.current;
@@ -230,8 +259,9 @@ export default function MapView({
         // motorista andando não reenquadra: só entra/sai do conjunto
         const key = markers
             .map((p) => (p.kind === "driver" ? p.id : `${p.id}:${p.lat}:${p.lng}`))
-            .join("|");
-        if (key === lastFit.current || markers.length === 0) return;
+            .join("|")
+            .concat(`#${drawnLegs.map((l) => `${l.kind}${l.points.length}`).join(",")}`);
+        if (!fit || key === lastFit.current || markers.length === 0) return;
         lastFit.current = key;
         if (markers.length === 1) {
             m.resize();
@@ -241,6 +271,7 @@ export default function MapView({
         m.resize();
         const bounds = new LngLatBounds();
         markers.forEach((p) => bounds.extend([p.lng, p.lat]));
+        drawnLegs.forEach((l) => l.points.forEach(([lat, lng]) => bounds.extend([lng, lat])));
         // topo maior: a legenda fica sobre o mapa
         m.fitBounds(bounds, {
             padding: { top: 64, bottom: 48, left: 48, right: 48 },
@@ -248,7 +279,7 @@ export default function MapView({
             duration: 0,
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps -- signature representa markers
-    }, [signature, line]);
+    }, [signature, legsSignature]);
 
     useEffect(() => {
         const target = focusId ? latest.current.markers.find((p) => p.id === focusId) : null;
@@ -264,9 +295,7 @@ export default function MapView({
         <div className={`map-view${onPick ? " is-picking" : ""} ${className ?? ""}`}>
             <div ref={container} className="map-canvas" />
             {pickHint && <div className="map-hint">{pickHint}</div>}
-            {line && markers.length > 1 && (
-                <div className="map-legend">Linha reta entre paradas</div>
-            )}
+            <MapLegend legs={drawnLegs} />
         </div>
     );
 }

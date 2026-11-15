@@ -9,6 +9,7 @@ import { useSession } from "../auth/session";
 import { EmptyState, ErrorState, Skeleton } from "../components/blocks";
 import { formatAgo } from "../components/format";
 import MapView, { stopMarkers, type MapMarker } from "../components/MapView";
+import { legsFromStops } from "../components/RouteLegs";
 import StatusBadge from "../components/StatusBadge";
 import { useConnectionState, useTopic, type LocationEvent } from "../realtime/useTopic";
 
@@ -200,6 +201,11 @@ export default function LiveMap() {
                         className="live-map-canvas"
                         markers={markers}
                         line={stops.length > 1}
+                        legs={
+                            route.data && stops.length > 1
+                                ? legsFromStops(stops, route.data.mode === "HAVERSINE")
+                                : undefined
+                        }
                         onMarkerClick={(id) =>
                             all.some((d) => d.publicId === id) && setSelectedId(id)
                         }

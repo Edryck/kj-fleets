@@ -8,6 +8,7 @@ import AlgorithmFields, { ALGORITHM_LABEL, HELD_KARP_MAX } from "../components/A
 import { KpiCard } from "../components/blocks";
 import { formatKm, formatMinutes, formatPercent } from "../components/format";
 import MapView, { type MapMarker } from "../components/MapView";
+import { FallbackNotice, legsFromStops } from "../components/RouteLegs";
 
 interface Point {
     lat: number;
@@ -136,6 +137,19 @@ export default function RouteLab() {
         return list;
     }, [result, start, pickup, waypoints, dropoff]);
 
+    // a resposta não traz o modo: sem perna ROAD nem fallback, tudo é haversine
+    const legs = useMemo(
+        () =>
+            result
+                ? legsFromStops(
+                      result.stops,
+                      result.fallbackLegs === 0 &&
+                          result.stops.every((s) => s.distanceSource !== "ROAD"),
+                  )
+                : undefined,
+        [result],
+    );
+
     const ready = pickup !== null && dropoff !== null;
     const best = result?.comparison
         ? Math.min(...Object.values(result.comparison).map((c) => c.totalKm))
@@ -158,6 +172,7 @@ export default function RouteLab() {
                     <MapView
                         markers={markers}
                         line={!!result}
+                        legs={legs}
                         onPick={result ? undefined : place}
                         pickHint={
                             result
@@ -305,6 +320,7 @@ export default function RouteLab() {
                         <h2>Resultado: {ALGORITHM_LABEL[result.algorithm] ?? result.algorithm}</h2>
                         <span className="caption">Simulação: nada foi salvo nem despachado.</span>
                     </div>
+                    {result.fallbackLegs > 0 && <FallbackNotice count={result.fallbackLegs} />}
                     <div className="route-kpis">
                         <KpiCard label="Distância" value={formatKm(result.totalKm)} />
                         <KpiCard label="Sem otimizar" value={formatKm(result.baselineKm)} />
