@@ -276,7 +276,7 @@ Sempre exibir o rótulo em português. Nunca depender só da cor.
 - Retirada, paradas intermediárias e entrega devem ter símbolos diferentes e numeração de sequência.
 - Paradas concluídas ficam visualmente atenuadas, mas continuam legíveis.
 - Rota atual é linha sólida; trajetos de referência podem usar linha tracejada.
-- Enquanto o subprojeto 6 não entregar geometria viária, conectar paradas por segmentos retos. Não simular ruas nem apresentar a linha como navegação real.
+- Com geometria viária (modo `road`), a perna pelas ruas é linha sólida ("Rota pelas ruas"); perna sem caminho ou sem grafo é segmento reto tracejado ("Trecho estimado"). Não simular ruas nem apresentar o tracejado como navegação real.
 - Posição nula significa “sem posição”; não inventar coordenadas.
 - Modo de escolha de ponto deve deixar claro que o clique no mapa define latitude/longitude, sem geocodificação automática.
 
@@ -354,9 +354,7 @@ O design deve respeitar o inventário de telas e os contratos atuais da API. Nã
 - geocodificação, busca global de pedidos ou histórico de posições;
 - rastreamento público em mapa ou posição do motorista visível ao cliente;
 - edição/desativação de usuários;
-- mapa viário real antes da implementação do subprojeto 6.
-
-Quando uma capacidade estiver marcada como dependente do subprojeto 6, apresentar como futura ou ocultar até sua implementação.
+- ruas reais fora do modo `road` ou sem o grafo carregado (nesse caso, mostrar o trecho como estimado, tracejado).
 
 ## 15. Checklist de consistência visual
 

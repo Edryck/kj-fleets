@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "KJ Fleets",
-    "description": "Cadastros, autenticação, pedidos, rotas, despacho e dashboard já seguem os DTOs. Grafo viário (subprojeto 6) ainda é rascunho: ajustar quando existir. Importa no Postman e no Insomnia.",
+    "description": "Cadastros, autenticação, pedidos, rotas, despacho e dashboard já seguem os DTOs. Grafo viário (modo road): status e rota ponto a ponto, só equipe. Importa no Postman e no Insomnia.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -773,7 +773,7 @@
                 "route"
               ]
             },
-            "description": "Paradas, totais e etaMinutes vivo (recalculado a cada leitura). 404 ROUTE_NOT_FOUND se o pedido ainda não tem rota."
+            "description": "Paradas (distanceSource por perna; path só nas pernas ROAD com grafo carregado), totais, fallbackLegs e etaMinutes vivo (recalculado a cada leitura). 404 ROUTE_NOT_FOUND se o pedido ainda não tem rota."
           }
         },
         {
@@ -2091,18 +2091,46 @@
           }
         },
         {
-          "name": "Menor caminho",
+          "name": "Status do grafo viário",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/graph/shortest-path?fromLat=-24.8620&fromLng=-54.3370&toLat=-24.8700&toLng=-54.3300&algorithm=ASTAR",
+              "raw": "{{baseUrl}}/graph/status",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "graph",
-                "shortest-path"
+                "status"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Equipe (ADMIN, DISPATCHER, FLEET_MANAGER). Em modo haversine responde loaded=false e reason=\"modo haversine\". Em road: loaded, nodes, edges, importedAt, loadMillis e reason (\"importando\" ou erro)."
+          }
+        },
+        {
+          "name": "Rota pelas ruas (ponto a ponto)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/graph/route?fromLat=-24.8620&fromLng=-54.3370&toLat=-24.8700&toLng=-54.3300",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "graph",
+                "route"
               ],
               "query": [
                 {
@@ -2120,30 +2148,20 @@
                 {
                   "key": "toLng",
                   "value": "-54.3300"
-                },
-                {
-                  "key": "algorithm",
-                  "value": "ASTAR"
                 }
               ]
-            }
-          }
-        },
-        {
-          "name": "Importar grafo",
-          "request": {
-            "method": "POST",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/graph/import",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "graph",
-                "import"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
               ]
-            }
+            },
+            "description": "Equipe. Km, path e distanceSource (ROAD ou HAVERSINE) entre dois pontos. 422 GRAPH_NOT_LOADED se o grafo não estiver carregado (inclusive no modo haversine)."
           }
         }
       ]

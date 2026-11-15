@@ -1,6 +1,6 @@
 # KJ Fleets
 
-API REST em Java/Spring Boot para gestão de frotas e entregas: pedidos com fluxo de status, despacho, rastreamento de motoristas, eventos em tempo real e **roteirização própria** (TSP, algoritmo húngaro, Dijkstra e A*). Projeto final de matéria, inspirado no Fleet-Ops do [Fleetbase](https://github.com/fleetbase/fleetbase).
+API REST em Java/Spring Boot para gestão de frotas e entregas: pedidos com fluxo de status, despacho, rastreamento de motoristas, eventos em tempo real e **roteirização própria** (TSP, algoritmo húngaro), com rotas pelas ruas via GraphHopper no modo `road`. Projeto final de matéria, inspirado no Fleet-Ops do [Fleetbase](https://github.com/fleetbase/fleetbase).
 
 > Status: em desenvolvimento. O que está descrito abaixo é o desenho do projeto.
 
@@ -10,7 +10,7 @@ API REST em Java/Spring Boot para gestão de frotas e entregas: pedidos com flux
 - Atribuição de motorista e veículo, despacho, aceite ad hoc (o motorista pega o pedido da fila), cancelamento com motivo e prova de entrega
 - Histórico de rastreamento por pedido e rastreio público por código
 - Cadastro de motoristas, veículos, lugares e frotas
-- **Roteirização:** ordem das paradas (vizinho mais próximo, 2-opt, Held-Karp exato, simulated annealing), despacho em lote (húngaro vs guloso) e menor caminho no grafo viário (Dijkstra e A*)
+- **Roteirização:** ordem das paradas (vizinho mais próximo, 2-opt, Held-Karp exato, simulated annealing), despacho em lote (húngaro vs guloso) e distância pelas ruas do Sul do Brasil (GraphHopper, modo `road`)
 - **Dashboard:** métricas da operação por API
 - Eventos em tempo real por WebSocket (STOMP)
 - Cinco perfis de usuário com JWT e Basic Auth
@@ -21,7 +21,7 @@ Mais detalhes em [PRODUCT.md](docs/PRODUCT.md). Fluxos em [docs/flows/](docs/flo
 
 | Perfil | Acesso | Resumo |
 |---|---|---|
-| `ADMIN` | JWT | Tudo, inclusive usuários e importação do grafo |
+| `ADMIN` | JWT | Tudo, inclusive usuários |
 | `DISPATCHER` | JWT | Pedidos, despacho, roteirização |
 | `FLEET_MANAGER` | JWT | Motoristas, veículos, frotas, dashboard |
 | `CUSTOMER` | JWT | Cria e acompanha os próprios pedidos e gerencia os próprios endereços |
@@ -49,12 +49,13 @@ Pré-requisitos: JDK 21, PostgreSQL (para rodar a aplicação) e Docker (para os
    | `DB_USER` / `DB_PASSWORD` | acesso ao banco |
    | `JWT_SECRET` | segredo para assinar os tokens; mínimo 32 bytes, senão a aplicação não sobe |
    | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | primeiro ADMIN, criado no startup se não houver usuários |
-   | `ROUTING_MODE` | `haversine` (padrão) ou `road` |
+   | `ROUTING_MODE` | `haversine` (padrão, sem mapa) ou `road` (distância e rota pelas ruas, precisa do arquivo OSM) |
    | `ROUTING_DETOUR_FACTOR` | fator sobre a distância em linha reta no modo `haversine` (padrão 1.3) |
    | `ROUTING_AVG_SPEED_KMH` | velocidade média para o ETA (padrão 40) |
    | `ROUTING_ARRIVAL_RADIUS_M` | raio, em metros, para o motorista concluir uma parada (padrão 200) |
    | `ROUTING_POSITION_MAX_AGE_S` | idade máxima, em segundos, da posição do motorista para contar como atual (padrão 300) |
-   | `ROUTING_GRAPH_NODES` / `ROUTING_GRAPH_EDGES` | caminhos dos CSVs do grafo viário (só no modo `road`) |
+   | `ROUTING_OSM_FILE` | caminho do `.osm.pbf` do mapa (só no modo `road`; padrão `./data/osm/sul-latest.osm.pbf`) |
+   | `ROUTING_GRAPH_DIR` | pasta do cache do grafo importado (só no modo `road`; padrão `./data/graph-cache`) |
    | `DASHBOARD_TIMEZONE` | fuso dos períodos do dashboard (padrão `America/Sao_Paulo`) |
    | `DASHBOARD_STALE_UNASSIGNED_MIN` | minutos sem motorista até o pedido virar alerta de parado (padrão 30) |
    | `DASHBOARD_STALE_ASSIGNED_MIN` | minutos atribuído e não despachado (padrão 15) |
@@ -79,14 +80,26 @@ Pré-requisitos: JDK 21, PostgreSQL (para rodar a aplicação) e Docker (para os
    ./mvnw test
    ```
 
-### Grafo viário (modo `road`, opcional)
+### Rotas pelas ruas (modo `road`, opcional)
 
-Dois CSVs, gerados uma vez fora deste repo (por exemplo com um script Python usando osmnx):
+O modo `road` usa o GraphHopper, embutido na API, com o mapa do Sul do Brasil do OpenStreetMap. No modo `haversine` (padrão) nada disso é necessário.
 
-- `nodes.csv`: `id,lat,lng`
-- `edges.csv`: `from_id,to_id,length_m,oneway`
+1. Baixe o extrato (cerca de 430 MB) e coloque em `data/osm/`:
 
-Aponte as variáveis `ROUTING_GRAPH_NODES` e `ROUTING_GRAPH_EDGES` para eles e chame `POST /graph/import` como ADMIN. No modo `haversine` nada disso é necessário.
+   ```bash
+   mkdir -p data/osm
+   curl -L -o data/osm/sul-latest.osm.pbf https://download.geofabrik.de/south-america/brazil/sul-latest.osm.pbf
+   ```
+
+2. Defina `ROUTING_MODE=road`. `ROUTING_OSM_FILE` aponta para o `.osm.pbf` e `ROUTING_GRAPH_DIR` para a pasta do cache (os padrões já são `./data/osm/sul-latest.osm.pbf` e `./data/graph-cache`).
+
+3. Suba a API. Na primeira vez ela importa o mapa numa thread em segundo plano e grava o cache: medido no extrato Sul, cerca de 350 s, com pico de uns 3 GB de memória. Por isso o primeiro import pede `-Xmx6g` (`JAVA_TOOL_OPTIONS=-Xmx6g` ou `-Xmx6g` no `java -jar`). Nas subidas seguintes, a API só carrega o cache (medido: 2,7 s com `-Xmx2g`). Enquanto importa, `GET /graph/status` mostra `loaded=false` e `reason="importando"`; a API responde normalmente, e as pernas caem para linha reta até o grafo carregar.
+
+4. Confira em `GET /graph/status` (equipe) que `loaded` virou `true`. Depois disso, `GET /graph/route` mede um ponto a ponto.
+
+Cada perna de rota diz de onde veio: `distanceSource` `ROAD` (pelas ruas) ou `HAVERSINE` (linha reta × desvio, quando não há caminho para carro ou um ponto está a mais de 500 m de qualquer via). A rota traz `fallbackLegs`, com quantas pernas caíram. A pasta `data/` fica fora do Git (no `.gitignore`).
+
+Com Docker, o `compose.yaml` monta `./data` em `/data` na API e aponta `ROUTING_OSM_FILE` e `ROUTING_GRAPH_DIR` para lá. Coloque o `.osm.pbf` em `./data/osm/` antes de subir e use `ROUTING_MODE=road` no `.env` (o compose usa `road` se a variável não estiver definida). O `compose.yaml` local define `JAVA_TOOL_OPTIONS=-Xmx3g`. Não há medição do primeiro import com 3g: ele foi medido com `-Xmx6g` (e o carregamento do cache, com `-Xmx2g`). Na primeira subida, use 6g.
 
 ## Rodando com Docker
 
@@ -129,7 +142,7 @@ Variáveis (no `.env.example`, com valor vazio e comentário; o `.env.local` fic
 
 Se `VITE_PROXY_TARGET` não estiver definido, o Vite aponta para `http://localhost:8080`.
 
-Para a demo com dados que se mexem, rode o simulador de motoristas (seção [Simulador de motoristas](#simulador-de-motoristas)) com a API e o frontend no ar. Os motoristas andam pelos pedidos despachados, e o mapa ao vivo e as listas de despacho se atualizam pelo STOMP. Antes disso, atribua e despache pelo menos um pedido na tela de despacho. O mapa viário por ruas ainda não existe: a tela `/graph` mostra só o aviso de "em breve".
+Para a demo com dados que se mexem, rode o simulador de motoristas (seção [Simulador de motoristas](#simulador-de-motoristas)) com a API e o frontend no ar. Os motoristas andam pelos pedidos despachados, e o mapa ao vivo e as listas de despacho se atualizam pelo STOMP. Antes disso, atribua e despache pelo menos um pedido na tela de despacho. Com `ROUTING_MODE=road` e o grafo carregado, o mapa desenha as rotas pelas ruas; a tela `/graph` (só equipe) mostra o status do grafo e um teste ponto a ponto.
 
 
 ## Autenticação
@@ -152,7 +165,7 @@ Erros de regra de negócio voltam como `422` (ou `409`) com um código estável,
 | Rastreio público | `GET /track/{trackingNumber}` |
 | Motorista (Basic Auth) | `GET /driver/me`, `GET /driver/orders` (`?available=true` lista os pedidos sem motorista), `GET /driver/orders/{id}`, `POST /driver/orders/{id}/accept`, `activity`, `pod`, `GET /driver/orders/{id}/route`, `POST /driver/orders/{id}/stops/{seq}/complete`, `POST /driver/location` |
 | Cadastros | CRUD de `/drivers`, `/vehicles`, `/fleets`, `/places` (`DELETE` desativa, não apaga); busca `q`, `status` e `includeInactive` em motoristas e veículos; reativação com `POST /{id}/reactivate` (motoristas, veículos e lugares); `GET /drivers/nearest`; `GET /customers` e `GET /customers/{id}` (só leitura); `/customer/places` (meus endereços, CUSTOMER) |
-| Roteirização | `POST /routes/optimize`, `POST /dispatch/plan`, `GET /graph/shortest-path`, `POST /graph/import` |
+| Roteirização | `POST /routes/optimize`, `POST /dispatch/plan`, `GET /graph/status`, `GET /graph/route` (staff) |
 | Dashboard (tópicos) | `GET /dashboard/orders/summary`, `orders/funnel`, `dispatch/queue`, `fleet/status`, `drivers/performance`, `routing/savings`, `trends/yearly`, `alerts` (`period`: `today`, `7d`, `15d`, `1m`) |
 | Dashboard (painéis) | `GET /dashboard/admin`, `/dashboard/dispatch`, `/dashboard/fleet`, `/customer/dashboard` (CUSTOMER), `/driver/dashboard` (Basic Auth do motorista) |
 

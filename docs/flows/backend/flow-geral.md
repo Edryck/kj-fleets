@@ -12,7 +12,7 @@ flowchart LR
     Pub["Qualquer pessoa"] -->|"rastreio público"| API
     subgraph API["Spring Boot API"]
         Core["Pedidos, despacho e cadastros"]
-        Rt["Roteirização: TSP, húngaro, Dijkstra e A*"]
+        Rt["Roteirização: TSP, húngaro e GraphHopper (modo road)"]
         Dash["Dashboard"]
     end
     API --> DB[("PostgreSQL")]

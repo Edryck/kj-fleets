@@ -24,7 +24,6 @@ Implementados à mão a partir das descrições clássicas:
 - Croes, G. A. (1958), troca 2-opt (`TWO_OPT`)
 - Kirkpatrick, S.; Gelatt, C.; Vecchi, M. (1983), simulated annealing (`SIMULATED_ANNEALING`)
 - Kuhn, H. (1955), método húngaro (`HUNGARIAN`)
-- Dijkstra, E. (1959) e Hart, P.; Nilsson, N.; Raphael, B. (1968), caminho mínimo e A* (`DIJKSTRA`, `ASTAR`)
 
 ## Bibliotecas e ferramentas
 

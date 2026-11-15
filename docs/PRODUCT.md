@@ -39,7 +39,7 @@ Quem despacha entregas com poucos motoristas costuma controlar tudo por planilha
 ### Importante
 - Eventos em tempo real por WebSocket: mudança de pedido e posição do motorista.
 - Sugestão de motoristas disponíveis mais próximos de um ponto.
-- **Mapa viário:** distância e caminho pelas ruas reais, calculados pelo GraphHopper (biblioteca Java) sobre dados do OpenStreetMap, em vez de distância em linha reta ajustada. A ordem das paradas e a escolha de motorista continuam com os algoritmos próprios.
+- **Mapa viário:** distância e caminho pelas ruas reais, calculados pelo GraphHopper (biblioteca Java) sobre dados do OpenStreetMap da região Sul do Brasil (extrato `brazil/sul`), em vez de distância em linha reta ajustada. A ordem das paradas e a escolha de motorista continuam com os algoritmos próprios.
 
 ### Se sobrar tempo
 - Aceite ad hoc: o primeiro motorista que aceita leva o pedido, sem corrida entre dois motoristas.

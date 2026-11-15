@@ -101,7 +101,7 @@ Regra de ouro: **o código acompanha o padrão da aula** — poucos arquivos, po
 
 | O que | Como |
 |---|---|
-| Algoritmos (`routing`) | JUnit puro, sem Spring. Held-Karp = força bruta até 8 paradas; 2-opt nunca pior que vizinho mais próximo; Hungarian nunca pior que guloso; A* com o mesmo custo do Dijkstra |
+| Algoritmos (`routing`) | JUnit puro, sem Spring. Held-Karp = força bruta até 8 paradas; 2-opt nunca pior que vizinho mais próximo; Hungarian nunca pior que guloso. Modo `road` testado com um OSM sintético pequeno |
 | Regras do pedido | Teste de `service` com banco de teste. Cada regra de [ARCHITECTURE.md](ARCHITECTURE.md#fluxo-e-regras-do-pedido) tem um caso que falha com o código de erro esperado |
 | Segurança | Um teste por papel nas rotas sensíveis (200/403/404) |
 | WebSocket | Cliente STOMP inscrito num pedido recebe o evento quando o status muda |

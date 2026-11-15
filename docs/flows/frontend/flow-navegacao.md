@@ -63,7 +63,8 @@ flowchart LR
     TC -- sim --> TH["Oculta km, economia, ciclo e motoristas"]
     TC -- não --> TF["Mostra todos os gráficos e a tabela por motorista"]
     R["/analytics/routing"] --> RQ["GET /dashboard/routing/savings com period (fluxo 16)"]
-    G["/graph"] --> GM["Tela de em breve, sem chamada à API"]
+    G["/graph"] --> GS["GET /graph/status (fluxo 15)"]
+    GS --> GT["Teste ponto a ponto: GET /graph/route (fluxo 15)"]
 ```
 
-S23 não tem seletor de período, porque o endpoint não aceita `period`. S24 tem. S25 não chama nada, porque o endpoint de grafo ainda não existe (fluxo 15 é só documentado).
+S23 não tem seletor de período, porque o endpoint não aceita `period`. S24 tem. S25 é só da equipe e chama `GET /graph/status` e `GET /graph/route` (fluxo 15).

@@ -21,22 +21,39 @@ sequenceDiagram
         R->>R: paradas concluídas ficam no início, com as pernas originais
         R->>R: START é a posição do motorista, se houver
         R->>R: só os waypoints pendentes entram na reordenação
-        R->>DB: matriz de distâncias (Haversine com fator, ou grafo no modo road)
-        alt modo road sem grafo carregado
-            R-->>Op: 422 GRAPH_NOT_LOADED
-        else HELD_KARP com mais de 15 waypoints
+        R->>DB: matriz simétrica (Haversine com fator, ou GraphHopper no modo road)
+        Note over R: no modo road, cada par sem caminho pelas ruas cai para linha reta e fica marcado HAVERSINE
+        alt HELD_KARP com mais de 15 waypoints
             R-->>Op: 422 ROUTE_TOO_LARGE_FOR_EXACT
         else ok
             R->>O: ordena os waypoints (padrão: HELD_KARP até 15, senão TWO_OPT)
             O-->>R: ordem
             R->>R: totalKm, baselineKm na ordem de cadastro, savingsPct e etaMinutes
-            R->>DB: apaga a rota anterior e grava route e route_stops
-            R-->>Op: 200 com paradas, totais e ETA vivo
+            R->>DB: apaga a rota anterior e grava route e route_stops, com distance_source por perna
+            R-->>Op: 200 com paradas, totais, fallbackLegs e ETA vivo
         end
     end
-    Note over R,DB: No despacho e no aceite a mesma rotina roda sozinha. Se falhar, o pedido segue e grava route_failed no histórico.
+    Note over R,DB: No despacho e no aceite a mesma rotina roda sozinha. Se falhar por regra, o pedido segue e grava route_failed no histórico.
     Note over Op,DB: POST /routes/optimize usa o mesmo cálculo, mas recebe os pontos no corpo e não grava nada. Com compare = true roda os quatro algoritmos.
 ```
+
+Decisão de cada perna no modo `road`. A perna nunca falha: ou vem das ruas, ou cai para linha reta e é contada em `fallbackLegs`. Um waypoint fora do grafo gera 2 pernas de fallback (a que chega e a que sai).
+
+```mermaid
+flowchart TD
+    A["Perna de A para B (modo road)"] --> B{"Grafo carregado?"}
+    B -- não --> F["Linha reta × desvio, distance_source = HAVERSINE"]
+    B -- sim --> C{"A e B estão a até 500 m de uma via para carro?"}
+    C -- não --> F
+    C -- sim --> D{"Há caminho para carro entre A e B?"}
+    D -- não --> F
+    D -- sim --> R["Distância pelas ruas, distance_source = ROAD"]
+    R --> P{"Leitura da rota com o grafo carregado?"}
+    P -- sim --> PATH["path com os pontos da rota"]
+    P -- não --> NP["path nulo, o front desenha tracejado"]
+    F --> FB["Conta em fallbackLegs"]
+```
+
 
 ## 18. Concluir parada
 
@@ -100,24 +117,34 @@ sequenceDiagram
     Note over S,DB: apply = true só atribui. O despacho continua sendo uma ação por pedido.
 ```
 
-## 15. Menor caminho no grafo viário e importação
+## 15. Grafo viário: status, importação e rota ponto a ponto
+
+Só `road` tem dados. Os três fluxos abaixo são de staff (ADMIN, DISPATCHER, FLEET_MANAGER).
 
 ```mermaid
 flowchart TD
-    A["GET /graph/shortest-path (fromLat, fromLng, toLat, toLng, algorithm)"] --> B{"Grafo carregado?"}
-    B -- não --> E1["422 GRAPH_NOT_LOADED"]
-    B -- sim --> C["Encontra o nó mais próximo da origem e do destino"]
-    C --> D{"Algoritmo"}
-    D -- DIJKSTRA --> F1["Dijkstra com fila de prioridade"]
-    D -- ASTAR --> F2["A estrela com heurística Haversine"]
-    F1 --> G{"Achou caminho?"}
-    F2 --> G
-    G -- não --> E2["422 NO_PATH_FOUND"]
-    G -- sim --> OK["200 com nós do caminho, km, nodesExpanded e ms"]
+    A["Subida da API no modo road"] --> T["Thread graph-import, em segundo plano"]
+    T --> C{"Cache em ROUTING_GRAPH_DIR?"}
+    C -- sim --> L1["Carrega o cache (cerca de 2,7 s medido)"]
+    C -- não --> L2["Importa ROUTING_OSM_FILE e grava o cache (cerca de 350 s medido)"]
+    L1 --> OK["loaded = true, reason = null"]
+    L2 --> OK
+    T -- falha --> ERR["loaded = false, reason = erro com a mensagem"]
+    A --> IMP["Enquanto importa: loaded = false, reason = importando, e as pernas caem para linha reta"]
+```
 
-    I["POST /graph/import"] --> J{"CSVs existem e são válidos?"}
-    J -- não --> E3["422 GRAPH_IMPORT_FAILED"]
-    J -- sim --> K["Limpa road_edge e road_node e grava em lote"]
-    K --> L["Monta as listas de adjacência em memória"]
-    L --> M["200 com quantidade de nós e arestas"]
+```mermaid
+flowchart TD
+    A["GET /graph/status"] --> B{"Modo road?"}
+    B -- não --> S1["200 com loaded = false e reason = modo haversine"]
+    B -- sim --> S2["200 com loaded, nodes, edges, importedAt, loadMillis e reason"]
+```
+
+```mermaid
+flowchart TD
+    A["GET /graph/route com fromLat, fromLng, toLat e toLng"] --> B{"Grafo carregado?"}
+    B -- não --> E1["422 GRAPH_NOT_LOADED"]
+    B -- sim --> C{"Snap de até 500 m nos dois pontos e caminho para carro?"}
+    C -- sim --> OK1["200 com km, path pelas ruas e distanceSource = ROAD"]
+    C -- não --> OK2["200 com km em linha reta × desvio, path com os dois pontos e distanceSource = HAVERSINE"]
 ```

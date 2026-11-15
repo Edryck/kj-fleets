@@ -26,8 +26,6 @@ erDiagram
     ORDERS ||--o| ROUTES : "rota"
     ROUTES ||--|{ ROUTE_STOPS : "paradas"
     PLACES |o--o{ ROUTE_STOPS : "local"
-    ROAD_NODES ||--o{ ROAD_EDGES : "from_node"
-    ROAD_NODES ||--o{ ROAD_EDGES : "to_node"
     CUSTOMERS |o--o{ PLACES : "lugares próprios"
 
     USERS {
@@ -170,20 +168,10 @@ erDiagram
         double lat
         double lng
         double leg_km
+        string distance_source
         timestamptz visited_at
         double distance_m
         string completed_by
-    }
-    ROAD_NODES {
-        bigint id PK
-        double lat
-        double lng
-    }
-    ROAD_EDGES {
-        uuid id PK
-        bigint from_node FK
-        bigint to_node FK
-        double length_m
     }
 ```
 
@@ -200,6 +188,7 @@ erDiagram
 | `routes.algorithm` | `NEAREST_NEIGHBOR`, `TWO_OPT`, `HELD_KARP`, `SIMULATED_ANNEALING` |
 | `routes.mode` | `HAVERSINE`, `ROAD` |
 | `route_stops.type` | `START`, `PICKUP`, `WAYPOINT`, `DROPOFF` |
+| `route_stops.distance_source` | `ROAD`, `HAVERSINE`. Vale para a perna que chega na parada; nulo no `START` e em linhas antigas |
 | `status_changes.subject_type` | `DRIVER`, `VEHICLE` |
 | `status_changes.reason` | `baseline` (linha inicial), `manual`, `dispatch`, `finish` e `delete` |
 
@@ -223,13 +212,11 @@ Motorista, veículo, frota e lugar são excluídos por soft delete: a coluna `ac
 | `tracking_statuses` | Uma linha por evento, **inclusive a criação**. `status` é o estado do pedido depois do evento; `code` é o evento em texto, minúsculas (lista em [ARCHITECTURE.md](ARCHITECTURE.md#fluxo-e-regras-do-pedido)). Nunca é alterada nem apagada. Guarda a posição quando houver. `actor_username` e `actor_role` dizem quem gerou o evento (nulos em eventos do sistema). |
 | `status_changes` | Histórico de status de motorista e de veículo (`subject_type` escolhe a tabela de `subject_id`, sem FK). `changed_by` é o username ou `system`. Na subida da aplicação, quem ainda não tem histórico ganha uma linha `baseline` com o status atual. Excluir grava uma linha `delete` com `from_status` igual a `to_status`. É lida pelo painel de desempenho (tempo em `BUSY`) e pelos alertas de status e de manutenção. |
 | `routes` | 1:1 com `orders` (`order_id` único). Recalcular substitui a rota anterior. `eta_minutes` é o do cálculo; o ETA vivo não é gravado. |
-| `route_stops` | Paradas já na ordem final (`seq`). `place_id` é nulo no `START` (posição do motorista). `visited_at` marca a conclusão; `distance_m` é a distância do motorista até a parada (nulo se a equipe concluiu sem posição); `completed_by` é o username de quem concluiu. |
-| `road_nodes` | Subprojeto 6. Vem de `nodes.csv`. O `id` é o do arquivo, não um UUID. |
-| `road_edges` | Subprojeto 6. Vem de `edges.csv`. Via de mão dupla vira duas linhas. |
+| `route_stops` | Paradas já na ordem final (`seq`). `place_id` é nulo no `START` (posição do motorista). `leg_km` é a perna até a parada e `distance_source` diz se ela veio das ruas (`ROAD`) ou de linha reta × desvio, por falta de caminho (`HAVERSINE`). A geometria não é gravada: o `path` é calculado na leitura. `visited_at` marca a conclusão; `distance_m` é a distância do motorista até a parada (nulo se a equipe concluiu sem posição); `completed_by` é o username de quem concluiu. |
 
 ### Índices e restrições
 
-- Índices de desempenho: `orders(status)`, `orders(created_at)`, `orders(finished_at)`, `orders(status, created_at)`, `orders(driver_id, finished_at)`, `tracking_statuses(order_id, created_at)`, `status_changes(subject_type, subject_id, changed_at)`, `drivers(status)`, `routes(computed_at)`, `places(customer_id)` (`idx_places_customer`), `road_edges(from_node)` (subprojeto 6).
+- Índices de desempenho: `orders(status)`, `orders(created_at)`, `orders(finished_at)`, `orders(status, created_at)`, `orders(driver_id, finished_at)`, `tracking_statuses(order_id, created_at)`, `status_changes(subject_type, subject_id, changed_at)`, `drivers(status)`, `routes(computed_at)`, `places(customer_id)` (`idx_places_customer`).
 - Únicos: `users.username`, `users.public_id`, `orders.public_id`, `orders.tracking_number`, `routes.order_id`, `vehicles.plate`, `drivers.vehicle_id`, `drivers.user_id`, `customers.user_id`, `payloads.order_id`.
 - Chaves estrangeiras sem `ON DELETE CASCADE` nos dados de pedido: o histórico não é apagado. Excluir motorista ou veículo com pedidos associados deve falhar (ou desativar em vez de excluir).
 
