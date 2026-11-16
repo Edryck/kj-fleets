@@ -68,3 +68,18 @@ export function subscribeFollow(listener: () => void): () => void {
 export function useFollowState(): FollowState {
     return useSyncExternalStore(subscribeFollow, getFollowState, getFollowState);
 }
+
+export type MapCommand = "zoomIn" | "zoomOut" | "fitAll";
+
+const commandListeners = new Set<(command: MapCommand) => void>();
+
+export function sendMapCommand(command: MapCommand): void {
+    commandListeners.forEach((listener) => listener(command));
+}
+
+export function subscribeMapCommand(listener: (command: MapCommand) => void): () => void {
+    commandListeners.add(listener);
+    return () => {
+        commandListeners.delete(listener);
+    };
+}

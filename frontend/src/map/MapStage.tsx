@@ -13,7 +13,7 @@ import { animateArcs, animateLegs, introSpin, startComets } from "./mapMotion";
 import { PALETTES } from "./mapStyle";
 import { createMarkerLayer } from "./markers";
 import { createSceneEngine } from "./sceneEngine";
-import { getScene, subscribeScene } from "./sceneStore";
+import { getScene, subscribeMapCommand, subscribeScene } from "./sceneStore";
 
 const CENTER: [number, number] = [-54.18, -24.93];
 
@@ -63,9 +63,15 @@ export default function MapStage({ visible }: { visible: boolean }) {
             map.on("style.load", reapply);
             engine.apply(getScene());
             const unsubscribe = subscribeScene(() => engine.apply(getScene()));
+            const stopCommands = subscribeMapCommand((command) => {
+                if (command === "zoomIn") map.zoomIn();
+                else if (command === "zoomOut") map.zoomOut();
+                else engine.fitAll();
+            });
             const stopTheme = observeTheme((theme) => void switchStyle(map, theme, reapply));
             cleanup = () => {
                 stopTheme();
+                stopCommands();
                 unsubscribe();
                 engine.destroy();
                 map.remove();

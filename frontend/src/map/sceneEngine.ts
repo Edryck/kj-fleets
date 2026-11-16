@@ -48,6 +48,7 @@ export interface EngineDeps {
 export interface SceneEngine {
     apply(entry: SceneEntry | null): void;
     reapplyAfterStyle(): void;
+    fitAll(): void;
     destroy(): void;
 }
 
@@ -61,12 +62,16 @@ const FIT_KINDS = new Set<SceneMarker["kind"]>([
     "vehicle",
 ]);
 
+function markerPoints(scene: MapScene): [number, number][] {
+    return scene.markers.filter((m) => FIT_KINDS.has(m.kind)).map((m) => [m.lat, m.lng]);
+}
+
 function fitPoints(scene: MapScene): [number, number][] {
     const camera = scene.camera;
     if (!camera?.fit) return [];
     if (camera.fit === "points") return camera.points ?? [];
     if (camera.fit === "legs") return (scene.legs ?? []).flatMap((leg) => leg.points);
-    return scene.markers.filter((m) => FIT_KINDS.has(m.kind)).map((m) => [m.lat, m.lng]);
+    return markerPoints(scene);
 }
 
 function cameraKey(camera: SceneCamera | undefined): string {
@@ -275,6 +280,14 @@ export function createSceneEngine(map: MapLibreMap, deps: EngineDeps): SceneEngi
             deps.layers.setLegs(map, legsOf(s));
             deps.layers.setArcs(map, arcsOf(s));
             deps.camera.applyTerrain(map, terrain);
+        },
+        fitAll() {
+            const s = scene();
+            if (!s) return;
+            const points = markerPoints(s);
+            if (points.length === 0) return;
+            if (s.camera?.follow) setFollowState("suspended");
+            deps.camera.flyToScene(map, points, { ...s.camera, fit: "markers" }, deps.reduce());
         },
         destroy() {
             stopOwner();

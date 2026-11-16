@@ -100,3 +100,39 @@ it("clears markers and data when the scene is removed", () => {
     expect(deps.markers.clear).toHaveBeenCalled();
     expect(deps.layers.setLegs).toHaveBeenLastCalledWith(expect.anything(), []);
 });
+
+it("fits every positioned marker on demand, ignoring the scene's own fit", () => {
+    const deps = makeDeps();
+    const engine = createSceneEngine(fakeMap(), deps);
+    engine.apply({
+        owner: Symbol("live"),
+        scene: {
+            markers: [
+                { id: "d1", lat: -24.8, lng: -54.3, kind: "driver" },
+                { id: "d2", lat: -25.1, lng: -54.1, kind: "driver" },
+                { id: "km", lat: -25.0, lng: -54.2, kind: "pill", pill: { text: "3 km" } },
+            ],
+            legs: [
+                {
+                    kind: "road",
+                    points: [
+                        [-24.9, -54.2],
+                        [-25.0, -54.25],
+                    ],
+                },
+            ],
+            camera: { fit: "legs", pitch: 0 },
+        },
+    });
+    deps.camera.flyToScene.mockClear();
+    engine.fitAll();
+    expect(deps.camera.flyToScene).toHaveBeenCalledWith(
+        expect.anything(),
+        [
+            [-24.8, -54.3],
+            [-25.1, -54.1],
+        ],
+        expect.objectContaining({ fit: "markers", pitch: 0 }),
+        false,
+    );
+});

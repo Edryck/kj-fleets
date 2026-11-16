@@ -383,6 +383,23 @@
     font-size: 13px;
 }
 
+.title-meta > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.title-notice {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: var(--radius-pill);
+    background: color-mix(in srgb, var(--color-warning) 20%, var(--color-solid-raised));
+    color: var(--color-warning);
+    font-weight: 600;
+}
+
 .title-actions {
     display: flex;
     flex-wrap: wrap;
