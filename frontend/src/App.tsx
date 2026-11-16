@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { RequireAuth, RequireRole } from "./auth/guards";
 import Toasts from "./components/Toasts";
+import GlassDefs from "./glass/GlassDefs";
 import Shell from "./layout/Shell";
 import Alerts from "./pages/Alerts";
 import Dashboard from "./pages/Dashboard";
@@ -83,6 +84,7 @@ export default function App() {
                 </Route>
             </Routes>
             <Toasts />
+            <GlassDefs />
         </>
     );
 }

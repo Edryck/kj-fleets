@@ -1,0 +1,29 @@
+.ambient {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 800ms ease;
+    background:
+        radial-gradient(1100px 700px at 80% 12%, var(--color-amb-a), transparent 62%),
+        radial-gradient(900px 640px at 8% 96%, var(--color-amb-b), transparent 60%), var(--color-bg);
+}
+
+.ambient.is-on {
+    opacity: 1;
+}
+
+.ambient svg {
+    position: absolute;
+    left: -10%;
+    top: -10%;
+    width: 120%;
+    height: 120%;
+}
+
+.ambient path {
+    fill: none;
+    stroke: var(--color-contour);
+    stroke-width: 1.1;
+}

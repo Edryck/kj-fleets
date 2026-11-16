@@ -10,7 +10,7 @@ import { usePeriod } from "../components/PeriodSelect";
 import RateValue from "../components/RateValue";
 import StatusBadge from "../components/StatusBadge";
 import { toast } from "../components/Toasts";
-import { ALERT_LABEL, alertKey, sortAlerts, subjectLink } from "./alerts";
+import { ALERT_LABEL, alertKey, sortAlerts, subjectLink } from "./alertCatalog";
 import { DashHeader, useDriverRowsLive } from "./dashboardParts";
 
 export function AlertRow({ alert }: { alert: Alert }) {

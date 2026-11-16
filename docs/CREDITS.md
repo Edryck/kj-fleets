@@ -34,6 +34,12 @@ Opcional: Chart.js (página estática do dashboard).
 
 No modo `road`, o grafo viário vem do extrato da região Sul do Brasil da [Geofabrik](https://download.geofabrik.de/south-america/brazil.html), baixado em runtime (fora do Git). Dados © contribuidores do [OpenStreetMap](https://www.openstreetmap.org/copyright), sob a [ODbL 1.0](https://opendatacommons.org/licenses/odbl/1-0/). Os testes usam um mapa sintético escrito à mão, sem atribuição necessária.
 
+## Mapa e imagens
+
+- **OpenFreeMap / OpenStreetMap:** o estilo vetorial `liberty` e os tiles do mapa do frontend vêm do [OpenFreeMap](https://openfreemap.org/). Dados © contribuidores do [OpenStreetMap](https://www.openstreetmap.org/copyright), sob a ODbL 1.0.
+- **Terrain Tiles da AWS (Mapzen):** o relevo 3D usa os tiles `terrarium` do [Terrain Tiles](https://registry.opendata.aws/terrain-tiles/), com a atribuição das fontes descrita em <https://github.com/tilezen/joerd/blob/master/docs/attribution.md>.
+- **Renders de veículos:** imagens próprias do caminhão e da van, geradas em Three.js com o estúdio em `docs/design/vehicle-studio.html`. Não vêm de banco de imagens.
+
 ## Design
 
 O estudo de telas segue regras de UI do projeto [antislop-ui / anti-slop](https://github.com/miqdadbadjuber/anti-slop) (miqdadbadjuber). Tipografia do estudo: IBM Plex (SIL Open Font License 1.1).

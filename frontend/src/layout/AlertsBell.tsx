@@ -6,7 +6,7 @@ import { request } from "../api/http";
 import type { Alerts, CustomerPanel } from "../api/types";
 import { formatAgo, formatMinutes } from "../components/format";
 import StatusBadge from "../components/StatusBadge";
-import { alertKey, sortAlerts, sumCounts } from "../pages/alerts";
+import { alertKey, sortAlerts, sumCounts } from "../pages/alertCatalog";
 
 function useDismiss(open: boolean, ref: RefObject<HTMLElement | null>, close: () => void) {
     useEffect(() => {

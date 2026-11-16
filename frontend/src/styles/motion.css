@@ -1,0 +1,81 @@
+@keyframes glass-in {
+    from {
+        opacity: 0;
+        transform: translateY(22px) scale(0.965);
+        filter: blur(10px);
+    }
+}
+
+@keyframes glass-out {
+    to {
+        opacity: 0;
+        transform: translateY(10px) scale(0.985);
+        filter: blur(6px);
+    }
+}
+
+@keyframes motion-rise {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+}
+
+@keyframes motion-grow {
+    from {
+        transform: scaleX(0);
+    }
+}
+
+@keyframes motion-pop {
+    from {
+        opacity: 0;
+        transform: scale(0.2);
+    }
+}
+
+@keyframes motion-drive {
+    from {
+        opacity: 0;
+        transform: translateX(46px);
+    }
+}
+
+[data-phase="entering"] .glass {
+    animation: glass-in 900ms var(--ease-spring) backwards;
+    animation-delay: calc(120ms + var(--i, 0) * 70ms);
+}
+
+[data-phase="leaving"] .glass {
+    animation: glass-out 220ms ease-in forwards;
+}
+
+.motion-rise {
+    animation: motion-rise 800ms var(--ease-spring) backwards;
+    animation-delay: calc(var(--i, 0) * 70ms);
+}
+
+.motion-grow {
+    transform-origin: left center;
+    animation: motion-grow 1.1s var(--ease-out) backwards;
+    animation-delay: calc(var(--i, 0) * 70ms);
+}
+
+.motion-pop {
+    animation: motion-pop 700ms var(--ease-spring-bouncy) backwards;
+    animation-delay: calc(var(--i, 0) * 28ms);
+}
+
+.motion-drive {
+    animation: motion-drive 1.2s var(--ease-spring) backwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    [data-phase] .glass,
+    .motion-rise,
+    .motion-grow,
+    .motion-pop,
+    .motion-drive {
+        animation: none !important;
+    }
+}

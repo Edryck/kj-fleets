@@ -22,7 +22,7 @@ import { formatAgo, formatMinutes, formatPercent } from "../components/format";
 import { usePeriod } from "../components/PeriodSelect";
 import RateValue from "../components/RateValue";
 import StatusBadge from "../components/StatusBadge";
-import { alertKey, sortAlerts } from "./alerts";
+import { alertKey, sortAlerts } from "./alertCatalog";
 import { AlertRow } from "./DispatchDashboard";
 import {
     DashHeader,

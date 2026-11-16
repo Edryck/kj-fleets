@@ -29,7 +29,7 @@ import { formatKm, formatMinutes, formatPercent } from "../components/format";
 import RateValue from "../components/RateValue";
 import StatusBadge from "../components/StatusBadge";
 import { usePeriod } from "../components/PeriodSelect";
-import { ALERT_LABEL } from "./alerts";
+import { ALERT_LABEL } from "./alertCatalog";
 import DispatchDashboard from "./DispatchDashboard";
 import FleetDashboard from "./FleetDashboard";
 import CustomerDashboard from "./CustomerDashboard";

@@ -48,7 +48,7 @@ export default function Toasts() {
                     <span>{t.text}</span>
                     <button
                         type="button"
-                        className="btn btn-ghost btn-icon"
+                        className="btn btn-ghost btn-icon btn-sm"
                         onClick={() => dismiss(t.id)}
                         aria-label="Fechar aviso"
                     >

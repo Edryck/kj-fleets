@@ -9,7 +9,7 @@ import { EmptyState, ErrorState, Skeleton } from "../components/blocks";
 import { formatAgo } from "../components/format";
 import GeneratedAt from "../components/GeneratedAt";
 import StatusBadge from "../components/StatusBadge";
-import { ALERT_LABEL, alertKey, sortAlerts, subjectLink, sumCounts } from "./alerts";
+import { ALERT_LABEL, alertKey, sortAlerts, subjectLink, sumCounts } from "./alertCatalog";
 
 const SEVERITIES: [Severity | "", string][] = [
     ["", "Todas"],

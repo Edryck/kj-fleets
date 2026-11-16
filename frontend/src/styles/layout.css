@@ -92,7 +92,7 @@
     top: 0;
     bottom: 0;
     width: 3px;
-    background: var(--color-brand-orange);
+    background: var(--color-primary);
 }
 .nav-item.active svg {
     color: var(--color-primary);
@@ -260,12 +260,11 @@
     overflow: hidden;
     background: var(--color-brand-graphite);
 }
-/* faixa diagonal do guia de marca: corte inclinado em laranja */
 .brand-panel::before {
     content: "";
     position: absolute;
     inset: 0;
-    background: var(--color-brand-orange);
+    background: var(--color-accent);
     clip-path: polygon(72% 0, 80% 0, 58% 100%, 50% 100%);
     opacity: 0.95;
 }

@@ -24,7 +24,7 @@ export function EmptyState({
     icon?: LucideIcon;
 }) {
     return (
-        <div className="state">
+        <div className="state state-ambient">
             <Icon size={28} aria-hidden="true" />
             <h3>{title}</h3>
             {description && <p>{description}</p>}
@@ -35,12 +35,12 @@ export function EmptyState({
 
 export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
     return (
-        <div className="state state-error" role="alert">
+        <div className="state state-ambient state-error" role="alert">
             <WifiOff size={28} aria-hidden="true" />
             <h3>Não foi possível carregar</h3>
             <p>{message}</p>
             {onRetry && (
-                <button type="button" className="btn btn-secondary" onClick={onRetry}>
+                <button type="button" className="btn btn-primary" onClick={onRetry}>
                     Tentar de novo
                 </button>
             )}
