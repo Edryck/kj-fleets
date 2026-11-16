@@ -25,3 +25,7 @@ frontend/dist/
 
 # Mapas e cache do grafo (nunca no Git)
 data/
+
+# Ferramentas locais de design e navegador
+.superpowers/
+.playwright-mcp/
