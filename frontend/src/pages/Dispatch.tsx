@@ -1,5 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Loader2, Send, TriangleAlert, XCircle } from "lucide-react";
+import {
+    ArrowUpRight,
+    Check,
+    CheckCircle2,
+    Clock,
+    Loader2,
+    Send,
+    TriangleAlert,
+    XCircle,
+} from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { messageFor } from "../api/errors";
@@ -8,32 +17,66 @@ import type {
     AssignmentAlgorithm,
     DispatchQueue,
     Driver,
+    InProgressItem,
+    OrderDetail,
     Page,
     PlanResponse,
+    QueueItem,
     Vehicle,
 } from "../api/types";
 import { EmptyState, ErrorState, Skeleton } from "../components/blocks";
-import { formatKm } from "../components/format";
+import { formatKm, formatMinutes } from "../components/format";
 import { ConfirmDialog } from "../components/overlays";
 import { toast } from "../components/Toasts";
+import Glass from "../glass/Glass";
+import { useTitleBlock } from "../layout/titleBlockContext";
+import type { Padding } from "../map/camera";
+import { useMapScene } from "../map/useMapScene";
+import MiniRoute from "../patterns/MiniRoute";
+import { dispatchScene, type DispatchDriver } from "./dispatchScene";
 import { comparePlans } from "./planComparison";
+import { useQueueOrders } from "./useQueueOrders";
 
 const ALGORITHMS: [AssignmentAlgorithm, string][] = [
     ["HUNGARIAN", "Húngaro"],
     ["GREEDY", "Guloso"],
 ];
 
+type Tab = "unassigned" | "assigned" | "inProgress";
+
+const TABS: [Tab, string][] = [
+    ["unassigned", "Sem motorista"],
+    ["assigned", "Atribuídos"],
+    ["inProgress", "Em andamento"],
+];
+
 type RowState = { state: "running" | "ok" | "error"; message?: string };
+
+function scenePadding(): Padding {
+    const width = typeof window === "undefined" ? 1440 : window.innerWidth;
+    const height = typeof window === "undefined" ? 900 : window.innerHeight;
+    if (width < 768) return { top: 330, bottom: Math.round(height * 0.36), left: 30, right: 30 };
+    if (width < 1280) return { top: 150, bottom: 230, left: 460, right: 60 };
+    return { top: 120, bottom: 210, left: 580, right: 90 };
+}
+
+function firstName(name: string): string {
+    return name.trim().split(/\s+/)[0] ?? name;
+}
 
 export default function Dispatch() {
     const client = useQueryClient();
+    const [tab, setTab] = useState<Tab>("unassigned");
     const [selected, setSelected] = useState<Set<string>>(new Set());
+    const [focused, setFocused] = useState<string | null>(null);
     const [algorithm, setAlgorithm] = useState<AssignmentAlgorithm>("HUNGARIAN");
     const [plan, setPlan] = useState<PlanResponse | null>(null);
     const [planError, setPlanError] = useState<string | null>(null);
     const [confirming, setConfirming] = useState(false);
     const [rows, setRows] = useState<Record<string, RowState>>({});
     const [dispatching, setDispatching] = useState(false);
+    const [padding] = useState(scenePadding);
+    const listRef = useRef<HTMLDivElement>(null);
 
     const queue = useQuery({
         queryKey: ["dashboard", "dispatch", "queue"],
@@ -47,6 +90,7 @@ export default function Dispatch() {
         queryKey: ["vehicles", "all"],
         queryFn: () => request<Page<Vehicle>>("GET", "/vehicles", undefined, { limit: 100 }),
     });
+    const details = useQueueOrders(queue.data);
 
     const driverName = useMemo(
         () => new Map(drivers.data?.items.map((d) => [d.publicId, d.name])),
@@ -56,7 +100,10 @@ export default function Dispatch() {
         () => new Map(vehicles.data?.items.map((v) => [v.publicId, v.plate])),
         [vehicles.data],
     );
-    // guarda os códigos já vistos: depois de aplicar/despachar o pedido sai da fila
+    const detailById = useMemo(
+        () => new Map(details.orders.map((o) => [o.publicId, o])),
+        [details.orders],
+    );
     const tracking = useRef(new Map<string, string>());
     for (const o of [
         ...(queue.data?.unassigned.items ?? []),
@@ -67,7 +114,15 @@ export default function Dispatch() {
     const label = (orderId: string) => tracking.current.get(orderId) ?? orderId;
 
     const unassigned = queue.data?.unassigned.items ?? [];
+    const assigned = queue.data?.assignedNotDispatched.items ?? [];
+    const inProgress = queue.data?.inProgress.items ?? [];
+    const staleIds = useMemo(
+        () => new Map(queue.data?.stale?.items.map((s) => [s.orderId, s.minutesInStage])),
+        [queue.data],
+    );
     const ids = useMemo(() => [...selected], [selected]);
+    const freeDrivers = drivers.data?.items.filter((d) => d.status === "AVAILABLE").length;
+    const freeVehicles = vehicles.data?.items.filter((v) => v.status === "AVAILABLE").length;
 
     const run = useMutation({
         mutationFn: (apply: boolean) =>
@@ -125,6 +180,79 @@ export default function Dispatch() {
         setPlan(null);
     };
 
+    const selectAll = () => {
+        setSelected(
+            selected.size === unassigned.length
+                ? new Set()
+                : new Set(unassigned.map((o) => o.orderId)),
+        );
+        setPlan(null);
+    };
+
+    const focusOrder = (id: string) => {
+        setFocused((current) => (current === id ? null : id));
+        const card = listRef.current?.querySelector<HTMLElement>(`[data-order="${id}"]`);
+        card?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    };
+
+    const sceneOrders = useMemo(() => {
+        const visible = new Set(
+            (tab === "unassigned" ? unassigned : tab === "assigned" ? assigned : []).map(
+                (o) => o.orderId,
+            ),
+        );
+        plan?.assignments.forEach((a) => visible.add(a.orderId));
+        return details.orders.filter((o) => visible.has(o.publicId));
+    }, [tab, unassigned, assigned, plan, details.orders]);
+
+    const sceneDrivers = useMemo<DispatchDriver[]>(
+        () =>
+            (drivers.data?.items ?? []).map((d) => ({
+                id: d.publicId,
+                name: d.name,
+                status: d.status,
+                lat: d.lat,
+                lng: d.lng,
+            })),
+        [drivers.data],
+    );
+
+    const scene = useMemo(
+        () =>
+            dispatchScene({
+                orders: sceneOrders,
+                staleIds,
+                drivers: sceneDrivers,
+                selectedOrderId: focused,
+                plan,
+                selection: selected,
+                padding,
+            }),
+        [sceneOrders, staleIds, sceneDrivers, focused, plan, selected, padding],
+    );
+
+    useMapScene(
+        queue.isSuccess
+            ? {
+                  ...scene,
+                  onMarkerClick: (id) => {
+                      if (detailById.has(id)) focusOrder(id);
+                  },
+              }
+            : null,
+    );
+
+    useTitleBlock({
+        title: "Central de despacho",
+        meta: queue.data ? (
+            <>
+                <span>{queue.data.unassigned.total} sem motorista</span>
+                <span>{queue.data.assignedNotDispatched.total} atribuídos</span>
+                <span>{queue.data.inProgress.total} em andamento</span>
+            </>
+        ) : undefined,
+    });
+
     const comparison = plan ? comparePlans(plan.comparison) : null;
     const maxKm = plan ? Math.max(...Object.values(plan.comparison), 0) : 0;
     const dispatched = plan
@@ -132,170 +260,209 @@ export default function Dispatch() {
         : 0;
     const pending = plan ? plan.assignments.length - dispatched : 0;
     const noDriver = plan && plan.assignments.length === 0 && plan.unassigned.length > 0;
+    const canApply = Boolean(plan && !plan.applied && plan.assignments.length > 0);
+    const canDispatch = Boolean(plan?.applied && plan.assignments.length > 0 && pending > 0);
 
     if (queue.isError) {
         const e = queue.error as ApiError;
         return (
-            <ErrorState message={messageFor(e.code, e.message)} onRetry={() => queue.refetch()} />
+            <div className="dispatch">
+                <Glass className="disp-floating">
+                    <ErrorState
+                        message={messageFor(e.code, e.message)}
+                        onRetry={() => queue.refetch()}
+                    />
+                </Glass>
+            </div>
         );
     }
 
-    return (
-        <div className="stack">
-            <header className="page-head">
-                <div>
-                    <h1>Despacho em lote</h1>
-                    <p className="page-sub">
-                        Simular não altera nenhum pedido. Só “Aplicar plano” grava as atribuições.
-                    </p>
-                </div>
-            </header>
+    const totals: Record<Tab, number | undefined> = {
+        unassigned: queue.data?.unassigned.total,
+        assigned: queue.data?.assignedNotDispatched.total,
+        inProgress: queue.data?.inProgress.total,
+    };
 
-            <div className="dispatch-grid">
-                <section className="card">
-                    <div className="card-head">
-                        <h2>Sem motorista</h2>
-                        <span className="caption">
-                            {queue.data ? queue.data.unassigned.total : "—"} na fila
-                        </span>
+    return (
+        <div className="dispatch">
+            <div className="disp-dots" aria-hidden="true" />
+
+            <div className="disp-command-wrap">
+                <Glass className="disp-command" role="toolbar" aria-label="Plano de despacho">
+                    <span className="micro">Algoritmo</span>
+                    <div className="segmented" role="group" aria-label="Algoritmo de atribuição">
+                        {ALGORITHMS.map(([value, text]) => (
+                            <button
+                                key={value}
+                                type="button"
+                                aria-pressed={algorithm === value}
+                                onClick={() => {
+                                    setAlgorithm(value);
+                                    setPlan(null);
+                                }}
+                            >
+                                {text}
+                            </button>
+                        ))}
                     </div>
+                    <span className="disp-free">
+                        <span>
+                            <b>{freeDrivers ?? "—"}</b> motoristas livres
+                        </span>
+                        <span>
+                            <b>{freeVehicles ?? "—"}</b> veículos livres
+                        </span>
+                    </span>
+                    <button
+                        type="button"
+                        className="btn btn-primary"
+                        disabled={run.isPending || unassigned.length === 0}
+                        onClick={() => run.mutate(false)}
+                    >
+                        {run.isPending && !confirming && (
+                            <Loader2 size={16} className="spin" aria-hidden="true" />
+                        )}
+                        Calcular plano
+                    </button>
+                </Glass>
+            </div>
+
+            <Glass as="section" className="disp-queue" aria-label="Fila de pedidos">
+                <div className="segmented disp-tabs" role="tablist" aria-label="Etapas da fila">
+                    {TABS.map(([value, text]) => (
+                        <button
+                            key={value}
+                            type="button"
+                            role="tab"
+                            id={`disp-tab-${value}`}
+                            aria-selected={tab === value}
+                            aria-controls="disp-panel"
+                            onClick={() => setTab(value)}
+                        >
+                            {text}
+                            <span className="disp-tab-num">{totals[value] ?? "—"}</span>
+                        </button>
+                    ))}
+                </div>
+
+                <div
+                    className="disp-list"
+                    id="disp-panel"
+                    role="tabpanel"
+                    aria-labelledby={`disp-tab-${tab}`}
+                    ref={listRef}
+                >
                     {!queue.data ? (
-                        <Skeleton height={160} />
-                    ) : unassigned.length === 0 ? (
-                        <EmptyState
-                            title="Nada para despachar"
-                            description="Todos os pedidos já têm motorista."
-                            action={
-                                <Link className="btn btn-secondary" to="/orders/new">
-                                    Novo pedido
-                                </Link>
-                            }
-                        />
+                        <>
+                            <Skeleton height={96} />
+                            <Skeleton height={96} />
+                            <Skeleton height={96} />
+                        </>
+                    ) : tab === "unassigned" ? (
+                        unassigned.length === 0 ? (
+                            <EmptyState
+                                title="Nada para despachar"
+                                description="Todos os pedidos já têm motorista."
+                                action={
+                                    <Link className="btn btn-secondary" to="/orders/new">
+                                        Novo pedido
+                                    </Link>
+                                }
+                            />
+                        ) : (
+                            <>
+                                <div className="disp-list-head">
+                                    <span className="caption">
+                                        {selected.size > 0
+                                            ? `${selected.size} de ${unassigned.length} selecionados`
+                                            : "Sem seleção, o plano considera todos"}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        className="btn btn-ghost btn-sm"
+                                        onClick={selectAll}
+                                    >
+                                        {selected.size === unassigned.length
+                                            ? "Limpar seleção"
+                                            : "Selecionar todos"}
+                                    </button>
+                                </div>
+                                {unassigned.map((o) => (
+                                    <OrderCard
+                                        key={o.orderId}
+                                        item={o}
+                                        detail={detailById.get(o.orderId)}
+                                        stale={staleIds.has(o.orderId)}
+                                        focused={focused === o.orderId}
+                                        onFocus={() => focusOrder(o.orderId)}
+                                        checked={selected.has(o.orderId)}
+                                        onCheck={() => toggle(o.orderId)}
+                                    />
+                                ))}
+                                <More
+                                    shown={unassigned.length}
+                                    total={queue.data.unassigned.total}
+                                />
+                            </>
+                        )
+                    ) : tab === "assigned" ? (
+                        assigned.length === 0 ? (
+                            <p className="disp-none">Nenhum pedido atribuído esperando despacho.</p>
+                        ) : (
+                            <>
+                                {assigned.map((o) => (
+                                    <OrderCard
+                                        key={o.orderId}
+                                        item={o}
+                                        detail={detailById.get(o.orderId)}
+                                        stale={staleIds.has(o.orderId)}
+                                        focused={focused === o.orderId}
+                                        onFocus={() => focusOrder(o.orderId)}
+                                    />
+                                ))}
+                                <More
+                                    shown={assigned.length}
+                                    total={queue.data.assignedNotDispatched.total}
+                                />
+                            </>
+                        )
+                    ) : inProgress.length === 0 ? (
+                        <p className="disp-none">Nenhum pedido em andamento.</p>
                     ) : (
                         <>
-                            <div className="table-scroll">
-                                <table className="table table-compact">
-                                    <thead>
-                                        <tr>
-                                            <th scope="col">
-                                                <input
-                                                    type="checkbox"
-                                                    className="check"
-                                                    aria-label="Selecionar todos"
-                                                    checked={selected.size === unassigned.length}
-                                                    onChange={(e) => {
-                                                        setSelected(
-                                                            e.target.checked
-                                                                ? new Set(
-                                                                      unassigned.map(
-                                                                          (o) => o.orderId,
-                                                                      ),
-                                                                  )
-                                                                : new Set(),
-                                                        );
-                                                        setPlan(null);
-                                                    }}
-                                                />
-                                            </th>
-                                            <th scope="col">Pedido</th>
-                                            <th scope="col">Trajeto</th>
-                                            <th scope="col" className="num">
-                                                Esperando
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {unassigned.map((o) => (
-                                            <tr key={o.orderId}>
-                                                <td>
-                                                    <input
-                                                        type="checkbox"
-                                                        className="check"
-                                                        aria-label={`Selecionar ${o.trackingNumber}`}
-                                                        checked={selected.has(o.orderId)}
-                                                        onChange={() => toggle(o.orderId)}
-                                                    />
-                                                </td>
-                                                <td>
-                                                    <Link
-                                                        className="table-link data"
-                                                        to={`/orders/${o.orderId}`}
-                                                    >
-                                                        {o.trackingNumber}
-                                                    </Link>
-                                                </td>
-                                                <td>
-                                                    <div className="route-cell">
-                                                        <span>{o.pickupName}</span>
-                                                        <span className="caption">
-                                                            para {o.dropoffName}
-                                                        </span>
-                                                    </div>
-                                                </td>
-                                                <td className="num">{o.minutesInStage} min</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                            {queue.data.unassigned.total > unassigned.length && (
-                                <p className="field-help">
-                                    Mostrando {unassigned.length} de {queue.data.unassigned.total}.
-                                </p>
-                            )}
+                            {inProgress.map((o) => (
+                                <ProgressCard key={o.orderId} item={o} />
+                            ))}
+                            <More shown={inProgress.length} total={queue.data.inProgress.total} />
                         </>
                     )}
-                </section>
+                </div>
+            </Glass>
 
-                <section className="card planner">
-                    <h2>Plano</h2>
-                    <div className="planner-controls">
-                        <div
-                            className="segmented"
-                            role="group"
-                            aria-label="Algoritmo de atribuição"
-                        >
-                            {ALGORITHMS.map(([value, text]) => (
-                                <button
-                                    key={value}
-                                    type="button"
-                                    aria-pressed={algorithm === value}
-                                    onClick={() => {
-                                        setAlgorithm(value);
-                                        setPlan(null);
-                                    }}
-                                >
-                                    {text}
-                                </button>
-                            ))}
-                        </div>
-                        <button
-                            type="button"
-                            className="btn btn-primary"
-                            disabled={run.isPending || unassigned.length === 0}
-                            onClick={() => run.mutate(false)}
-                        >
-                            {run.isPending && !confirming && (
-                                <Loader2 size={16} className="spin" aria-hidden="true" />
-                            )}
-                            Simular plano
-                        </button>
-                    </div>
-                    <p className="field-help">
-                        {selected.size > 0
-                            ? `${selected.size} pedido(s) selecionado(s).`
-                            : "Sem seleção, o plano considera todos os pedidos sem motorista."}
-                    </p>
+            <Glass as="section" className="disp-tray" aria-label="Plano">
+                <div className="disp-sel">
+                    <span className="micro">Seleção</span>
+                    <span className="disp-sel-num">
+                        {selected.size > 0 ? selected.size : (queue.data?.unassigned.total ?? 0)}
+                        <small>{selected.size > 0 ? "pedidos" : "pedidos · todos"}</small>
+                    </span>
+                </div>
 
+                <div className="disp-plan" aria-live="polite">
                     {planError && (
                         <p className="notice notice-danger" role="alert">
                             {planError}
                         </p>
                     )}
-
+                    {!plan && !planError && (
+                        <p className="disp-hint">
+                            Calcular não grava nada: mostra quem leva cada pedido e compara os
+                            algoritmos. Só “Aplicar plano” grava as atribuições.
+                        </p>
+                    )}
                     {plan && (
-                        <div className="plan-result">
-                            <div className="plan-head">
+                        <>
+                            <div className="disp-plan-head">
                                 <span
                                     className={`badge ${plan.applied ? "badge-success" : "badge-info"}`}
                                 >
@@ -306,60 +473,57 @@ export default function Dispatch() {
                                     )}
                                     {plan.applied ? "Aplicado" : "Simulado, nada foi gravado"}
                                 </span>
-                                <strong className="plan-total">{formatKm(plan.totalKm)}</strong>
+                                <span className="disp-total">Total {formatKm(plan.totalKm)}</span>
+                                {!noDriver && comparison?.summary && (
+                                    <span className="caption">{comparison.summary}</span>
+                                )}
                             </div>
-
                             {noDriver ? (
-                                <div className="notice notice-warning">
+                                <p className="notice notice-warning">
                                     Nenhum motorista elegível: é preciso estar Disponível, com
                                     posição recente e um veículo livre.{" "}
                                     <Link to="/map">Ver mapa ao vivo</Link>
-                                </div>
+                                </p>
                             ) : (
                                 <>
-                                    <div className="table-scroll">
-                                        <table className="table table-compact">
-                                            <thead>
-                                                <tr>
-                                                    <th scope="col">Pedido</th>
-                                                    <th scope="col">Motorista</th>
-                                                    <th scope="col">Veículo</th>
-                                                    <th scope="col" className="num">
-                                                        Distância
-                                                    </th>
-                                                    {plan.applied && <th scope="col">Despacho</th>}
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {plan.assignments.map((a) => {
-                                                    const row = rows[a.orderId];
-                                                    return (
-                                                        <tr key={a.orderId}>
-                                                            <td className="data">
-                                                                {label(a.orderId)}
-                                                            </td>
-                                                            <td>
-                                                                {driverName.get(a.driverId) ??
-                                                                    a.driverId}
-                                                            </td>
-                                                            <td className="data">
-                                                                {plate.get(a.vehicleId) ??
-                                                                    a.vehicleId}
-                                                            </td>
-                                                            <td className="num">
-                                                                {formatKm(a.km)}
-                                                            </td>
-                                                            {plan.applied && (
-                                                                <td>
-                                                                    <DispatchCell row={row} />
-                                                                </td>
-                                                            )}
-                                                        </tr>
-                                                    );
-                                                })}
-                                            </tbody>
-                                        </table>
+                                    <div className="disp-compare">
+                                        {ALGORITHMS.map(([value, text]) => {
+                                            const km = plan.comparison[value];
+                                            if (km == null) return null;
+                                            return (
+                                                <div key={value} className="disp-compare-row">
+                                                    <span>{text}</span>
+                                                    <span className="disp-track" aria-hidden="true">
+                                                        <i
+                                                            className={
+                                                                value === "GREEDY" ? "is-alt" : ""
+                                                            }
+                                                            style={{
+                                                                width: `${maxKm > 0 ? (km / maxKm) * 100 : 0}%`,
+                                                            }}
+                                                        />
+                                                    </span>
+                                                    <b>{formatKm(km)}</b>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
+                                    <ul className="disp-assign">
+                                        {plan.assignments.map((a) => (
+                                            <li key={a.orderId}>
+                                                <code>{label(a.orderId)}</code>→{" "}
+                                                {firstName(
+                                                    driverName.get(a.driverId) ?? a.driverId,
+                                                )}{" "}
+                                                ·{" "}
+                                                <code>{plate.get(a.vehicleId) ?? a.vehicleId}</code>{" "}
+                                                · {formatKm(a.km)}
+                                                {plan.applied && (
+                                                    <DispatchCell row={rows[a.orderId]} />
+                                                )}
+                                            </li>
+                                        ))}
+                                    </ul>
                                     {plan.unassigned.length > 0 && (
                                         <p className="notice notice-warning">
                                             <TriangleAlert size={14} aria-hidden="true" /> Sem par:{" "}
@@ -370,118 +534,39 @@ export default function Dispatch() {
                                     )}
                                 </>
                             )}
-
-                            {!noDriver && comparison?.summary && (
-                                <div className="compare">
-                                    <p className="compare-summary">{comparison.summary}</p>
-                                    {ALGORITHMS.map(([value, text]) => {
-                                        const km = plan.comparison[value];
-                                        if (km == null) return null;
-                                        return (
-                                            <div key={value} className="compare-row">
-                                                <span>{text}</span>
-                                                <span className="compare-track" aria-hidden="true">
-                                                    <span
-                                                        className={`compare-bar compare-${value.toLowerCase()}`}
-                                                        style={{
-                                                            width: `${maxKm > 0 ? (km / maxKm) * 100 : 0}%`,
-                                                        }}
-                                                    />
-                                                </span>
-                                                <span className="data">{formatKm(km)}</span>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-
-                            <div className="plan-actions">
-                                {!plan.applied && plan.assignments.length > 0 && (
-                                    <button
-                                        type="button"
-                                        className="btn btn-primary"
-                                        onClick={() => setConfirming(true)}
-                                    >
-                                        Aplicar plano
-                                    </button>
-                                )}
-                                {plan.applied && plan.assignments.length > 0 && pending > 0 && (
-                                    <button
-                                        type="button"
-                                        className="btn btn-primary"
-                                        disabled={dispatching}
-                                        onClick={() => void dispatchAll()}
-                                    >
-                                        {dispatching ? (
-                                            <Loader2
-                                                size={16}
-                                                className="spin"
-                                                aria-hidden="true"
-                                            />
-                                        ) : (
-                                            <Send size={16} aria-hidden="true" />
-                                        )}
-                                        {dispatched > 0 ? "Despachar pendentes" : "Despachar todos"}
-                                    </button>
-                                )}
-                                {plan.applied && dispatched > 0 && (
-                                    <span className="caption">
-                                        {dispatched} de {plan.assignments.length} despachados
-                                    </span>
-                                )}
-                            </div>
-                        </div>
+                        </>
                     )}
-                </section>
-            </div>
+                </div>
 
-            {queue.data &&
-                (queue.data.assignedNotDispatched.total > 0 || queue.data.inProgress.total > 0) && (
-                    <section className="card">
-                        <h2>Já em movimento</h2>
-                        <div className="queue-columns">
-                            <div>
-                                <h3>
-                                    Atribuídos, sem despacho (
-                                    {queue.data.assignedNotDispatched.total})
-                                </h3>
-                                <ul className="plain-list">
-                                    {queue.data.assignedNotDispatched.total === 0 && (
-                                        <li className="caption">Nenhum</li>
-                                    )}
-                                    {queue.data.assignedNotDispatched.items.map((o) => (
-                                        <li key={o.orderId}>
-                                            <Link className="data" to={`/orders/${o.orderId}`}>
-                                                {o.trackingNumber}
-                                            </Link>
-                                            <span className="caption">
-                                                {o.pickupName} para {o.dropoffName}
-                                            </span>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                            <div>
-                                <h3>Em andamento ({queue.data.inProgress.total})</h3>
-                                <ul className="plain-list">
-                                    {queue.data.inProgress.total === 0 && (
-                                        <li className="caption">Nenhum</li>
-                                    )}
-                                    {queue.data.inProgress.items.map((o) => (
-                                        <li key={o.orderId}>
-                                            <Link to={`/orders/${o.orderId}`}>
-                                                {o.driverName ?? "Sem motorista"}
-                                            </Link>
-                                            <span className="caption">
-                                                {o.stopsDone}/{o.stopsTotal} paradas
-                                            </span>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                        </div>
-                    </section>
-                )}
+                <div className="disp-actions">
+                    <button
+                        type="button"
+                        className="btn btn-secondary"
+                        disabled={!canApply}
+                        onClick={() => setConfirming(true)}
+                    >
+                        {plan?.applied ? "Plano aplicado" : "Aplicar plano"}
+                    </button>
+                    <button
+                        type="button"
+                        className="btn btn-primary"
+                        disabled={!canDispatch || dispatching}
+                        onClick={() => void dispatchAll()}
+                    >
+                        {dispatching ? (
+                            <Loader2 size={16} className="spin" aria-hidden="true" />
+                        ) : (
+                            <Send size={16} aria-hidden="true" />
+                        )}
+                        {dispatched > 0 ? "Despachar pendentes" : "Despachar todos"}
+                    </button>
+                    {plan?.applied && dispatched > 0 && (
+                        <span className="caption">
+                            {dispatched} de {plan.assignments.length} despachados
+                        </span>
+                    )}
+                </div>
+            </Glass>
 
             {confirming && (
                 <ConfirmDialog
@@ -497,24 +582,138 @@ export default function Dispatch() {
     );
 }
 
+function OrderCard({
+    item,
+    detail,
+    stale,
+    focused,
+    onFocus,
+    checked,
+    onCheck,
+}: {
+    item: QueueItem;
+    detail: OrderDetail | undefined;
+    stale: boolean;
+    focused: boolean;
+    onFocus: () => void;
+    checked?: boolean;
+    onCheck?: () => void;
+}) {
+    const selectable = onCheck !== undefined;
+    return (
+        <article
+            className={`ocard${checked ? " is-checked" : ""}${focused ? " is-focused" : ""}`}
+            data-order={item.orderId}
+        >
+            {selectable && (
+                <label className="ocard-check">
+                    <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={onCheck}
+                        aria-label={`Selecionar ${item.trackingNumber}`}
+                    />
+                    <span className="ocard-box" aria-hidden="true">
+                        {checked && <Check size={14} strokeWidth={3} />}
+                    </span>
+                </label>
+            )}
+            <button
+                type="button"
+                className="ocard-body"
+                aria-pressed={focused}
+                aria-label={`Ver ${item.trackingNumber} no mapa`}
+                onClick={onFocus}
+            >
+                <span className="ocard-head">
+                    <span className="ocard-code">{item.trackingNumber}</span>
+                    <span className={`ocard-age${stale ? " is-stale" : ""}`}>
+                        {stale ? (
+                            <TriangleAlert size={13} aria-hidden="true" />
+                        ) : (
+                            <Clock size={13} aria-hidden="true" />
+                        )}
+                        {stale
+                            ? `Parado · ${item.minutesInStage} min`
+                            : `${item.minutesInStage} min`}
+                    </span>
+                </span>
+                <MiniRoute
+                    pickup={item.pickupName}
+                    dropoff={item.dropoffName}
+                    waypoints={detail?.waypoints.length ?? 0}
+                />
+            </button>
+            <Link
+                className="ocard-open"
+                to={`/orders/${item.orderId}`}
+                aria-label={`Abrir pedido ${item.trackingNumber}`}
+            >
+                <ArrowUpRight size={15} aria-hidden="true" />
+            </Link>
+        </article>
+    );
+}
+
+function ProgressCard({ item }: { item: InProgressItem }) {
+    return (
+        <article className="ocard is-progress">
+            <div className="ocard-body">
+                <span className="ocard-head">
+                    <Link className="ocard-driver" to={`/orders/${item.orderId}`}>
+                        {item.driverName ?? "Sem motorista"}
+                    </Link>
+                    {item.etaMinutes != null && (
+                        <span className="ocard-age">
+                            <Clock size={13} aria-hidden="true" />
+                            ETA {formatMinutes(item.etaMinutes)}
+                        </span>
+                    )}
+                </span>
+                <span className="ocard-steps">
+                    <span className="ocard-bar" aria-hidden="true">
+                        <i
+                            style={{
+                                width: `${item.stopsTotal > 0 ? (item.stopsDone / item.stopsTotal) * 100 : 0}%`,
+                            }}
+                        />
+                    </span>
+                    <span className="caption">
+                        {item.stopsDone}/{item.stopsTotal} paradas
+                    </span>
+                </span>
+            </div>
+        </article>
+    );
+}
+
+function More({ shown, total }: { shown: number; total: number }) {
+    if (total <= shown) return null;
+    return (
+        <p className="disp-none">
+            Mostrando {shown} de {total}.
+        </p>
+    );
+}
+
 function DispatchCell({ row }: { row: RowState | undefined }) {
-    if (!row) return <span className="caption">Pendente</span>;
+    if (!row) return <span className="disp-row-state">Pendente</span>;
     if (row.state === "running")
         return (
-            <span className="caption">
-                <Loader2 size={14} className="spin" aria-hidden="true" /> Despachando
+            <span className="disp-row-state">
+                <Loader2 size={13} className="spin" aria-hidden="true" /> Despachando
             </span>
         );
     if (row.state === "ok")
         return (
-            <span className="badge badge-success">
-                <CheckCircle2 size={14} aria-hidden="true" />
+            <span className="disp-row-state is-ok">
+                <CheckCircle2 size={13} aria-hidden="true" />
                 Despachado
             </span>
         );
     return (
-        <span className="badge badge-danger" title={row.message}>
-            <XCircle size={14} aria-hidden="true" />
+        <span className="disp-row-state is-error" title={row.message}>
+            <XCircle size={13} aria-hidden="true" />
             {row.message}
         </span>
     );

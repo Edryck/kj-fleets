@@ -19,6 +19,7 @@ import "./styles/layout.css";
 import "./styles/orders.css";
 import "./styles/map.css";
 import "./styles/live-map.css";
+import "./styles/dispatch.css";
 import "./styles/dashboard.css";
 import "./styles/customer.css";
 import "./styles/catalogs.css";
