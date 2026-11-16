@@ -29,6 +29,8 @@ const COLOR_VARS = [
     "surface-raised",
     "text",
     "text-muted",
+    "text-subtle",
+    "accent",
 ] as const;
 export type ChartColors = Record<(typeof COLOR_VARS)[number], string>;
 

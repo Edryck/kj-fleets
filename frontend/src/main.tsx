@@ -21,6 +21,7 @@ import "./styles/map.css";
 import "./styles/live-map.css";
 import "./styles/dispatch.css";
 import "./styles/dashboard.css";
+import "./styles/dashboard-aerial.css";
 import "./styles/customer.css";
 import "./styles/catalogs.css";
 import App from "./App";

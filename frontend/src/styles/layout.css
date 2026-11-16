@@ -365,6 +365,22 @@
     letter-spacing: -0.025em;
 }
 
+.shell.is-immersive .stage,
+.shell.is-immersive .stage-content > * {
+    pointer-events: none;
+}
+
+.shell.is-immersive .stage .glass,
+.shell.is-immersive .stage a,
+.shell.is-immersive .stage button,
+.shell.is-immersive .stage input,
+.shell.is-immersive .stage select,
+.shell.is-immersive .stage textarea,
+.shell.is-immersive .stage label,
+.shell.is-immersive .stage .overlay {
+    pointer-events: auto;
+}
+
 .shell.is-immersive .title-block h1 {
     text-shadow: 0 2px 24px rgb(0 0 0 / 0.25);
 }

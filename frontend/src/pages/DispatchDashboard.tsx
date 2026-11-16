@@ -1,85 +1,79 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CircleCheck, Layers, Loader2, Package, Users, WifiOff } from "lucide-react";
-import { Link } from "react-router-dom";
+import { ArrowUpRight, Loader2, Send } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { messageFor } from "../api/errors";
 import { ApiError, request } from "../api/http";
-import type { Alert, DispatchPanel, DriverRow } from "../api/types";
-import { EmptyState, ErrorState, KpiCard, Skeleton } from "../components/blocks";
-import { formatAgo, formatMinutes } from "../components/format";
+import type { DispatchPanel } from "../api/types";
+import { ErrorState, Skeleton } from "../components/blocks";
+import { formatMinutes } from "../components/format";
+import GeneratedAt from "../components/GeneratedAt";
 import { usePeriod } from "../components/PeriodSelect";
-import RateValue from "../components/RateValue";
 import StatusBadge from "../components/StatusBadge";
 import { toast } from "../components/Toasts";
-import { ALERT_LABEL, alertKey, sortAlerts, subjectLink } from "./alertCatalog";
-import { DashHeader, useDriverRowsLive } from "./dashboardParts";
+import Glass from "../glass/Glass";
+import { useTitleBlock } from "../layout/titleBlockContext";
+import { useMapScene } from "../map/useMapScene";
+import DotMatrix from "../patterns/DotMatrix";
+import HeroNumber from "../patterns/HeroNumber";
+import {
+    AlertChips,
+    DashboardFrame,
+    DockPanel,
+    DriverList,
+    PanelHead,
+    StatGrid,
+    alertCountsOf,
+} from "./dashboard/DashboardFrame";
+import { dashboardScene } from "./dashboard/dashboardScene";
+import {
+    DashTitleActions,
+    StatCell,
+    dashboardPadding,
+    rateText,
+    useFramePoints,
+    useNow,
+} from "./dashboard/dashParts";
+import { DeltaHint, useDriverRowsLive } from "./dashboardParts";
 
-export function AlertRow({ alert }: { alert: Alert }) {
-    const link = subjectLink(alert);
-    return (
-        <li className="alert-row">
-            <StatusBadge kind="severity" value={alert.severity} />
-            <div className="alert-text">
-                <span>{alert.message}</span>
-                <span className="caption">
-                    {ALERT_LABEL[alert.type] ?? alert.type} · {formatAgo(alert.since)}
-                    {link && (
-                        <>
-                            {" · "}
-                            <Link className="table-link data" to={link}>
-                                {alert.subjectId}
-                            </Link>
-                        </>
-                    )}
-                </span>
-                {alert.suggestedAction && <span className="caption">{alert.suggestedAction}</span>}
-            </div>
-        </li>
-    );
-}
+const QUEUE_COLUMNS = [
+    {
+        key: "unassigned",
+        stage: "UNASSIGNED",
+        label: "Sem motorista",
+        color: "var(--color-warning)",
+        to: "/dispatch",
+    },
+    {
+        key: "assigned",
+        stage: "ASSIGNED",
+        label: "Atribuído",
+        color: "var(--color-text-muted)",
+        to: "/dispatch",
+    },
+    {
+        key: "inProgress",
+        stage: "IN_PROGRESS",
+        label: "Em andamento",
+        color: "var(--color-success)",
+        to: "/orders?active=true",
+    },
+] as const;
 
-export function DriverList({ rows }: { rows: DriverRow[] }) {
-    return (
-        <ul className="driver-list">
-            {rows.map((d) => (
-                <li key={d.driverId}>
-                    <div className="driver-main">
-                        <Link className="table-link" to={`/drivers/${d.driverId}`}>
-                            {d.name}
-                        </Link>
-                        <span className="caption">
-                            {d.vehiclePlate ? (
-                                <span className="data">{d.vehiclePlate}</span>
-                            ) : (
-                                "Sem veículo"
-                            )}
-                            {" · "}
-                            {d.lastSeenAt ? `visto ${formatAgo(d.lastSeenAt)}` : "nunca visto"}
-                        </span>
-                    </div>
-                    {d.pingStale ? (
-                        <span className="badge badge-offline">
-                            <WifiOff size={14} aria-hidden="true" />
-                            Sem sinal
-                        </span>
-                    ) : (
-                        <StatusBadge kind="driver" value={d.status} />
-                    )}
-                </li>
-            ))}
-        </ul>
-    );
-}
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 export default function DispatchDashboard() {
     const [period] = usePeriod();
     const client = useQueryClient();
-    const key = ["dashboard", "dispatch-panel", period];
+    const navigate = useNavigate();
+    const now = useNow(30_000);
+    const [padding] = useState(dashboardPadding);
+    const key = useMemo(() => ["dashboard", "dispatch-panel", period], [period]);
     const panel = useQuery({
         queryKey: key,
         queryFn: () => request<DispatchPanel>("GET", "/dashboard/dispatch", undefined, { period }),
     });
     useDriverRowsLive<DispatchPanel>(key, (d) => [d.availableDrivers]);
-
     const dispatch = useMutation({
         mutationFn: (orderId: string) =>
             request<unknown>("POST", `/orders/${orderId}/dispatch`, {}),
@@ -91,376 +85,257 @@ export default function DispatchDashboard() {
         onError: (e: ApiError) => toast.error(messageFor(e.code, e.message)),
     });
 
+    const drivers = useMemo(() => panel.data?.availableDrivers ?? [], [panel.data]);
+    const driverIds = useMemo(() => new Set(drivers.map((d) => d.driverId)), [drivers]);
+    const frame = useFramePoints(drivers);
+    const scene = useMemo(
+        () => dashboardScene({ drivers, now, padding, frame }),
+        [drivers, now, padding, frame],
+    );
+    useMapScene(
+        panel.isSuccess
+            ? {
+                  ...scene,
+                  onMarkerClick: (id) => {
+                      if (driverIds.has(id)) navigate(`/map?driver=${id}`);
+                  },
+              }
+            : null,
+    );
+
+    const p = panel.data;
+    useTitleBlock({
+        title: "Despacho agora",
+        meta: p ? (
+            <GeneratedAt
+                generatedAt={p.meta.generatedAt}
+                timezone={p.meta.timezone}
+                onRefresh={() => void panel.refetch()}
+            />
+        ) : undefined,
+        actions: <DashTitleActions />,
+    });
+
     if (panel.isError) {
         const e = panel.error as ApiError;
         return (
-            <ErrorState message={messageFor(e.code, e.message)} onRetry={() => panel.refetch()} />
+            <Glass className="live-floating">
+                <ErrorState
+                    message={messageFor(e.code, e.message)}
+                    onRetry={() => panel.refetch()}
+                />
+            </Glass>
         );
     }
 
-    const p = panel.data;
     const q = p?.queue;
-    const alerts = sortAlerts(p?.alerts ?? []);
+    const s = p?.summary;
+    const prev = s?.previous;
+    const stale = q?.stale?.items ?? [];
+    const staleByStage = stale.reduce<Record<string, number>>((acc, o) => {
+        acc[o.stage] = (acc[o.stage] ?? 0) + 1;
+        return acc;
+    }, {});
+    const assigned = q?.assignedNotDispatched.items ?? [];
 
-    return (
-        <div className="stack dash">
-            <DashHeader
-                title="Central de despacho"
-                sub="Filas, motoristas livres e alertas de quem opera."
-                generatedAt={p?.meta.generatedAt}
-                timezone={p?.meta.timezone}
-                onRefresh={() => void panel.refetch()}
-            >
-                <Link className="btn btn-primary" to="/dispatch">
-                    <Layers size={18} aria-hidden="true" />
-                    Abrir despacho em lote
-                </Link>
-            </DashHeader>
-
-            <div className="kpi-row">
-                {!p ? (
-                    Array.from({ length: 4 }, (_, i) => <Skeleton key={i} height={104} />)
-                ) : (
-                    <>
-                        <KpiCard
-                            label="Aguardando motorista"
-                            value={p.counts.waitingOrders}
-                            icon={Package}
-                            to="/dispatch"
-                        />
-                        <KpiCard
-                            label="Motoristas disponíveis"
-                            value={p.counts.availableDrivers}
-                            icon={Users}
-                            to="/drivers"
-                        />
-                        <KpiCard
-                            label="Pedidos no período"
-                            value={p.summary.created}
-                            icon={Package}
-                            to="/orders"
-                            hint={`${p.summary.completed} concluídos, ${p.summary.failed} falhos, ${p.summary.cancelled} cancelados`}
-                        />
-                        <KpiCard
-                            label="Taxa de sucesso"
-                            value={<RateValue value={p.summary.successRate} />}
-                            icon={CircleCheck}
-                        />
-                    </>
-                )}
+    const hero =
+        !p || !s ? (
+            <div className="dash-hero-loading">
+                <Skeleton height={14} width={180} />
+                <Skeleton height={128} width={220} />
+                <Skeleton height={120} width={420} />
             </div>
+        ) : (
+            <>
+                <HeroNumber
+                    label="Pedidos aguardando"
+                    value={p.counts.waitingOrders}
+                    caption={plural(
+                        p.counts.availableDrivers,
+                        "motorista disponível",
+                        "motoristas disponíveis",
+                    )}
+                />
+                <StatGrid>
+                    <StatCell
+                        label="Criados"
+                        value={s.created}
+                        delta={
+                            <DeltaHint
+                                current={s.created}
+                                previous={prev?.created}
+                                goodWhen="neutral"
+                            />
+                        }
+                    />
+                    <StatCell
+                        label="Concluídos"
+                        value={s.completed}
+                        delta={
+                            <DeltaHint
+                                current={s.completed}
+                                previous={prev?.completed}
+                                goodWhen="up"
+                            />
+                        }
+                    />
+                    <StatCell
+                        label={`Falhas · ${rateText(s.failureRate)}`}
+                        value={s.failed}
+                        delta={
+                            <DeltaHint current={s.failed} previous={prev?.failed} goodWhen="down" />
+                        }
+                        sub={`${s.cancelled} cancelados (${rateText(s.cancelRate)})`}
+                    />
+                    <StatCell
+                        label={`Taxa de sucesso · ${s.successRate.n}`}
+                        value={s.successRate.rate == null ? null : s.successRate.rate * 100}
+                        unit="%"
+                    />
+                    <StatCell label="Espera média" value={s.avgWaitMinutes} unit="min" />
+                    <StatCell label="Ciclo médio" value={s.avgCycleMinutes} unit="min" />
+                </StatGrid>
+            </>
+        );
 
-            <div className="dash-cols">
-                <div className="stack">
-                    <section className="card" aria-labelledby="q-unassigned">
-                        <div className="card-head">
-                            <h2 id="q-unassigned">Sem motorista</h2>
-                            <span className="caption">{q ? q.unassigned.total : "—"} na fila</span>
-                        </div>
-                        {!q ? (
-                            <Skeleton height={120} />
-                        ) : q.unassigned.items.length === 0 ? (
-                            <EmptyState title="Nada esperando motorista" />
-                        ) : (
-                            <div className="table-scroll scroll-box">
-                                <table className="table table-compact">
-                                    <thead>
-                                        <tr>
-                                            <th scope="col">Pedido</th>
-                                            <th scope="col">Trajeto</th>
-                                            <th scope="col" className="num">
-                                                Esperando
-                                            </th>
-                                            <th scope="col">
-                                                <span className="sr-only">Ação</span>
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {q.unassigned.items.map((o) => (
-                                            <tr key={o.orderId}>
-                                                <td>
-                                                    <Link
-                                                        className="table-link data"
-                                                        to={`/orders/${o.orderId}`}
-                                                    >
-                                                        {o.trackingNumber}
-                                                    </Link>
-                                                </td>
-                                                <td>
-                                                    <div className="route-cell">
-                                                        <span>{o.pickupName}</span>
-                                                        <span className="caption">
-                                                            para {o.dropoffName}
-                                                        </span>
-                                                    </div>
-                                                </td>
-                                                <td className="num">
-                                                    {formatMinutes(o.minutesInStage)}
-                                                </td>
-                                                <td className="num">
-                                                    <Link
-                                                        className="btn btn-secondary btn-sm"
-                                                        to={`/orders/${o.orderId}`}
-                                                    >
-                                                        Atribuir
-                                                    </Link>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-                    </section>
-
-                    <section className="card" aria-labelledby="q-assigned">
-                        <div className="card-head">
-                            <h2 id="q-assigned">Atribuídos sem despacho</h2>
-                            <span className="caption">
-                                {q ? q.assignedNotDispatched.total : "—"} na fila
-                            </span>
-                        </div>
-                        {!q ? (
-                            <Skeleton height={100} />
-                        ) : q.assignedNotDispatched.items.length === 0 ? (
-                            <EmptyState title="Tudo que foi atribuído já saiu" />
-                        ) : (
-                            <div className="table-scroll scroll-box">
-                                <table className="table table-compact">
-                                    <thead>
-                                        <tr>
-                                            <th scope="col">Pedido</th>
-                                            <th scope="col">Trajeto</th>
-                                            <th scope="col" className="num">
-                                                Esperando
-                                            </th>
-                                            <th scope="col">
-                                                <span className="sr-only">Ação</span>
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {q.assignedNotDispatched.items.map((o) => (
-                                            <tr key={o.orderId}>
-                                                <td>
-                                                    <Link
-                                                        className="table-link data"
-                                                        to={`/orders/${o.orderId}`}
-                                                    >
-                                                        {o.trackingNumber}
-                                                    </Link>
-                                                </td>
-                                                <td>
-                                                    <div className="route-cell">
-                                                        <span>{o.pickupName}</span>
-                                                        <span className="caption">
-                                                            para {o.dropoffName}
-                                                        </span>
-                                                    </div>
-                                                </td>
-                                                <td className="num">
-                                                    {formatMinutes(o.minutesInStage)}
-                                                </td>
-                                                <td className="num">
-                                                    <button
-                                                        type="button"
-                                                        className="btn btn-primary btn-sm"
-                                                        disabled={
-                                                            dispatch.isPending &&
-                                                            dispatch.variables === o.orderId
-                                                        }
-                                                        onClick={() => dispatch.mutate(o.orderId)}
-                                                    >
-                                                        {dispatch.isPending &&
-                                                            dispatch.variables === o.orderId && (
-                                                                <Loader2
-                                                                    size={14}
-                                                                    className="spin"
-                                                                    aria-hidden="true"
-                                                                />
-                                                            )}
-                                                        Despachar
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-                    </section>
-
-                    <section className="card" aria-labelledby="q-progress">
-                        <div className="card-head">
-                            <h2 id="q-progress">Em andamento</h2>
-                            <span className="caption">{q ? q.inProgress.total : "—"} pedidos</span>
-                        </div>
-                        {!q ? (
-                            <Skeleton height={100} />
-                        ) : q.inProgress.items.length === 0 ? (
-                            <EmptyState title="Nenhuma entrega em andamento" />
-                        ) : (
-                            <div className="table-scroll scroll-box">
-                                <table className="table table-compact">
-                                    <thead>
-                                        <tr>
-                                            <th scope="col">Pedido</th>
-                                            <th scope="col">Status</th>
-                                            <th scope="col">Motorista</th>
-                                            <th scope="col">Paradas</th>
-                                            <th scope="col" className="num">
-                                                ETA
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {q.inProgress.items.map((o) => (
-                                            <tr key={o.orderId}>
-                                                <td>
-                                                    <Link
-                                                        className="table-link data"
-                                                        to={`/orders/${o.orderId}`}
-                                                    >
-                                                        {o.orderId}
-                                                    </Link>
-                                                </td>
-                                                <td>
-                                                    <StatusBadge kind="order" value={o.status} />
-                                                </td>
-                                                <td>{o.driverName ?? "—"}</td>
-                                                <td>
-                                                    <div
-                                                        className="progress"
-                                                        title={`${o.stopsDone} de ${o.stopsTotal} paradas`}
-                                                    >
-                                                        <progress
-                                                            value={o.stopsDone}
-                                                            max={Math.max(o.stopsTotal, 1)}
-                                                        />
-                                                        <span className="caption data">
-                                                            {o.stopsDone}/{o.stopsTotal}
-                                                        </span>
-                                                    </div>
-                                                </td>
-                                                <td className="num">
-                                                    {formatMinutes(o.etaMinutes)}
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-                    </section>
-
-                    <section className="card" aria-labelledby="q-stale">
-                        <div className="card-head">
-                            <h2 id="q-stale">Parados</h2>
-                            <span className="caption">
-                                {q?.stale ? q.stale.total : "—"} acima do limite
-                            </span>
-                        </div>
-                        {!q ? (
-                            <Skeleton height={100} />
-                        ) : !q.stale || q.stale.items.length === 0 ? (
-                            <EmptyState icon={CircleCheck} title="Nada parado além do limite" />
-                        ) : (
-                            <div className="table-scroll scroll-box">
-                                <table className="table table-compact">
-                                    <thead>
-                                        <tr>
-                                            <th scope="col">Pedido</th>
-                                            <th scope="col">Etapa</th>
-                                            <th scope="col" className="num">
-                                                Tempo
-                                            </th>
-                                            <th scope="col" className="num">
-                                                Limite
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {q.stale.items.map((o) => {
-                                            const critical = o.minutesInStage > 2 * o.limitMin;
-                                            return (
-                                                <tr
-                                                    key={o.orderId}
-                                                    className={
-                                                        critical ? "row-critical" : undefined
-                                                    }
-                                                >
-                                                    <td>
-                                                        <Link
-                                                            className="table-link data"
-                                                            to={`/orders/${o.orderId}`}
-                                                        >
-                                                            {o.trackingNumber}
-                                                        </Link>
-                                                    </td>
-                                                    <td>
-                                                        <StatusBadge
-                                                            kind="funnel"
-                                                            value={o.stage}
-                                                        />
-                                                    </td>
-                                                    <td className="num">
-                                                        {critical && (
-                                                            <span className="sr-only">
-                                                                Muito acima do limite:{" "}
-                                                            </span>
-                                                        )}
-                                                        {formatMinutes(o.minutesInStage)}
-                                                    </td>
-                                                    <td className="num">
-                                                        {formatMinutes(o.limitMin)}
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-                    </section>
-                </div>
-
-                <div className="stack">
-                    <section className="card" aria-labelledby="free-drivers">
-                        <div className="card-head">
-                            <h2 id="free-drivers">Motoristas livres</h2>
-                            <span className="caption">{p ? p.availableDrivers.length : "—"}</span>
-                        </div>
-                        {!p ? (
-                            <Skeleton height={120} />
-                        ) : p.availableDrivers.length === 0 ? (
-                            <EmptyState icon={Users} title="Nenhum motorista livre" />
-                        ) : (
-                            <DriverList rows={p.availableDrivers} />
-                        )}
-                    </section>
-
-                    <section className="card" aria-labelledby="op-alerts">
-                        <div className="card-head">
-                            <h2 id="op-alerts">Alertas</h2>
-                            <Link to="/alerts" className="table-link">
-                                Ver todos
-                            </Link>
-                        </div>
-                        {!p ? (
-                            <Skeleton height={100} />
-                        ) : alerts.length === 0 ? (
-                            <EmptyState icon={CircleCheck} title="Nenhum alerta agora" />
-                        ) : (
-                            <ul className="alert-list">
-                                {alerts.map((a, i) => (
-                                    <AlertRow key={alertKey(a, i)} alert={a} />
-                                ))}
-                            </ul>
-                        )}
-                    </section>
-                </div>
-            </div>
-        </div>
+    const right = (
+        <>
+            <PanelHead
+                title="Motoristas livres"
+                aside={
+                    <Link className="dash-link" to="/map">
+                        Mapa ao vivo <ArrowUpRight size={14} aria-hidden="true" />
+                    </Link>
+                }
+            />
+            {!p ? (
+                <Skeleton height={160} />
+            ) : (
+                <DriverList rows={drivers} now={now} empty="Nenhum motorista livre agora." />
+            )}
+            {p && <AlertChips counts={alertCountsOf(p.alerts)} />}
+        </>
     );
+
+    const dock = (
+        <>
+            <DockPanel
+                title="Fila agora"
+                aside={
+                    <Link className="dash-link" to="/dispatch">
+                        Abrir despacho <ArrowUpRight size={14} aria-hidden="true" />
+                    </Link>
+                }
+            >
+                {!q ? (
+                    <Skeleton height={150} />
+                ) : (
+                    <DotMatrix
+                        unit={{ one: "pedido", many: "pedidos" }}
+                        columns={QUEUE_COLUMNS.map((c) => ({
+                            key: c.key,
+                            label: c.label,
+                            count:
+                                c.key === "unassigned"
+                                    ? q.unassigned.total
+                                    : c.key === "assigned"
+                                      ? q.assignedNotDispatched.total
+                                      : q.inProgress.total,
+                            stale: staleByStage[c.stage] ?? 0,
+                            color: c.color,
+                            to: c.to,
+                        }))}
+                    />
+                )}
+            </DockPanel>
+            <DockPanel
+                title="Prontos para sair"
+                aside={
+                    q && <span className="micro">{q.assignedNotDispatched.total} atribuídos</span>
+                }
+            >
+                {!q ? (
+                    <Skeleton height={120} />
+                ) : assigned.length === 0 ? (
+                    <p className="dash-empty">Tudo que foi atribuído já saiu.</p>
+                ) : (
+                    <ul className="dash-olist">
+                        {assigned.map((o) => {
+                            const busy = dispatch.isPending && dispatch.variables === o.orderId;
+                            return (
+                                <li key={o.orderId} className="dash-orow">
+                                    <Link className="dash-orow-main" to={`/orders/${o.orderId}`}>
+                                        <b className="data">{o.trackingNumber}</b>
+                                        <small>
+                                            {o.pickupName} → {o.dropoffName} ·{" "}
+                                            {formatMinutes(o.minutesInStage)}
+                                        </small>
+                                    </Link>
+                                    <button
+                                        type="button"
+                                        className="btn btn-primary btn-sm"
+                                        disabled={busy}
+                                        onClick={() => dispatch.mutate(o.orderId)}
+                                    >
+                                        {busy ? (
+                                            <Loader2
+                                                size={14}
+                                                className="spin"
+                                                aria-hidden="true"
+                                            />
+                                        ) : (
+                                            <Send size={14} aria-hidden="true" />
+                                        )}
+                                        Despachar
+                                    </button>
+                                </li>
+                            );
+                        })}
+                    </ul>
+                )}
+            </DockPanel>
+            <DockPanel
+                title="Parados"
+                aside={q && <span className="micro">{q.stale?.total ?? 0} acima do limite</span>}
+            >
+                {!q ? (
+                    <Skeleton height={120} />
+                ) : stale.length === 0 ? (
+                    <p className="dash-empty">Nada parado além do limite.</p>
+                ) : (
+                    <ul className="dash-olist">
+                        {stale.map((o) => {
+                            const critical = o.minutesInStage > 2 * o.limitMin;
+                            return (
+                                <li key={o.orderId}>
+                                    <Link
+                                        className={`dash-orow dash-orow-link${critical ? " is-critical" : ""}`}
+                                        to={`/orders/${o.orderId}`}
+                                    >
+                                        <span className="dash-orow-main">
+                                            <b className="data">{o.trackingNumber}</b>
+                                            <small>
+                                                <StatusBadge kind="funnel" value={o.stage} />
+                                            </small>
+                                        </span>
+                                        <span className="dash-orow-time">
+                                            {critical && (
+                                                <span className="sr-only">
+                                                    Muito acima do limite:{" "}
+                                                </span>
+                                            )}
+                                            <b>{formatMinutes(o.minutesInStage)}</b>
+                                            <small>limite {formatMinutes(o.limitMin)}</small>
+                                        </span>
+                                    </Link>
+                                </li>
+                            );
+                        })}
+                    </ul>
+                )}
+            </DockPanel>
+        </>
+    );
+
+    return <DashboardFrame hero={hero} right={right} dock={dock} />;
 }
