@@ -647,7 +647,7 @@ O `SidePanel` substitui o drawer opaco no detalhe, na criação e na edição de
 | Pedidos | Mesa de pedidos | Contagens por status no segmento do filtro | `MiniRoute` nas linhas; `SidePanel` com status grande e `StopTimeline` |
 | Novo pedido | A rota sendo montada | O próprio formulário de paradas é uma `StopTimeline` que cresce a cada parada adicionada | `GlassMapFrame` com os pontos aparecendo conforme são preenchidos |
 | Simulador de rota | Laboratório de rota (§7.7) | km otimizado em `HeroNumber` contra `baselineKm` | Desenho progressivo da rota; comparação em barras |
-| Motoristas | Equipe | Contagens por status | Linhas com avatar, status, veículo atual com render lateral pequeno (tipo vindo da lista de veículos com `limit=100`, como o Despacho já faz) e último sinal; `SidePanel` com avatar grande, nome, status, `VehicleCard` e mini mapa da última posição |
+| Motoristas | Equipe | Contagens por status | Linhas com avatar, status, veículo atual com render lateral pequeno (tipo vindo de `Driver.vehicle.type`, que a lista de motoristas já devolve) e último sinal; `SidePanel` com avatar grande, nome, status, `VehicleCard` e mini mapa da última posição |
 | Detalhe do motorista | Perfil do motorista | Nome e status grandes | `VehicleCard`; `GlassMapFrame` com a última posição; pedidos recentes com `MiniRoute`; números de desempenho em peso 200, quando o perfil tem acesso |
 | Frotas | Grupos da operação | Total de motoristas por frota | Cartões de vidro com barra empilhada por status e avatares sobrepostos; `SidePanel` com membros |
 | Detalhe da frota | A frota no território | Nome e contagem | `GlassMapFrame` com os motoristas da frota; lista de membros com status |
