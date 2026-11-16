@@ -1,7 +1,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import Sidebar from "../layout/Sidebar";
+import Rail from "../layout/Rail";
 import { RequireAuth, RequireRole } from "./guards";
 import { resetSessionForTests, startSession } from "./session";
 import type { Role } from "../api/types";
@@ -66,12 +66,17 @@ function Where({ onRender }: { onRender: (search: string) => void }) {
     return null;
 }
 
-describe("sidebar", () => {
+describe("menu lateral", () => {
     const itemsFor = (role: Role) => {
         login(role);
         render(
             <MemoryRouter>
-                <Sidebar collapsed={false} onToggle={() => {}} />
+                <Rail
+                    open={false}
+                    onOpenChange={() => {}}
+                    mobileOpen={false}
+                    onMobileClose={() => {}}
+                />
             </MemoryRouter>,
         );
         return screen.queryAllByRole("link").map((a) => a.textContent);

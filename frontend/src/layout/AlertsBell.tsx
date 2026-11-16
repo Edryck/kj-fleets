@@ -6,6 +6,7 @@ import { request } from "../api/http";
 import type { Alerts, CustomerPanel } from "../api/types";
 import { formatAgo, formatMinutes } from "../components/format";
 import StatusBadge from "../components/StatusBadge";
+import Glass from "../glass/Glass";
 import { alertKey, sortAlerts, sumCounts } from "../pages/alertCatalog";
 
 function useDismiss(open: boolean, ref: RefObject<HTMLElement | null>, close: () => void) {
@@ -27,8 +28,6 @@ function useDismiss(open: boolean, ref: RefObject<HTMLElement | null>, close: ()
         };
     }, [open, ref, close]);
 }
-
-// sem push de alertas: 60 s + eventos de pedido (o shell invalida "dashboard")
 export default function AlertsBell() {
     const [open, setOpen] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
@@ -49,9 +48,12 @@ export default function AlertsBell() {
 
     return (
         <div className="bell" ref={ref}>
-            <button
+            <Glass
+                as="button"
+                variant="clear"
+                press
                 type="button"
-                className="btn btn-ghost btn-icon"
+                className="round"
                 aria-haspopup="true"
                 aria-expanded={open}
                 aria-label={total > 0 ? `Alertas, ${total} ativos` : "Alertas"}
@@ -59,7 +61,7 @@ export default function AlertsBell() {
             >
                 <Bell size={20} aria-hidden="true" />
                 {total > 0 && <span className="bell-badge">{total}</span>}
-            </button>
+            </Glass>
             {open && (
                 <div className="popover bell-popover">
                     {alerts.isError ? (
@@ -88,8 +90,6 @@ export default function AlertsBell() {
         </div>
     );
 }
-
-// cliente: o que precisa de atenção vem do próprio painel (FAILED ou parado)
 export function CustomerBell() {
     const [open, setOpen] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
@@ -108,9 +108,12 @@ export function CustomerBell() {
 
     return (
         <div className="bell" ref={ref}>
-            <button
+            <Glass
+                as="button"
+                variant="clear"
+                press
                 type="button"
-                className="btn btn-ghost btn-icon"
+                className="round"
                 aria-haspopup="true"
                 aria-expanded={open}
                 aria-label={items.length > 0 ? `Avisos, ${items.length} pedidos` : "Avisos"}
@@ -118,7 +121,7 @@ export function CustomerBell() {
             >
                 <Bell size={20} aria-hidden="true" />
                 {items.length > 0 && <span className="bell-badge">{items.length}</span>}
-            </button>
+            </Glass>
             {open && (
                 <div className="popover bell-popover">
                     {items.length === 0 ? (

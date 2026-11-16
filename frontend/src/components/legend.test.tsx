@@ -47,4 +47,23 @@ describe("legenda do mapa", () => {
         expect(legsFromStops(stops, false).map((l) => l.kind)).toEqual(["estimated", "road"]);
         expect(legsFromStops(stops, true).map((l) => l.kind)).toEqual(["straight", "road"]);
     });
+
+    it("labels the original-order layer and plan arcs", () => {
+        render(
+            <MapLegend
+                legs={[
+                    {
+                        kind: "original",
+                        points: [
+                            [0, 0],
+                            [1, 1],
+                        ],
+                    },
+                ]}
+                arcs
+            />,
+        );
+        expect(screen.getByText("Ordem original (linha reta)")).toBeInTheDocument();
+        expect(screen.getByText("Atribuição do plano")).toBeInTheDocument();
+    });
 });

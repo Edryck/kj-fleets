@@ -426,40 +426,14 @@
 .legend-estimated {
     border-top-color: var(--color-warning);
 }
-.map-marker {
-    display: grid;
-    place-items: center;
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
-    border: 2px solid var(--color-surface);
-    background: var(--color-info);
-    color: var(--color-on-primary);
-    font-size: 0.75rem;
-    font-weight: 700;
+.legend-original {
+    border-top-width: 2px;
+    border-top-color: color-mix(in srgb, var(--color-text-subtle) 45%, transparent);
 }
-.map-marker-pickup {
-    background: var(--color-primary);
+.legend-arcs {
+    border-top-width: 2px;
+    border-top-color: color-mix(in srgb, var(--color-accent) 80%, transparent);
 }
-.map-marker-dropoff {
-    background: var(--color-success);
-    border-radius: 6px;
-}
-.map-marker-driver {
-    background: var(--color-text);
-    width: 18px;
-    height: 18px;
-    outline: 3px solid var(--color-primary);
-}
-.map-marker-start {
-    background: var(--color-offline);
-    width: 14px;
-    height: 14px;
-}
-.map-marker.is-dimmed {
-    opacity: 0.45;
-}
-
 @media (max-width: 1100px) {
     .new-order,
     .order-grid {

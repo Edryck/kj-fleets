@@ -1,8 +1,7 @@
-export type LegKind = "road" | "estimated" | "straight";
+export type LegKind = "road" | "estimated" | "straight" | "original";
 
 export interface MapLeg {
     kind: LegKind;
-    // [lat, lng], como a API devolve
     points: [number, number][];
 }
 
@@ -16,9 +15,9 @@ export const LEG_LABEL: Record<LegKind, string> = {
     road: "Rota pelas ruas",
     estimated: "Trecho estimado",
     straight: "Linha reta entre paradas",
+    original: "Ordem original (linha reta)",
 };
 
-// path vem na parada de chegada: é a perna que sai da parada anterior
 export function legsFromStops(stops: LegStop[], straightMode: boolean): MapLeg[] {
     const legs: MapLeg[] = [];
     for (let i = 1; i < stops.length; i++) {
@@ -39,11 +38,11 @@ export function legsFromStops(stops: LegStop[], straightMode: boolean): MapLeg[]
     return legs;
 }
 
-export function MapLegend({ legs }: { legs: MapLeg[] }) {
+export function MapLegend({ legs, arcs = false }: { legs: MapLeg[]; arcs?: boolean }) {
     const kinds = (Object.keys(LEG_LABEL) as LegKind[]).filter((k) =>
         legs.some((l) => l.kind === k),
     );
-    if (kinds.length === 0) return null;
+    if (kinds.length === 0 && !arcs) return null;
     return (
         <ul className="map-legend" aria-label="Legenda do mapa">
             {kinds.map((k) => (
@@ -52,6 +51,12 @@ export function MapLegend({ legs }: { legs: MapLeg[] }) {
                     {LEG_LABEL[k]}
                 </li>
             ))}
+            {arcs && (
+                <li>
+                    <span className="legend-swatch legend-arcs" aria-hidden="true" />
+                    Atribuição do plano
+                </li>
+            )}
         </ul>
     );
 }

@@ -1,29 +1,31 @@
+import { Menu } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Outlet } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { useSession } from "../auth/session";
+import Wordmark from "../components/Wordmark";
+import Glass from "../glass/Glass";
+import { isImmersive } from "../map/immersive";
+import MapStage from "../map/MapStage";
 import { connect, disconnect } from "../realtime/stomp";
 import { useOrderEventsInvalidation, useReloadOnReconnect } from "../realtime/useTopic";
-import Sidebar from "./Sidebar";
-import TopBar from "./TopBar";
-
-const COLLAPSE_KEY = "kjfleets.sidebarCollapsed";
-
-function readCollapsed(): boolean {
-    try {
-        return localStorage.getItem(COLLAPSE_KEY) === "1";
-    } catch {
-        return false;
-    }
-}
+import AmbientBackground from "./AmbientBackground";
+import PageTransition from "./PageTransition";
+import Rail from "./Rail";
+import ShellControls from "./ShellControls";
+import TitleBlock from "./TitleBlock";
+import { createTitleBlockStore, TitleBlockContext } from "./titleBlockContext";
 
 export default function Shell() {
-    const [collapsed, setCollapsed] = useState(readCollapsed);
+    const [railOpen, setRailOpen] = useState(false);
     const [mobileOpen, setMobileOpen] = useState(false);
+    const [titles] = useState(createTitleBlockStore);
+    const { pathname } = useLocation();
     const session = useSession();
     const token = session?.token;
-    const isStaff = session?.role !== "CUSTOMER";
+    const role = session?.role;
+    const isStaff = role !== undefined && role !== "CUSTOMER";
+    const immersive = role ? isImmersive(pathname, role) : false;
 
-    // uma conexão STOMP por sessão; sair do shell (logout) fecha o socket
     useEffect(() => {
         if (!token) return;
         connect(token);
@@ -32,32 +34,37 @@ export default function Shell() {
     useReloadOnReconnect();
     useOrderEventsInvalidation(isStaff);
 
-    const toggle = () => {
-        setCollapsed((c) => {
-            try {
-                localStorage.setItem(COLLAPSE_KEY, c ? "0" : "1");
-            } catch {
-                // sem storage a preferência vale só nesta carga
-            }
-            return !c;
-        });
-    };
-
     return (
-        <div className={`shell${collapsed ? " is-collapsed" : ""}`}>
-            <Sidebar
-                collapsed={collapsed}
-                onToggle={toggle}
-                mobileOpen={mobileOpen}
-                onNavigate={() => setMobileOpen(false)}
-            />
-            {mobileOpen && <div className="shell-scrim" onClick={() => setMobileOpen(false)} />}
-            <div className="shell-main">
-                <TopBar onMenu={() => setMobileOpen(true)} />
-                <main className="content">
-                    <Outlet />
-                </main>
+        <TitleBlockContext.Provider value={titles}>
+            <div className={`shell${immersive ? " is-immersive" : ""}`}>
+                <AmbientBackground visible={!immersive} />
+                {isStaff && <MapStage visible={immersive} />}
+                <Rail
+                    open={railOpen}
+                    onOpenChange={setRailOpen}
+                    mobileOpen={mobileOpen}
+                    onMobileClose={() => setMobileOpen(false)}
+                />
+                <div className="shell-mobile-bar">
+                    <Glass
+                        as="button"
+                        variant="clear"
+                        press
+                        type="button"
+                        className="round"
+                        onClick={() => setMobileOpen(true)}
+                        aria-label="Abrir menu"
+                    >
+                        <Menu size={20} aria-hidden="true" />
+                    </Glass>
+                    <Wordmark />
+                </div>
+                <ShellControls />
+                <div className="stage">
+                    <TitleBlock />
+                    <PageTransition />
+                </div>
             </div>
-        </div>
+        </TitleBlockContext.Provider>
     );
 }
