@@ -1,11 +1,10 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import NewOrder, { MAX_WAYPOINTS } from "./NewOrder";
 
-// o MapLibre precisa de WebGL, que o jsdom não tem
 vi.mock("../components/MapView", () => ({ default: () => null }));
 vi.mock("../auth/session", () => ({ useSession: () => ({ role: "CUSTOMER" }) }));
 
@@ -19,7 +18,6 @@ function renderForm() {
             </MemoryRouter>
         </QueryClientProvider>,
     );
-    // cliente começa em "Meu endereço"; os testes de validação usam o formulário de ponto novo
     for (const b of screen.getAllByRole("button", { name: "Novo ponto" })) fireEvent.click(b);
 }
 
@@ -50,6 +48,38 @@ describe("novo pedido", () => {
         await userEvent.type(qty, "0");
         await userEvent.click(screen.getByRole("button", { name: "Criar pedido" }));
         expect(await screen.findByText("Quantidade mínima: 1")).toBeTruthy();
+    });
+
+    it("grows the stop timeline as stops are added", async () => {
+        renderForm();
+        const list = screen.getByRole("list", { name: "Paradas" });
+        const before = within(list).getAllByRole("listitem").length;
+        await userEvent.click(screen.getByRole("button", { name: /Adicionar parada/ }));
+        expect(within(list).getAllByRole("listitem")).toHaveLength(before + 1);
+    });
+
+    it("keeps pickup first and dropoff last in the stop timeline", async () => {
+        renderForm();
+        await userEvent.click(screen.getByRole("button", { name: /Adicionar parada/ }));
+        const items = within(screen.getByRole("list", { name: "Paradas" })).getAllByRole(
+            "listitem",
+        );
+        expect(items.map((item) => item.querySelector("legend")?.textContent)).toEqual([
+            "Retirada",
+            "Parada 1",
+            "Entrega",
+        ]);
+    });
+
+    it("marks a stop as on the map once its coordinates are valid", async () => {
+        renderForm();
+        const [pickup] = within(screen.getByRole("list", { name: "Paradas" })).getAllByRole(
+            "listitem",
+        );
+        expect(within(pickup).getByText("sem localização")).toBeInTheDocument();
+        await userEvent.type(within(pickup).getByLabelText("Latitude"), "-24.7");
+        await userEvent.type(within(pickup).getByLabelText("Longitude"), "-53.7");
+        expect(within(pickup).getByText("no mapa")).toBeInTheDocument();
     });
 
     it("bloqueia a 51ª parada", () => {

@@ -1,6 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDown, ArrowLeft, ArrowUp, Crosshair, Loader2, Plus, Trash2, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import {
+    ArrowDown,
+    ArrowLeft,
+    ArrowUp,
+    ChevronDown,
+    Crosshair,
+    Loader2,
+    Plus,
+    Trash2,
+    X,
+} from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useFieldArray, useForm, useFormContext, FormProvider } from "react-hook-form";
 import { Link, useNavigate } from "react-router-dom";
 import { messageFor } from "../api/errors";
@@ -14,8 +24,12 @@ import type {
     PointRequest,
 } from "../api/types";
 import { useSession } from "../auth/session";
-import MapView, { type MapMarker } from "../components/MapView";
+import { type MapMarker } from "../components/MapView";
 import { toast } from "../components/Toasts";
+import Glass from "../glass/Glass";
+import { useMediaQuery } from "../hooks/useMediaQuery";
+import { useTitleBlock } from "../layout/titleBlockContext";
+import GlassMapFrame from "../patterns/GlassMapFrame";
 
 export const MAX_WAYPOINTS = 50;
 export const MAX_ITEMS = 100;
@@ -78,7 +92,7 @@ function PointFields({
     placesPath: string;
     picking: boolean;
     onPick: () => void;
-    extra?: React.ReactNode;
+    extra?: ReactNode;
 }) {
     const { register, watch, setValue, formState } = useFormContext<FormValues>();
     const point = watch(path);
@@ -93,7 +107,6 @@ function PointFields({
         return () => clearTimeout(timer);
     }, [search]);
 
-    // só busca depois do primeiro foco: com 50 paradas, não dispara 50 requisições na tela
     const places = useQuery({
         queryKey: [placesPath, debounced],
         queryFn: () =>
@@ -254,6 +267,35 @@ function PointFields({
     );
 }
 
+function RouteStep({
+    kind,
+    label,
+    placed,
+    last = false,
+    children,
+}: {
+    kind: "pickup" | "waypoint" | "dropoff";
+    label: string;
+    placed: boolean;
+    last?: boolean;
+    children: ReactNode;
+}) {
+    const state = placed ? "done" : "todo";
+    return (
+        <li className={`stop-timeline-item route-step is-${state}${last ? " is-last" : ""}`}>
+            <span className="stop-timeline-node" aria-hidden="true">
+                <span className={`stop-timeline-orb is-${state} is-${kind}`}>
+                    <span>{label}</span>
+                </span>
+            </span>
+            <div className="route-step-body">
+                <span className="sr-only">{placed ? "no mapa" : "sem localização"}</span>
+                {children}
+            </div>
+        </li>
+    );
+}
+
 export default function NewOrder() {
     const navigate = useNavigate();
     const client = useQueryClient();
@@ -340,7 +382,6 @@ export default function NewOrder() {
         mutationFn: (body: CreateOrderRequest) => request<OrderDetail>("POST", "/orders", body),
         onSuccess: (order) => {
             toast.success("Pedido criado.");
-            // ponto novo digitado vira endereço do cliente
             if (isCustomer) void client.invalidateQueries({ queryKey: ["/customer/places"] });
             navigate(`/orders/${order.publicId}`);
         },
@@ -383,138 +424,158 @@ export default function NewOrder() {
         onPick: () => setPicking(picking === path ? null : path),
     });
 
+    const placed = new Set(markers.map((m) => m.id));
+    const totalPoints = 2 + waypoints.fields.length;
+    const narrow = useMediaQuery("(max-width: 1023px)");
+    const [previewOpen, setPreviewOpen] = useState(false);
+    const preview = useRef<HTMLElement>(null);
+    const showMap = !narrow || previewOpen || picking !== null;
+
+    useEffect(() => {
+        if (!picking || !narrow) return;
+        preview.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, [picking, narrow]);
+
+    useTitleBlock({
+        title: "Novo pedido",
+        meta: "Informe retirada, entrega e carga. As paradas seguem a ordem da lista.",
+        actions: (
+            <Link className="btn btn-secondary" to="/orders">
+                <ArrowLeft size={16} aria-hidden="true" />
+                Voltar
+            </Link>
+        ),
+    });
+
+    const stopTools = (index: number) => (
+        <div className="point-tools">
+            <button
+                type="button"
+                className="btn btn-ghost btn-icon btn-sm"
+                aria-label={`Subir parada ${index + 1}`}
+                disabled={index === 0}
+                onClick={() => waypoints.move(index, index - 1)}
+            >
+                <ArrowUp size={16} aria-hidden="true" />
+            </button>
+            <button
+                type="button"
+                className="btn btn-ghost btn-icon btn-sm"
+                aria-label={`Descer parada ${index + 1}`}
+                disabled={index === waypoints.fields.length - 1}
+                onClick={() => waypoints.move(index, index + 1)}
+            >
+                <ArrowDown size={16} aria-hidden="true" />
+            </button>
+            <button
+                type="button"
+                className="btn btn-ghost btn-icon btn-sm"
+                aria-label={`Remover parada ${index + 1}`}
+                onClick={() => waypoints.remove(index)}
+            >
+                <Trash2 size={16} aria-hidden="true" />
+            </button>
+        </div>
+    );
+
     return (
-        <div className="stack">
-            <header className="page-head">
-                <div>
-                    <h1>Novo pedido</h1>
-                    <p className="page-sub">
-                        Informe retirada, entrega e carga. As paradas seguem a ordem da lista.
-                    </p>
-                </div>
-                <Link className="btn btn-secondary" to="/orders">
-                    <ArrowLeft size={16} aria-hidden="true" />
-                    Voltar
-                </Link>
-            </header>
+        <FormProvider {...form}>
+            <form onSubmit={handleSubmit(onSubmit)} noValidate className="new-order">
+                <div className="no-sections">
+                    {formState.errors.root && (
+                        <p className="notice notice-danger" role="alert">
+                            {formState.errors.root.message}
+                        </p>
+                    )}
 
-            <div className="new-order">
-                <FormProvider {...form}>
-                    <form onSubmit={handleSubmit(onSubmit)} noValidate className="stack">
-                        {formState.errors.root && (
-                            <p className="notice notice-danger" role="alert">
-                                {formState.errors.root.message}
+                    {!isCustomer && (
+                        <Glass as="section" className="no-section">
+                            <h2>Cliente</h2>
+                            <p className="field-help">
+                                Opcional. Deixe em branco para um pedido sem cliente.
                             </p>
-                        )}
+                            <div className="field-row">
+                                <input
+                                    value={customerSearch}
+                                    onChange={(e) => setCustomerSearch(e.target.value)}
+                                    placeholder="Buscar por nome ou e-mail"
+                                    aria-label="Buscar cliente"
+                                />
+                                <select aria-label="Cliente" {...register("customerId")}>
+                                    <option value="">Sem cliente</option>
+                                    {customers.data?.items.map((c) => (
+                                        <option key={c.publicId} value={c.publicId}>
+                                            {c.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        </Glass>
+                    )}
 
-                        {!isCustomer && (
-                            <section className="card">
-                                <h2>Cliente</h2>
-                                <p className="field-help">
-                                    Opcional. Deixe em branco para um pedido sem cliente.
-                                </p>
-                                <div className="field-row">
-                                    <input
-                                        value={customerSearch}
-                                        onChange={(e) => setCustomerSearch(e.target.value)}
-                                        placeholder="Buscar por nome ou e-mail"
-                                        aria-label="Buscar cliente"
-                                    />
-                                    <select aria-label="Cliente" {...register("customerId")}>
-                                        <option value="">Sem cliente</option>
-                                        {customers.data?.items.map((c) => (
-                                            <option key={c.publicId} value={c.publicId}>
-                                                {c.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </section>
-                        )}
-
-                        <section className="card">
-                            <h2>Retirada e entrega</h2>
-                            <div className="stack">
+                    <Glass as="section" className="no-section no-route">
+                        <div className="no-section-head">
+                            <h2>Rota</h2>
+                            <span className="micro">
+                                {placed.size} de {totalPoints} no mapa
+                            </span>
+                        </div>
+                        <ol className="stop-timeline route-builder" aria-label="Paradas">
+                            <RouteStep kind="pickup" label="R" placed={placed.has("pickup")}>
                                 <PointFields {...pickProps("pickup")} label="Retirada" />
-                                <PointFields {...pickProps("dropoff")} label="Entrega" />
-                            </div>
-                        </section>
-
-                        <section className="card">
-                            <div className="card-head">
-                                <h2>Paradas intermediárias</h2>
-                                <span className="caption">
-                                    {waypoints.fields.length}/{MAX_WAYPOINTS}
-                                </span>
-                            </div>
-                            {waypoints.fields.length === 0 && (
-                                <p className="field-help">
-                                    Nenhuma parada. Adicione se o pedido passar por outros pontos.
-                                </p>
-                            )}
-                            <div className="stack">
-                                {waypoints.fields.map((field, index) => (
+                            </RouteStep>
+                            {waypoints.fields.map((field, index) => (
+                                <RouteStep
+                                    key={field.id}
+                                    kind="waypoint"
+                                    label={String(index + 1)}
+                                    placed={placed.has(`w${index}`)}
+                                >
                                     <PointFields
-                                        key={field.id}
                                         {...pickProps(`waypoints.${index}`)}
                                         label={`Parada ${index + 1}`}
-                                        extra={
-                                            <div className="point-tools">
-                                                <button
-                                                    type="button"
-                                                    className="btn btn-ghost btn-icon"
-                                                    aria-label={`Subir parada ${index + 1}`}
-                                                    disabled={index === 0}
-                                                    onClick={() => waypoints.move(index, index - 1)}
-                                                >
-                                                    <ArrowUp size={16} aria-hidden="true" />
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    className="btn btn-ghost btn-icon"
-                                                    aria-label={`Descer parada ${index + 1}`}
-                                                    disabled={index === waypoints.fields.length - 1}
-                                                    onClick={() => waypoints.move(index, index + 1)}
-                                                >
-                                                    <ArrowDown size={16} aria-hidden="true" />
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    className="btn btn-ghost btn-icon"
-                                                    aria-label={`Remover parada ${index + 1}`}
-                                                    onClick={() => waypoints.remove(index)}
-                                                >
-                                                    <Trash2 size={16} aria-hidden="true" />
-                                                </button>
-                                            </div>
-                                        }
+                                        extra={stopTools(index)}
                                     />
-                                ))}
-                            </div>
-                            <button
-                                type="button"
-                                className="btn btn-secondary add-row"
-                                disabled={waypoints.fields.length >= MAX_WAYPOINTS}
-                                onClick={() => waypoints.append(emptyPoint("manual"))}
-                            >
-                                <Plus size={16} aria-hidden="true" />
-                                Adicionar parada
-                            </button>
-                            {waypoints.fields.length >= MAX_WAYPOINTS && (
-                                <p className="field-help">
-                                    Limite de {MAX_WAYPOINTS} paradas atingido.
-                                </p>
-                            )}
-                        </section>
-
-                        <section className="card">
-                            <div className="card-head">
-                                <h2>Itens da carga</h2>
-                                <span className="caption">
-                                    {items.fields.length}/{MAX_ITEMS}
+                                </RouteStep>
+                            ))}
+                            <li className="route-builder-add" role="none">
+                                <span className="route-builder-add-node" aria-hidden="true">
+                                    <Plus size={13} strokeWidth={2.5} />
                                 </span>
-                            </div>
-                            <div className="stack-sm">
+                                <div>
+                                    <button
+                                        type="button"
+                                        className="btn btn-secondary btn-sm"
+                                        disabled={waypoints.fields.length >= MAX_WAYPOINTS}
+                                        onClick={() => waypoints.append(emptyPoint("manual"))}
+                                    >
+                                        Adicionar parada
+                                    </button>
+                                    <span className="caption">
+                                        {waypoints.fields.length}/{MAX_WAYPOINTS}
+                                    </span>
+                                    {waypoints.fields.length >= MAX_WAYPOINTS && (
+                                        <p className="field-help">
+                                            Limite de {MAX_WAYPOINTS} paradas atingido.
+                                        </p>
+                                    )}
+                                </div>
+                            </li>
+                            <RouteStep kind="dropoff" label="E" placed={placed.has("dropoff")} last>
+                                <PointFields {...pickProps("dropoff")} label="Entrega" />
+                            </RouteStep>
+                        </ol>
+                    </Glass>
+
+                    <Glass as="section" className="no-section">
+                        <div className="no-section-head">
+                            <h2>Itens da carga</h2>
+                            <span className="micro">
+                                {items.fields.length}/{MAX_ITEMS}
+                            </span>
+                        </div>
+                        {items.fields.length > 0 && (
+                            <div className="no-items">
                                 {items.fields.map((field, index) => {
                                     const err = formState.errors.items?.[index];
                                     return (
@@ -565,90 +626,97 @@ export default function NewOrder() {
                                     );
                                 })}
                             </div>
-                            <button
-                                type="button"
-                                className="btn btn-secondary add-row"
-                                disabled={items.fields.length >= MAX_ITEMS}
-                                onClick={() => items.append({ name: "", quantity: 1 })}
-                            >
-                                <Plus size={16} aria-hidden="true" />
-                                Adicionar item
-                            </button>
-                        </section>
+                        )}
+                        <button
+                            type="button"
+                            className="btn btn-secondary btn-sm add-row"
+                            disabled={items.fields.length >= MAX_ITEMS}
+                            onClick={() => items.append({ name: "", quantity: 1 })}
+                        >
+                            <Plus size={16} aria-hidden="true" />
+                            Adicionar item
+                        </button>
+                    </Glass>
 
-                        <section className="card">
-                            <h2>Opções</h2>
-                            <label className="inline-field switch-row">
-                                <input
-                                    type="checkbox"
-                                    className="check"
-                                    {...register("podRequired")}
-                                />
-                                Exigir prova de entrega
-                            </label>
-                            <div className="field">
-                                <label htmlFor="notes">Observações</label>
-                                <textarea
-                                    id="notes"
-                                    rows={3}
-                                    aria-invalid={!!formState.errors.notes}
-                                    {...register("notes", {
-                                        maxLength: {
-                                            value: 500,
-                                            message: "No máximo 500 caracteres",
-                                        },
-                                    })}
-                                />
-                                <div className="notes-foot">
-                                    {formState.errors.notes ? (
-                                        <p className="field-error">
-                                            {formState.errors.notes.message}
-                                        </p>
-                                    ) : (
-                                        <span />
-                                    )}
-                                    <span className="caption">{notesLength}/500</span>
-                                </div>
-                            </div>
-                        </section>
-
-                        <div className="form-actions">
-                            <Link className="btn btn-secondary" to="/orders">
-                                Cancelar
-                            </Link>
-                            <button
-                                type="submit"
-                                className="btn btn-primary"
-                                disabled={create.isPending}
-                            >
-                                {create.isPending && (
-                                    <Loader2 size={16} className="spin" aria-hidden="true" />
+                    <Glass as="section" className="no-section">
+                        <h2>Opções</h2>
+                        <label className="filter-toggle no-pod">
+                            <input type="checkbox" className="check" {...register("podRequired")} />
+                            Exigir prova de entrega
+                        </label>
+                        <div className="field">
+                            <label htmlFor="notes">Observações</label>
+                            <textarea
+                                id="notes"
+                                rows={3}
+                                aria-invalid={!!formState.errors.notes}
+                                {...register("notes", {
+                                    maxLength: {
+                                        value: 500,
+                                        message: "No máximo 500 caracteres",
+                                    },
+                                })}
+                            />
+                            <div className="notes-foot">
+                                {formState.errors.notes ? (
+                                    <p className="field-error">{formState.errors.notes.message}</p>
+                                ) : (
+                                    <span />
                                 )}
-                                Criar pedido
-                            </button>
+                                <span className="caption">{notesLength}/500</span>
+                            </div>
                         </div>
-                    </form>
-                </FormProvider>
+                    </Glass>
+                </div>
 
-                <aside className="new-order-map card">
-                    <h2>Pré-visualização</h2>
+                <aside
+                    ref={preview}
+                    className={`no-preview${showMap ? " is-open" : ""}`}
+                    aria-label="Pré-visualização"
+                >
+                    <div className="no-preview-head">
+                        <span className="micro">Pré-visualização</span>
+                        <button
+                            type="button"
+                            className="btn btn-ghost btn-sm no-preview-toggle"
+                            aria-expanded={showMap}
+                            onClick={() => setPreviewOpen((open) => !open)}
+                        >
+                            {showMap ? "Ocultar mapa" : "Mostrar mapa"}
+                            <ChevronDown size={14} aria-hidden="true" />
+                        </button>
+                    </div>
+                    {showMap && (
+                        <GlassMapFrame
+                            markers={markers}
+                            line
+                            onPick={picking ? handlePick : undefined}
+                            pickHint={
+                                picking
+                                    ? `Clique no mapa para definir latitude e longitude: ${pickLabel}`
+                                    : undefined
+                            }
+                        />
+                    )}
                     <p className="field-help">
                         {markers.length === 0
                             ? "Os pontos com latitude e longitude aparecem aqui."
                             : "Retirada (R), paradas numeradas e entrega (E)."}
                     </p>
-                    <MapView
-                        markers={markers}
-                        line
-                        onPick={picking ? handlePick : undefined}
-                        pickHint={
-                            picking
-                                ? `Clique no mapa para definir latitude e longitude: ${pickLabel}`
-                                : undefined
-                        }
-                    />
                 </aside>
-            </div>
-        </div>
+
+                <div className="form-actions">
+                    <Link className="btn btn-secondary" to="/orders">
+                        Cancelar
+                    </Link>
+                    <button type="submit" className="btn btn-primary" disabled={create.isPending}>
+                        {create.isPending && (
+                            <Loader2 size={16} className="spin" aria-hidden="true" />
+                        )}
+                        Criar pedido
+                    </button>
+                </div>
+            </form>
+        </FormProvider>
     );
 }

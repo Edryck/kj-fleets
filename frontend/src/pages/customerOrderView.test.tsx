@@ -1,8 +1,11 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { OrderDetail as Order, OrderStatus } from "../api/types";
+import { setReducedMotion } from "../test/motion";
+import { lastSceneOrNull, resetScenes } from "../test/sceneMock";
+import { WithTitleBlock } from "../test/titleBlock";
 import OrderDetail from "./OrderDetail";
 
 const { request } = vi.hoisted(() => ({ request: vi.fn() }));
@@ -11,8 +14,18 @@ vi.mock("../api/http", () => ({
     ApiError: class extends Error {},
 }));
 vi.mock("../components/MapView", () => ({ default: () => <div>mapa</div> }));
-vi.mock("../realtime/useTopic", () => ({ useTopic: () => undefined }));
+vi.mock("../realtime/useTopic", () => ({
+    useTopic: () => undefined,
+    useTopics: () => undefined,
+    useConnectionState: () => "connected",
+}));
+vi.mock("../map/useMapScene", () => import("../test/sceneMock"));
 vi.mock("../auth/session", () => ({ useSession: () => ({ role: "CUSTOMER" }) }));
+
+beforeEach(() => {
+    setReducedMotion(true);
+    resetScenes();
+});
 
 afterEach(() => {
     cleanup();
@@ -62,9 +75,11 @@ function mount(status: OrderStatus, etaMinutes: number | null) {
     render(
         <QueryClientProvider client={new QueryClient()}>
             <MemoryRouter initialEntries={["/orders/o1"]}>
-                <Routes>
-                    <Route path="/orders/:id" element={<OrderDetail />} />
-                </Routes>
+                <WithTitleBlock>
+                    <Routes>
+                        <Route path="/orders/:id" element={<OrderDetail />} />
+                    </Routes>
+                </WithTitleBlock>
             </MemoryRouter>
         </QueryClientProvider>,
     );
@@ -93,11 +108,37 @@ describe("pedido na visão do cliente", () => {
 
     it("mostra a previsão só com o motorista em movimento", async () => {
         mount("IN_PROGRESS", 12);
-        expect(await screen.findByText("12min")).toBeTruthy();
+        expect(await screen.findByText("Chegada estimada")).toBeTruthy();
+        expect(screen.getByText("12")).toBeTruthy();
         cleanup();
         mount("CREATED", 12);
         await screen.findByText("KJ-0001");
         await waitFor(() => expect(request).toHaveBeenCalled());
-        expect(screen.queryByText("12min")).toBeNull();
+        expect(screen.queryByText("Chegada estimada")).toBeNull();
+    });
+
+    it("leads with the API ETA and never shows internal data", async () => {
+        mount("IN_PROGRESS", 38);
+        expect(await screen.findByText("Chegada estimada")).toBeInTheDocument();
+        expect(screen.getByText("38")).toBeInTheDocument();
+        expect(screen.queryByText(/km/)).toBeNull();
+        expect(screen.queryByText(/Placa|Veículo/)).toBeNull();
+        expect(lastSceneOrNull()).toBeNull();
+    });
+
+    it("lists the stops in a timeline", async () => {
+        mount("DISPATCHED", null);
+        const stops = await screen.findByRole("list", { name: "Paradas" });
+        expect(stops.querySelectorAll("li")).toHaveLength(2);
+        expect(screen.getByText("Origem")).toBeInTheDocument();
+        expect(screen.getByText("Destino")).toBeInTheDocument();
+    });
+
+    it("marks the pickup as done once the order is out for delivery", async () => {
+        mount("IN_PROGRESS", 20);
+        const stops = await screen.findByRole("list", { name: "Paradas" });
+        const [pickup, dropoff] = Array.from(stops.querySelectorAll("li"));
+        expect(pickup.textContent).toContain("concluída");
+        expect(dropoff.textContent).toContain("pendente");
     });
 });

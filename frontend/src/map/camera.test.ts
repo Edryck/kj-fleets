@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import type { MapLeg } from "../components/RouteLegs";
-import { applyTerrain, flyToScene, followBearing, headingOf, type CameraMap } from "./camera";
+import {
+    applyTerrain,
+    flyToScene,
+    followBearing,
+    followTo,
+    headingOf,
+    type CameraMap,
+} from "./camera";
 
 function fakeMap() {
     const calls: string[] = [];
@@ -39,6 +46,20 @@ describe("camera", () => {
         expect(followBearing([0.002, 0], legs, 2)).toBeCloseTo(90, 0);
         expect(followBearing([0, 0], legs, 1)).toBeCloseTo(0, 0);
         expect(followBearing([0, 0], [], 3)).toBeNull();
+    });
+
+    it("follows the vehicle inside the panel insets", () => {
+        const { map } = fakeMap();
+        const insets = { top: 40, bottom: 160, left: 480, right: 380 };
+        const follow = { markerId: "vehicle", zoom: 15.4, pitch: 68 };
+        followTo(map as unknown as CameraMap, [-24.9, -54.2], [], follow, true, false, insets);
+        expect(map.flyTo).toHaveBeenCalledWith(
+            expect.objectContaining({ zoom: 15.4, pitch: 68, padding: insets, duration: 3400 }),
+        );
+        followTo(map as unknown as CameraMap, [-24.91, -54.2], [], follow, false, false, insets);
+        expect(map.easeTo).toHaveBeenCalledWith(
+            expect.objectContaining({ padding: insets, duration: 800 }),
+        );
     });
 
     it("stops and resets padding before fitting", () => {

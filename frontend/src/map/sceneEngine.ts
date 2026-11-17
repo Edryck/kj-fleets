@@ -1,6 +1,6 @@
 import type { Map as MapLibreMap, MapMouseEvent } from "maplibre-gl";
 import type { MapLeg } from "../components/RouteLegs";
-import type { CameraMap, SceneCamera } from "./camera";
+import { ZERO, type CameraMap, type Padding, type SceneCamera } from "./camera";
 import type { SceneArc } from "./mapLayers";
 import type { MarkerLayer, SceneMarker } from "./markers";
 import {
@@ -40,6 +40,7 @@ export interface EngineDeps {
             follow: NonNullable<SceneCamera["follow"]>,
             first: boolean,
             reduce: boolean,
+            padding?: Padding,
         ): void;
     };
     reduce: () => boolean;
@@ -95,6 +96,7 @@ export function createSceneEngine(map: MapLibreMap, deps: EngineDeps): SceneEngi
     let legsAnimated = false;
     let arrived = false;
     let followKey = "";
+    let stopArrival = () => {};
 
     const scene = () => current?.scene;
     const legsOf = (s: MapScene | undefined) => s?.legs ?? [];
@@ -118,6 +120,7 @@ export function createSceneEngine(map: MapLibreMap, deps: EngineDeps): SceneEngi
             config,
             first,
             deps.reduce(),
+            s.camera?.padding ?? ZERO,
         );
     };
 
@@ -145,6 +148,8 @@ export function createSceneEngine(map: MapLibreMap, deps: EngineDeps): SceneEngi
         stopComets = () => {};
         arcsToken++;
         legsAnimated = false;
+        stopArrival();
+        stopArrival = () => {};
         arrived = false;
         followKey = "";
     };
@@ -199,16 +204,25 @@ export function createSceneEngine(map: MapLibreMap, deps: EngineDeps): SceneEngi
             if (isNewOwner) arrive();
             return;
         }
+        if (arrived && followed(s) && getFollowState() === "following") {
+            follow(followKey === "");
+            return;
+        }
         const reduce = deps.reduce();
+        stopArrival();
+        stopArrival = () => {};
         deps.camera.flyToScene(map, points, s.camera, reduce);
-        if (!isNewOwner) return;
+        if (arrived) return;
         if (reduce) {
             arrive();
             return;
         }
-        const onArrive = () => arrive();
+        const onArrive = () => {
+            stopArrival = () => {};
+            arrive();
+        };
         map.once("moveend", onArrive);
-        ownerStops.push(() => map.off("moveend", onArrive));
+        stopArrival = () => map.off("moveend", onArrive);
     };
 
     const applyFollow = (s: MapScene) => {

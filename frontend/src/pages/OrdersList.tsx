@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Search, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { messageFor } from "../api/errors";
 import { ApiError, request } from "../api/http";
 import type { Customer, Driver, OrderStatus, OrderSummary, Page } from "../api/types";
@@ -9,7 +9,14 @@ import { useSession } from "../auth/session";
 import { useTopics } from "../realtime/useTopic";
 import DataTable, { type Column } from "../components/DataTable";
 import { formatDateTime } from "../components/format";
-import StatusBadge from "../components/StatusBadge";
+import StatusBadge, { badgeEntry } from "../components/StatusBadge";
+import Glass from "../glass/Glass";
+import { useTotals } from "../hooks/useTotals";
+import { useCountUp } from "../motion/useCountUp";
+import { useTitleBlock } from "../layout/titleBlockContext";
+import MiniRoute from "../patterns/MiniRoute";
+import { SidePanelLayout } from "../patterns/SidePanel";
+import OrderPreview from "./order/OrderPreview";
 
 const STATUSES: [OrderStatus, string][] = [
     ["CREATED", "Criado"],
@@ -22,6 +29,8 @@ const STATUSES: [OrderStatus, string][] = [
     ["FAILED", "Falhou"],
 ];
 
+const STATUS_VALUES = STATUSES.map(([value]) => value);
+
 const SORTS: Record<string, { label: string; sort: string; dir: string }> = {
     newest: { label: "Mais recentes", sort: "createdAt", dir: "desc" },
     oldest: { label: "Mais antigos", sort: "createdAt", dir: "asc" },
@@ -29,12 +38,22 @@ const SORTS: Record<string, { label: string; sort: string; dir: string }> = {
     statusDesc: { label: "Status (Z-A)", sort: "status", dir: "desc" },
 };
 
-// o input de data dá YYYY-MM-DD no fuso do navegador; a API quer Instant UTC
 const startOfDay = (date: string) => new Date(`${date}T00:00:00`).toISOString();
 const endOfDay = (date: string) => new Date(`${date}T23:59:59.999`).toISOString();
 
+function StatusCount({ value }: { value: number | undefined }) {
+    const text = useCountUp(value, { delay: 120 });
+    return (
+        <>
+            <b className="status-strip-count" aria-hidden="true">
+                {value == null ? "—" : text}
+            </b>
+            {value != null && <span className="sr-only">{value}</span>}
+        </>
+    );
+}
+
 export default function OrdersList() {
-    const navigate = useNavigate();
     const session = useSession();
     const isStaff = session?.role !== "CUSTOMER";
     const canCreate = session?.role !== "FLEET_MANAGER";
@@ -71,7 +90,6 @@ export default function OrdersList() {
         );
     }
 
-    // busca com debounce de 300 ms; o campo tem estado próprio para não travar a digitação
     const [search, setSearch] = useState(q);
     useEffect(() => setSearch(q), [q]);
     useEffect(() => {
@@ -99,7 +117,6 @@ export default function OrdersList() {
             }),
         placeholderData: (previous) => previous,
     });
-    // cliente não tem tópico geral: assina o de cada pedido visível
     const queryClient = useQueryClient();
     useTopics<unknown>(
         isStaff ? [] : (orders.data?.items.map((o) => `/topic/orders/${o.publicId}`) ?? []),
@@ -116,11 +133,30 @@ export default function OrdersList() {
         enabled: isStaff,
     });
 
+    const scope = Object.fromEntries(
+        Object.entries({
+            active: active || undefined,
+            from: from ? startOfDay(from) : undefined,
+            to: to ? endOfDay(to) : undefined,
+            driverId: isStaff && driverId ? driverId : undefined,
+            customerId: isStaff && customerId ? customerId : undefined,
+            q: q || undefined,
+        }).filter((entry): entry is [string, string | true] => entry[1] !== undefined),
+    );
+    const totals = useTotals("/orders", "status", STATUS_VALUES, scope);
+    const [selected, setSelected] = useState<OrderSummary | null>(null);
+    const toggle = (o: OrderSummary) =>
+        setSelected((current) => (current?.publicId === o.publicId ? null : o));
+
     const columns: Column<OrderSummary>[] = [
         {
             header: "Código",
             render: (o) => (
-                <Link to={`/orders/${o.publicId}`} className="data table-link">
+                <Link
+                    to={`/orders/${o.publicId}`}
+                    className="data table-link"
+                    onClick={(e) => e.stopPropagation()}
+                >
                     {o.trackingNumber}
                 </Link>
             ),
@@ -129,16 +165,11 @@ export default function OrdersList() {
         {
             header: "Origem e destino",
             render: (o) => (
-                <div className="route-cell">
-                    <span>
-                        {o.pickupName} <span className="caption">para</span> {o.dropoffName}
-                    </span>
-                    {o.waypointCount > 0 && (
-                        <span className="caption">
-                            {o.waypointCount} {o.waypointCount === 1 ? "parada" : "paradas"}
-                        </span>
-                    )}
-                </div>
+                <MiniRoute
+                    pickup={o.pickupName}
+                    dropoff={o.dropoffName}
+                    waypoints={o.waypointCount}
+                />
             ),
         },
         { header: "Motorista", render: (o) => o.driver?.name ?? "—" },
@@ -149,12 +180,14 @@ export default function OrdersList() {
                       render: (o: OrderSummary) =>
                           o.vehicle ? <span className="data">{o.vehicle.plate}</span> : "—",
                   },
+                  { header: "Cliente", render: (o: OrderSummary) => o.customer?.name ?? "—" },
               ]
             : []),
-        ...(isStaff
-            ? [{ header: "Cliente", render: (o: OrderSummary) => o.customer?.name ?? "—" }]
-            : []),
         { header: "Criado em", render: (o) => formatDateTime(o.createdAt) },
+        {
+            header: "Finalizado em",
+            render: (o) => (o.finishedAt ? formatDateTime(o.finishedAt) : "—"),
+        },
     ];
 
     const newOrder = canCreate && (
@@ -163,178 +196,201 @@ export default function OrdersList() {
             Novo pedido
         </Link>
     );
+    const total = orders.data?.total;
+
+    useTitleBlock({
+        meta: total == null ? undefined : `${total} ${total === 1 ? "pedido" : "pedidos"}`,
+        actions: newOrder || undefined,
+    });
+
+    const clearFilters = () => setParams({}, { replace: true });
 
     return (
-        <div className="stack">
-            <header className="page-head">
-                <div>
-                    <h1>Pedidos</h1>
-                    <p className="page-sub">
-                        {isStaff
-                            ? "Acompanhe cada pedido, da criação à entrega."
-                            : "Acompanhe os seus pedidos."}
-                    </p>
-                </div>
-                {newOrder}
-            </header>
+        <SidePanelLayout
+            open={selected !== null}
+            panel={
+                selected && (
+                    <OrderPreview
+                        key={selected.publicId}
+                        id={selected.publicId}
+                        trackingNumber={selected.trackingNumber}
+                        isStaff={isStaff}
+                        onClose={() => setSelected(null)}
+                    />
+                )
+            }
+        >
+            <div className="orders-desk">
+                <Glass as="section" className="filter-bar orders-filters" aria-label="Filtros">
+                    <div className="status-strip" role="group" aria-label="Status">
+                        {STATUSES.map(([value, label]) => {
+                            const on = statuses.includes(value);
+                            const count = totals[value];
+                            return (
+                                <button
+                                    key={value}
+                                    type="button"
+                                    className={`tone-${badgeEntry("order", value).tone}`}
+                                    aria-pressed={on}
+                                    onClick={() =>
+                                        update({
+                                            status: on
+                                                ? statuses.filter((s) => s !== value)
+                                                : [...statuses, value],
+                                        })
+                                    }
+                                >
+                                    <span className="status-strip-label">
+                                        <i aria-hidden="true" />
+                                        {label}
+                                    </span>
+                                    <StatusCount value={count} />
+                                </button>
+                            );
+                        })}
+                    </div>
+                    <div className="filter-bar-row">
+                        <label className="search-field">
+                            <Search size={16} aria-hidden="true" />
+                            <input
+                                type="search"
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                placeholder="Buscar por código, origem ou destino"
+                                aria-label="Buscar pedidos"
+                            />
+                        </label>
 
-            <section className="filters" aria-label="Filtros">
-                <div className="filters-row">
-                    <label className="search-field">
-                        <Search size={16} aria-hidden="true" />
-                        <input
-                            type="search"
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Buscar por código, origem ou destino"
-                            aria-label="Buscar pedidos"
-                        />
-                    </label>
-                    <label className="inline-field caption">
-                        Ordenar por
-                        <select
-                            value={sortKey}
-                            onChange={(e) => update({ sortBy: e.target.value })}
-                        >
-                            {Object.entries(SORTS).map(([key, s]) => (
-                                <option key={key} value={key}>
-                                    {s.label}
-                                </option>
-                            ))}
-                        </select>
-                    </label>
-                </div>
-                <div className="chips" role="group" aria-label="Status">
-                    {STATUSES.map(([value, label]) => {
-                        const on = statuses.includes(value);
-                        return (
-                            <button
-                                key={value}
-                                type="button"
-                                className="chip"
-                                aria-pressed={on}
-                                onClick={() =>
-                                    update({
-                                        status: on
-                                            ? statuses.filter((s) => s !== value)
-                                            : [...statuses, value],
-                                    })
+                        <label className="filter-toggle">
+                            <input
+                                type="checkbox"
+                                className="check"
+                                checked={active}
+                                onChange={(e) =>
+                                    update({ active: e.target.checked ? "true" : null })
                                 }
+                            />
+                            Só ativos
+                        </label>
+                        <label className="filter-field">
+                            <span>De</span>
+                            <input
+                                type="date"
+                                value={from}
+                                max={to || undefined}
+                                onChange={(e) => update({ from: e.target.value || null })}
+                            />
+                        </label>
+                        <label className="filter-field">
+                            <span>Até</span>
+                            <input
+                                type="date"
+                                value={to}
+                                min={from || undefined}
+                                onChange={(e) => update({ to: e.target.value || null })}
+                            />
+                        </label>
+                        {isStaff && (
+                            <>
+                                <label className="filter-field">
+                                    <span>Motorista</span>
+                                    <select
+                                        value={driverId}
+                                        onChange={(e) =>
+                                            update({ driverId: e.target.value || null })
+                                        }
+                                    >
+                                        <option value="">Todos</option>
+                                        {drivers.data?.items.map((d) => (
+                                            <option key={d.publicId} value={d.publicId}>
+                                                {d.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
+                                <label className="filter-field">
+                                    <span>Cliente</span>
+                                    <select
+                                        value={customerId}
+                                        onChange={(e) =>
+                                            update({ customerId: e.target.value || null })
+                                        }
+                                    >
+                                        <option value="">Todos</option>
+                                        {customers.data?.items.map((c) => (
+                                            <option key={c.publicId} value={c.publicId}>
+                                                {c.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
+                            </>
+                        )}
+                        <label className="filter-field">
+                            <span>Ordenar por</span>
+                            <select
+                                value={sortKey}
+                                onChange={(e) => update({ sortBy: e.target.value })}
                             >
-                                {label}
+                                {Object.entries(SORTS).map(([key, sort]) => (
+                                    <option key={key} value={key}>
+                                        {sort.label}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+                        {hasFilters && (
+                            <button
+                                type="button"
+                                className="btn btn-ghost btn-sm"
+                                onClick={clearFilters}
+                            >
+                                <X size={14} aria-hidden="true" />
+                                Limpar filtros
                             </button>
-                        );
-                    })}
-                </div>
-                <div className="filters-row">
-                    <label className="inline-field">
-                        <input
-                            type="checkbox"
-                            className="check"
-                            checked={active}
-                            onChange={(e) => update({ active: e.target.checked ? "true" : null })}
-                        />
-                        Só ativos
-                    </label>
-                    <label className="inline-field caption">
-                        De
-                        <input
-                            type="date"
-                            value={from}
-                            max={to || undefined}
-                            onChange={(e) => update({ from: e.target.value || null })}
-                        />
-                    </label>
-                    <label className="inline-field caption">
-                        Até
-                        <input
-                            type="date"
-                            value={to}
-                            min={from || undefined}
-                            onChange={(e) => update({ to: e.target.value || null })}
-                        />
-                    </label>
-                    {isStaff && (
-                        <>
-                            <label className="inline-field caption">
-                                Motorista
-                                <select
-                                    value={driverId}
-                                    onChange={(e) => update({ driverId: e.target.value || null })}
-                                >
-                                    <option value="">Todos</option>
-                                    {drivers.data?.items.map((d) => (
-                                        <option key={d.publicId} value={d.publicId}>
-                                            {d.name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </label>
-                            <label className="inline-field caption">
-                                Cliente
-                                <select
-                                    value={customerId}
-                                    onChange={(e) => update({ customerId: e.target.value || null })}
-                                >
-                                    <option value="">Todos</option>
-                                    {customers.data?.items.map((c) => (
-                                        <option key={c.publicId} value={c.publicId}>
-                                            {c.name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </label>
-                        </>
-                    )}
-                    {hasFilters && (
-                        <button
-                            type="button"
-                            className="btn btn-ghost btn-sm"
-                            onClick={() => setParams({}, { replace: true })}
-                        >
-                            <X size={14} aria-hidden="true" />
-                            Limpar filtros
-                        </button>
-                    )}
-                </div>
-            </section>
-
-            <DataTable
-                columns={columns}
-                rows={orders.data?.items}
-                rowKey={(o) => o.publicId}
-                total={orders.data?.total ?? 0}
-                limit={limit}
-                offset={offset}
-                onPage={(nextOffset, nextLimit) =>
-                    update({ offset: String(nextOffset), limit: String(nextLimit) })
-                }
-                loading={orders.isLoading}
-                error={
-                    orders.isError
-                        ? messageFor(
-                              (orders.error as ApiError).code,
-                              (orders.error as ApiError).message,
-                          )
-                        : undefined
-                }
-                onRetry={() => orders.refetch()}
-                onRowClick={(o) => navigate(`/orders/${o.publicId}`)}
-                emptyTitle={hasFilters ? "Nenhum pedido com esses filtros" : "Nenhum pedido ainda"}
-                emptyAction={
-                    hasFilters ? (
-                        <button
-                            type="button"
-                            className="btn btn-secondary"
-                            onClick={() => setParams({}, { replace: true })}
-                        >
-                            Limpar filtros
-                        </button>
-                    ) : (
-                        newOrder || undefined
-                    )
-                }
-            />
-        </div>
+                        )}
+                    </div>
+                </Glass>
+                <DataTable
+                    columns={columns}
+                    rows={orders.data?.items}
+                    rowKey={(o) => o.publicId}
+                    total={orders.data?.total ?? 0}
+                    limit={limit}
+                    offset={offset}
+                    onPage={(nextOffset, nextLimit) =>
+                        update({ offset: String(nextOffset), limit: String(nextLimit) })
+                    }
+                    loading={orders.isLoading}
+                    error={
+                        orders.isError
+                            ? messageFor(
+                                  (orders.error as ApiError).code,
+                                  (orders.error as ApiError).message,
+                              )
+                            : undefined
+                    }
+                    onRetry={() => orders.refetch()}
+                    onRowClick={toggle}
+                    selectedKey={selected?.publicId ?? null}
+                    emptyTitle={
+                        hasFilters ? "Nenhum pedido com esses filtros" : "Nenhum pedido ainda"
+                    }
+                    emptyAction={
+                        hasFilters ? (
+                            <button
+                                type="button"
+                                className="btn btn-secondary"
+                                onClick={clearFilters}
+                            >
+                                Limpar filtros
+                            </button>
+                        ) : (
+                            newOrder || undefined
+                        )
+                    }
+                />
+            </div>
+        </SidePanelLayout>
     );
 }

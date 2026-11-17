@@ -109,6 +109,7 @@ export function followTo(
     follow: NonNullable<SceneCamera["follow"]>,
     first: boolean,
     reduce: boolean,
+    padding: Padding = ZERO,
 ): void {
     const center: [number, number] = [position[1], position[0]];
     const bearing = followBearing(position, legs);
@@ -118,7 +119,7 @@ export function followTo(
             zoom: follow.zoom,
             pitch: follow.pitch,
             bearing: bearing ?? 0,
-            padding: ZERO,
+            padding,
             duration: reduce ? 0 : 3400,
             curve: 1.2,
             essential: true,
@@ -128,6 +129,7 @@ export function followTo(
     map.easeTo({
         center,
         ...(bearing === null ? {} : { bearing }),
+        padding,
         duration: reduce ? 0 : 800,
         essential: true,
     });

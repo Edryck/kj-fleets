@@ -1,5 +1,6 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
+import Glass from "../glass/Glass";
 import { EmptyState, ErrorState, Skeleton } from "./blocks";
 
 export interface Column<T> {
@@ -22,6 +23,12 @@ interface Props<T> {
     emptyTitle: string;
     emptyAction?: ReactNode;
     onRowClick?: (row: T) => void;
+    selectedKey?: string | null;
+}
+
+function rowClass(clickable: unknown, selected: boolean): string | undefined {
+    const names = [clickable && "is-clickable", selected && "is-selected"].filter(Boolean);
+    return names.length ? names.join(" ") : undefined;
 }
 
 export default function DataTable<T>({
@@ -38,6 +45,7 @@ export default function DataTable<T>({
     emptyTitle,
     emptyAction,
     onRowClick,
+    selectedKey,
 }: Props<T>) {
     if (error) return <ErrorState message={error} onRetry={onRetry} />;
     if (!loading && rows?.length === 0)
@@ -46,7 +54,7 @@ export default function DataTable<T>({
     const from = total === 0 ? 0 : offset + 1;
     const to = Math.min(offset + limit, total);
     return (
-        <div className="table-wrap">
+        <Glass className="table-wrap">
             <div className="table-scroll">
                 <table className="table">
                     <thead>
@@ -67,7 +75,7 @@ export default function DataTable<T>({
                             ? Array.from({ length: 5 }, (_, i) => (
                                   <tr key={i}>
                                       {columns.map((c) => (
-                                          <td key={c.header}>
+                                          <td key={c.header} data-label={c.header}>
                                               <Skeleton />
                                           </td>
                                       ))}
@@ -76,12 +84,23 @@ export default function DataTable<T>({
                             : rows?.map((row) => (
                                   <tr
                                       key={rowKey(row)}
-                                      className={onRowClick ? "is-clickable" : undefined}
+                                      className={rowClass(onRowClick, rowKey(row) === selectedKey)}
+                                      tabIndex={onRowClick ? 0 : undefined}
                                       onClick={onRowClick && (() => onRowClick(row))}
+                                      onKeyDown={
+                                          onRowClick &&
+                                          ((e) => {
+                                              if (e.target !== e.currentTarget) return;
+                                              if (e.key !== "Enter" && e.key !== " ") return;
+                                              e.preventDefault();
+                                              onRowClick(row);
+                                          })
+                                      }
                                   >
                                       {columns.map((c) => (
                                           <td
                                               key={c.header}
+                                              data-label={c.header}
                                               className={c.align === "right" ? "num" : undefined}
                                           >
                                               {c.render(row)}
@@ -125,6 +144,6 @@ export default function DataTable<T>({
                     <ChevronRight size={18} aria-hidden="true" />
                 </button>
             </div>
-        </div>
+        </Glass>
     );
 }

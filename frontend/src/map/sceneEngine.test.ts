@@ -1,8 +1,9 @@
 import type { Map as MapLibreMap } from "maplibre-gl";
-import { expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { MapLeg } from "../components/RouteLegs";
 import type { SceneArc } from "./mapLayers";
 import { createSceneEngine, type EngineDeps } from "./sceneEngine";
+import { setFollowState } from "./sceneStore";
 
 type Listener = (event?: unknown) => void;
 let listeners: { type: string; fn: Listener; once: boolean }[] = [];
@@ -135,4 +136,131 @@ it("fits every positioned marker on demand, ignoring the scene's own fit", () =>
         expect.objectContaining({ fit: "markers", pitch: 0 }),
         false,
     );
+});
+
+it("follows the marker with the scene's padding once the camera arrives", () => {
+    const deps = makeDeps();
+    const engine = createSceneEngine(fakeMap(), deps);
+    const padding = { top: 40, bottom: 160, left: 480, right: 380 };
+    const follow = { markerId: "vehicle", zoom: 15.4, pitch: 68 };
+    engine.apply({
+        owner: Symbol("order"),
+        scene: {
+            markers: [{ id: "vehicle", lat: -24.9, lng: -54.2, kind: "driver" }],
+            camera: { fit: "markers", padding, follow },
+        },
+    });
+    deps.fireMoveEnd();
+    expect(deps.camera.followTo).toHaveBeenCalledWith(
+        expect.anything(),
+        [-24.9, -54.2],
+        [],
+        follow,
+        true,
+        false,
+        padding,
+    );
+});
+
+describe("camera changes while following", () => {
+    const owner = Symbol("order");
+    const follow = { markerId: "vehicle", zoom: 15.4, pitch: 68 };
+    const stop = { id: "pickup", lat: -24.8, lng: -54.3, kind: "pickup" as const };
+    const vehicle = { id: "vehicle", lat: -24.9, lng: -54.2, kind: "driver" as const };
+    const panels = { top: 40, bottom: 160, left: 480, right: 380 };
+    const resized = { top: 40, bottom: 208, left: 480, right: 380 };
+
+    afterEach(() => {
+        setFollowState("following");
+    });
+
+    it("starts following when the followed marker shows up after the camera arrives", () => {
+        setFollowState("following");
+        const deps = makeDeps();
+        const engine = createSceneEngine(fakeMap(), deps);
+        engine.apply({
+            owner,
+            scene: { markers: [stop], camera: { fit: "markers", padding: panels } },
+        });
+        deps.fireMoveEnd();
+        engine.apply({
+            owner,
+            scene: {
+                markers: [stop, vehicle],
+                camera: { fit: "markers", padding: panels, follow },
+            },
+        });
+        expect(deps.camera.flyToScene).toHaveBeenCalledTimes(1);
+        expect(deps.camera.followTo).toHaveBeenCalledWith(
+            expect.anything(),
+            [-24.9, -54.2],
+            [],
+            follow,
+            true,
+            false,
+            panels,
+        );
+    });
+
+    it("keeps following with the new padding when the panels resize", () => {
+        setFollowState("following");
+        const deps = makeDeps();
+        const engine = createSceneEngine(fakeMap(), deps);
+        const scene = (padding: typeof panels) => ({
+            markers: [stop, vehicle],
+            camera: { fit: "markers" as const, padding, follow },
+        });
+        engine.apply({ owner, scene: scene(panels) });
+        deps.fireMoveEnd();
+        engine.apply({ owner, scene: scene(resized) });
+        expect(deps.camera.flyToScene).toHaveBeenCalledTimes(1);
+        expect(deps.camera.followTo).toHaveBeenLastCalledWith(
+            expect.anything(),
+            [-24.9, -54.2],
+            [],
+            follow,
+            false,
+            false,
+            resized,
+        );
+    });
+
+    it("refits the overview on a camera change while follow is suspended", () => {
+        setFollowState("following");
+        const deps = makeDeps();
+        const engine = createSceneEngine(fakeMap(), deps);
+        const scene = (padding: typeof panels) => ({
+            markers: [stop, vehicle],
+            camera: { fit: "markers" as const, padding, follow },
+        });
+        engine.apply({ owner, scene: scene(panels) });
+        deps.fireMoveEnd();
+        setFollowState("suspended");
+        deps.camera.followTo.mockClear();
+        engine.apply({ owner, scene: scene(resized) });
+        expect(deps.camera.flyToScene).toHaveBeenCalledTimes(2);
+        expect(deps.camera.followTo).not.toHaveBeenCalled();
+    });
+
+    it("waits for the newest flight before following when the camera changes mid-flight", () => {
+        setFollowState("following");
+        const deps = makeDeps();
+        const engine = createSceneEngine(fakeMap(), deps);
+        engine.apply({
+            owner,
+            scene: { markers: [stop], camera: { fit: "markers", padding: panels } },
+        });
+        deps.camera.flyToScene.mockImplementation(() => deps.fireMoveEnd());
+        engine.apply({
+            owner,
+            scene: {
+                markers: [stop, vehicle],
+                camera: { fit: "markers", padding: panels, follow },
+            },
+        });
+        expect(deps.camera.followTo).not.toHaveBeenCalled();
+        deps.camera.flyToScene.mockImplementation(() => {});
+        deps.fireMoveEnd();
+        expect(deps.camera.followTo).toHaveBeenCalledTimes(1);
+    });
 });

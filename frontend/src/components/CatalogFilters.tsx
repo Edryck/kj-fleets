@@ -1,6 +1,7 @@
 import { Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useSession } from "../auth/session";
+import Glass from "../glass/Glass";
 
 interface Props {
     searchLabel: string;
@@ -13,7 +14,6 @@ interface Props {
     onIncludeInactive: (on: boolean) => void;
 }
 
-// o despacho só lê cadastros: sem toggle de inativos para ele
 export default function CatalogFilters({
     searchLabel,
     placeholder,
@@ -34,8 +34,8 @@ export default function CatalogFilters({
     }, [search, onQuery]);
 
     return (
-        <section className="filters" aria-label="Filtros">
-            <div className="filters-row">
+        <Glass as="section" className="filter-bar is-single" aria-label="Filtros">
+            <div className="filter-bar-row">
                 <label className="search-field">
                     <Search size={16} aria-hidden="true" />
                     <input
@@ -46,8 +46,8 @@ export default function CatalogFilters({
                         aria-label={searchLabel}
                     />
                 </label>
-                <label className="inline-field caption">
-                    Status
+                <label className="filter-field">
+                    <span>Status</span>
                     <select value={status} onChange={(e) => onStatus(e.target.value)}>
                         <option value="">Todos</option>
                         {statuses.map(([value, label]) => (
@@ -58,7 +58,7 @@ export default function CatalogFilters({
                     </select>
                 </label>
                 {canSeeInactive && (
-                    <label className="inline-field">
+                    <label className="filter-toggle">
                         <input
                             type="checkbox"
                             className="check"
@@ -69,6 +69,6 @@ export default function CatalogFilters({
                     </label>
                 )}
             </div>
-        </section>
+        </Glass>
     );
 }

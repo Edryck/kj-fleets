@@ -49,7 +49,7 @@ export function midpointOf(points: [number, number][]): [number, number] {
     return points[points.length - 1];
 }
 
-function routeMarkers(stops: RouteStop[]): SceneMarker[] {
+export function routeMarkers(stops: RouteStop[]): SceneMarker[] {
     const nextSeq = stops.find((s) => s.visitedAt == null && s.type !== "START")?.seq;
     const markers: SceneMarker[] = stopMarkers(stops).map((m) => ({
         ...m,

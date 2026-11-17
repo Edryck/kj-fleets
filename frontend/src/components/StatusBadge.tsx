@@ -44,6 +44,11 @@ const TABLES = {
 
 export type BadgeKind = keyof typeof TABLES;
 
+export function badgeEntry(kind: BadgeKind, value: string): { label: string; tone: Tone } {
+    const [label, tone] = TABLES[kind][value] ?? [value, "neutral" as Tone];
+    return { label, tone };
+}
+
 export default function StatusBadge({ kind, value }: { kind: BadgeKind; value: string }) {
     const entry = TABLES[kind][value];
     const [label, tone] = entry ?? [value, "neutral" as Tone];

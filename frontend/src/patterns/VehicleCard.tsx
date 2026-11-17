@@ -1,4 +1,5 @@
 import { Truck } from "lucide-react";
+import { Link } from "react-router-dom";
 import StatusBadge from "../components/StatusBadge";
 import { Skeleton } from "../components/blocks";
 import Glass from "../glass/Glass";
@@ -18,6 +19,7 @@ export default function VehicleCard({
     status,
     lastSignal,
     driver,
+    driverHref,
     loading,
 }: {
     plate: string | null;
@@ -25,6 +27,7 @@ export default function VehicleCard({
     status?: string | null;
     lastSignal?: string | null;
     driver?: { name: string; status: string } | null;
+    driverHref?: string;
     loading?: boolean;
 }) {
     if (loading) {
@@ -84,7 +87,7 @@ export default function VehicleCard({
                     </span>
                     <span className="vehicle-card-driver-name">
                         <small>Motorista</small>
-                        {driver.name}
+                        {driverHref ? <Link to={driverHref}>{driver.name}</Link> : driver.name}
                     </span>
                     <StatusBadge kind="driver" value={driver.status} />
                 </div>
