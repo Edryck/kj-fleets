@@ -157,9 +157,26 @@ function DriverCard({
     loadingOrder: boolean;
     onClose: () => void;
 }) {
-    const render = vehicleRender(driver.vehicle?.type, "side");
+    const vehicle = driver.vehicle;
+    const render = vehicle ? vehicleRender(vehicle.type, "34") : null;
     return (
-        <Glass as="section" className="live-panel live-card" aria-label="Motorista escolhido">
+        <Glass
+            as="section"
+            className={`live-panel live-card${render ? " has-shot" : ""}`}
+            aria-label="Motorista escolhido"
+        >
+            {render && vehicle && (
+                <div className="live-card-shot">
+                    <img
+                        key={driver.publicId}
+                        className="motion-drive"
+                        src={render.src}
+                        width={render.width}
+                        height={render.height}
+                        alt={`${vehicle.type.trim()} ${vehicle.plate}`}
+                    />
+                </div>
+            )}
             <div className="live-card-head">
                 <DriverDot driver={driver} size="lg" />
                 <div className="live-card-who">
@@ -183,15 +200,6 @@ function DriverCard({
                     <X size={16} aria-hidden="true" />
                 </button>
             </div>
-            {render && (
-                <img
-                    className="live-card-render"
-                    src={render.src}
-                    width={render.width}
-                    height={render.height}
-                    alt=""
-                />
-            )}
             <dl className="live-tiles">
                 <div>
                     <dt>Placa</dt>

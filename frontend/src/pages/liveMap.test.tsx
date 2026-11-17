@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { Driver } from "../api/types";
 import { renderAt } from "../test/render";
@@ -71,4 +71,34 @@ it("preselects the driver from the URL and publishes it as selected", async () =
 it("shows 'Sem posição' for drivers without coordinates", async () => {
     renderAt("/map", <LiveMap />, { role: "ADMIN" });
     expect(await screen.findByText("Sem posição")).toBeInTheDocument();
+});
+
+it("shows the chosen driver's vehicle in the 3/4 view breaking out of the card", async () => {
+    renderAt("/map?driver=d1", <LiveMap />, { role: "ADMIN" });
+    const card = await screen.findByRole("region", { name: "Motorista escolhido" });
+    const shot = within(card).getByAltText("Van KJF1A01");
+    expect(shot).toHaveAttribute("src", "/renders/van-34.webp");
+    expect(shot).toHaveClass("motion-drive");
+    expect(shot.closest(".live-card-shot")).not.toBeNull();
+    expect(card).toHaveClass("has-shot");
+});
+
+it("keeps the card without a shot when the vehicle type has no render", async () => {
+    mockRequest.mockImplementation((_method: string, path: string) => {
+        if (path === "/drivers")
+            return Promise.resolve({
+                items: [
+                    driver("d1", { vehicle: { publicId: "v9", plate: "MOT0001", type: "Moto" } }),
+                ],
+                total: 1,
+                limit: 100,
+                offset: 0,
+            });
+        if (path === "/dashboard/fleet/status") return Promise.resolve({ drivers: [] });
+        return Promise.resolve({ items: [], total: 0, limit: 1, offset: 0 });
+    });
+    renderAt("/map?driver=d1", <LiveMap />, { role: "ADMIN" });
+    const card = await screen.findByRole("region", { name: "Motorista escolhido" });
+    expect(within(card).queryByRole("img")).toBeNull();
+    expect(card).not.toHaveClass("has-shot");
 });
