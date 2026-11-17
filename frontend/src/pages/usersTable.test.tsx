@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Me, Page, UserAccount } from "../api/types";
 import { resetSessionForTests, startSession } from "../auth/session";
@@ -55,34 +56,37 @@ const renderPage = () =>
         </QueryClientProvider>,
     );
 
-const rowOf = async (username: string) => {
-    const cell = await screen.findByText(username);
-    return cell.closest("tr") as HTMLElement;
+const panelOf = async (username: string) => {
+    await userEvent.click(await screen.findByText(username));
+    return screen.getByRole("dialog", { name: username });
 };
 
 describe("tabela de usuários", () => {
-    it("a própria linha não tem rebaixar nem desativar", async () => {
+    it("o próprio painel não tem rebaixar nem desativar", async () => {
         renderPage();
         await waitFor(() =>
             expect(mockRequest).toHaveBeenCalledWith("GET", "/users", undefined, expect.anything()),
         );
-        const row = await rowOf("admin");
-        expect(within(row).queryByRole("button", { name: /perfil/i })).toBeNull();
-        expect(within(row).queryByRole("button", { name: /desativar/i })).toBeNull();
+        await screen.findByText("Você");
+        const panel = await panelOf("admin");
+        expect(within(panel).queryByLabelText("Perfil")).toBeNull();
+        expect(within(panel).queryByRole("button", { name: /desativar/i })).toBeNull();
     });
 
     it("CUSTOMER e DRIVER não têm edição de perfil nem desativação", async () => {
         renderPage();
         for (const username of ["cliente", "motorista"]) {
-            const row = await rowOf(username);
-            expect(within(row).queryByRole("button")).toBeNull();
+            const panel = await panelOf(username);
+            expect(within(panel).queryByLabelText("Perfil")).toBeNull();
+            expect(within(panel).queryByRole("button", { name: /desativar|reativar/i })).toBeNull();
+            await userEvent.click(within(panel).getByRole("button", { name: /fechar/i }));
         }
     });
 
     it("outro usuário da equipe pode ter o perfil alterado e ser desativado", async () => {
         renderPage();
-        const row = await rowOf("ana");
-        expect(within(row).getByRole("button", { name: /alterar perfil de ana/i })).toBeTruthy();
-        expect(within(row).getByRole("button", { name: /desativar ana/i })).toBeTruthy();
+        const panel = await panelOf("ana");
+        expect(within(panel).getByLabelText("Perfil")).toBeTruthy();
+        expect(within(panel).getByRole("button", { name: /desativar ana/i })).toBeTruthy();
     });
 });

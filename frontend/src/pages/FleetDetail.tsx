@@ -1,197 +1,161 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { ArrowLeft, LayoutDashboard, Loader2, Pencil, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { ArrowLeft, LayoutDashboard, MapPinOff, Pencil, Trash2 } from "lucide-react";
+import { useState, type CSSProperties } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { messageFor } from "../api/errors";
 import { ApiError, request } from "../api/http";
-import type { FleetDetail as FleetDetailData, FleetSummary } from "../api/types";
+import type { FleetDetail as FleetDetailData } from "../api/types";
 import { useSession } from "../auth/session";
 import { ErrorState, Skeleton } from "../components/blocks";
+import type { MapMarker } from "../components/MapView";
 import { ConfirmDialog } from "../components/overlays";
-import StatusBadge from "../components/StatusBadge";
-import { toast } from "../components/Toasts";
-import { DriverChecklist, FleetDrawer, useDeleteFleet, useInvalidateFleets } from "./Fleets";
+import Glass from "../glass/Glass";
+import { useTitleBlock } from "../layout/titleBlockContext";
+import { GlassMapFrame } from "../patterns/GlassMapFrame";
+import { SidePanelLayout } from "../patterns/SidePanel";
+import { FleetEditor, FleetStatusBar, MemberList, useDeleteFleet } from "./fleets/fleetParts";
 
 export default function FleetDetail() {
     const { id = "" } = useParams();
     const navigate = useNavigate();
     const session = useSession();
     const canManage = session?.role === "ADMIN" || session?.role === "FLEET_MANAGER";
-    const invalidate = useInvalidateFleets();
     const [editing, setEditing] = useState(false);
     const [removing, setRemoving] = useState(false);
+    const [focusId, setFocusId] = useState<string | null>(null);
     const remove = useDeleteFleet(() => navigate("/fleets"));
 
     const fleet = useQuery({
         queryKey: ["fleet", id],
         queryFn: () => request<FleetDetailData>("GET", `/fleets/${id}`),
     });
+    const f = fleet.data;
+    const count = f?.drivers.length ?? 0;
 
-    // a seleção começa com os motoristas atuais; o salvar manda a lista inteira (PUT)
-    const [selected, setSelected] = useState<string[] | null>(null);
-    const current = fleet.data?.drivers.map((d) => d.publicId) ?? [];
-    const driverIds = selected ?? current;
-    const dirty =
-        selected !== null &&
-        (selected.length !== current.length || selected.some((x) => !current.includes(x)));
-
-    const saveDrivers = useMutation({
-        mutationFn: (ids: string[]) =>
-            request<FleetDetailData>("PUT", `/fleets/${id}`, {
-                name: fleet.data?.name,
-                driverIds: ids,
-            }),
-        onSuccess: () => {
-            toast.success("Motoristas da frota atualizados.");
-            setSelected(null);
-            invalidate();
-        },
-        onError: (e: ApiError) => toast.error(messageFor(e.code, e.message)),
+    useTitleBlock({
+        title: f?.name ?? "Frota",
+        eyebrow: (
+            <Link to="/fleets" className="title-back">
+                <ArrowLeft size={14} aria-hidden="true" />
+                Frotas
+            </Link>
+        ),
+        meta: f ? <span>{count === 1 ? "1 motorista" : `${count} motoristas`}</span> : undefined,
+        actions:
+            f && canManage ? (
+                <>
+                    <Link
+                        to={`/dashboard/fleet?fleetId=${f.publicId}`}
+                        className="btn btn-secondary"
+                    >
+                        <LayoutDashboard size={16} aria-hidden="true" />
+                        Ver dashboard desta frota
+                    </Link>
+                    <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => setEditing(true)}
+                    >
+                        <Pencil size={16} aria-hidden="true" />
+                        Editar
+                    </button>
+                    <button
+                        type="button"
+                        className="btn btn-secondary btn-danger-ghost"
+                        onClick={() => setRemoving(true)}
+                    >
+                        <Trash2 size={16} aria-hidden="true" />
+                        Excluir
+                    </button>
+                </>
+            ) : undefined,
     });
 
     if (fleet.isError) {
         const e = fleet.error as ApiError;
         return (
-            <div className="stack">
-                <Link to="/fleets" className="back-link">
-                    <ArrowLeft size={16} aria-hidden="true" />
-                    Frotas
-                </Link>
-                <ErrorState
-                    message={messageFor(e.code, e.message)}
-                    onRetry={() => fleet.refetch()}
-                />
+            <ErrorState message={messageFor(e.code, e.message)} onRetry={() => fleet.refetch()} />
+        );
+    }
+    if (!f) {
+        return (
+            <div className="fleet-territory" aria-busy="true">
+                <Skeleton height={420} />
+                <Skeleton height={300} />
             </div>
         );
     }
-    if (fleet.isLoading || !fleet.data) return <Skeleton height={240} />;
 
-    const f = fleet.data;
-    const summary: FleetSummary = {
-        publicId: f.publicId,
-        name: f.name,
-        driverCount: f.drivers.length,
-    };
+    const markers: MapMarker[] = f.drivers.flatMap((d) =>
+        d.lat == null || d.lng == null
+            ? []
+            : [
+                  {
+                      id: d.publicId,
+                      kind: "driver" as const,
+                      lat: d.lat,
+                      lng: d.lng,
+                      status: d.status,
+                      title: d.name,
+                      selected: d.publicId === focusId,
+                  },
+              ],
+    );
+    const unlocated = count - markers.length;
 
     return (
-        <div className="stack">
-            <header className="page-head">
-                <div>
-                    <Link to="/fleets" className="back-link">
-                        <ArrowLeft size={16} aria-hidden="true" />
-                        Frotas
-                    </Link>
-                    <h1>{f.name}</h1>
-                    <p className="page-sub">
-                        {f.drivers.length === 1 ? "1 motorista" : `${f.drivers.length} motoristas`}
-                    </p>
-                </div>
-                {canManage && (
-                    <div className="head-actions">
-                        <Link
-                            to={`/dashboard/fleet?fleetId=${f.publicId}`}
-                            className="btn btn-secondary"
-                        >
-                            <LayoutDashboard size={16} aria-hidden="true" />
-                            Ver dashboard desta frota
-                        </Link>
-                        <button
-                            type="button"
-                            className="btn btn-secondary"
-                            onClick={() => setEditing(true)}
-                        >
-                            <Pencil size={16} aria-hidden="true" />
-                            Editar
-                        </button>
-                        <button
-                            type="button"
-                            className="btn btn-danger-ghost"
-                            onClick={() => setRemoving(true)}
-                        >
-                            <Trash2 size={16} aria-hidden="true" />
-                            Excluir
-                        </button>
-                    </div>
-                )}
-            </header>
-
-            <section className="card">
-                <div className="card-head">
-                    <h2>Motoristas</h2>
-                    {canManage && dirty && (
-                        <div className="head-actions">
-                            <button
-                                type="button"
-                                className="btn btn-ghost btn-sm"
-                                onClick={() => setSelected(null)}
-                            >
-                                Desfazer
-                            </button>
-                            <button
-                                type="button"
-                                className="btn btn-primary btn-sm"
-                                disabled={saveDrivers.isPending}
-                                onClick={() => saveDrivers.mutate(driverIds)}
-                            >
-                                {saveDrivers.isPending && (
-                                    <Loader2 size={14} className="spin" aria-hidden="true" />
-                                )}
-                                Salvar motoristas
-                            </button>
-                        </div>
+        <SidePanelLayout
+            open={editing}
+            panel={
+                editing && <FleetEditor fleetId={f.publicId} onClose={() => setEditing(false)} />
+            }
+        >
+            <div className="fleet-territory">
+                <div className="fleet-map-wrap">
+                    {markers.length > 0 ? (
+                        <GlassMapFrame
+                            className="fleet-map"
+                            markers={markers}
+                            fit
+                            focusId={focusId}
+                            onMarkerClick={setFocusId}
+                        />
+                    ) : (
+                        <Glass className="fleet-map is-empty">
+                            <MapPinOff size={22} aria-hidden="true" />
+                            <span>Nenhum motorista desta frota enviou posição.</span>
+                        </Glass>
+                    )}
+                    {markers.length > 0 && unlocated > 0 && (
+                        <p className="fleet-map-note">
+                            {unlocated === 1
+                                ? "1 motorista sem posição fora do mapa"
+                                : `${unlocated} motoristas sem posição fora do mapa`}
+                        </p>
                     )}
                 </div>
-                {canManage ? (
-                    <DriverChecklist selected={driverIds} onChange={setSelected} />
-                ) : f.drivers.length === 0 ? (
-                    <p className="caption">Nenhum motorista nesta frota.</p>
-                ) : (
-                    <div className="table-scroll">
-                        <table className="table">
-                            <thead>
-                                <tr>
-                                    <th>Nome</th>
-                                    <th>Status</th>
-                                    <th>Veículo</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {f.drivers.map((d) => (
-                                    <tr key={d.publicId}>
-                                        <td>
-                                            <Link
-                                                to={`/drivers/${d.publicId}`}
-                                                className="table-link"
-                                            >
-                                                {d.name}
-                                            </Link>
-                                        </td>
-                                        <td>
-                                            <StatusBadge kind="driver" value={d.status} />
-                                        </td>
-                                        <td className="data">{d.vehicle?.plate ?? "—"}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </section>
-
-            {editing && <FleetDrawer fleetId={f.publicId} onClose={() => setEditing(false)} />}
+                <Glass as="section" className="fleet-members" style={{ "--i": 1 } as CSSProperties}>
+                    <h2>Membros</h2>
+                    <FleetStatusBar drivers={f.drivers} />
+                    <MemberList drivers={f.drivers} />
+                </Glass>
+            </div>
             {removing && (
                 <ConfirmDialog
                     title="Excluir frota"
-                    description={`${summary.name} some da lista. Os motoristas continuam cadastrados, só saem desta frota.`}
+                    description={`${f.name} some da lista. Os motoristas continuam cadastrados, só saem desta frota.`}
                     confirmLabel="Excluir frota"
                     destructive
                     busy={remove.isPending}
                     onClose={() => setRemoving(false)}
                     onConfirm={() =>
-                        remove.mutate(summary, { onSettled: () => setRemoving(false) })
+                        remove.mutate(
+                            { publicId: f.publicId, name: f.name, driverCount: count },
+                            { onSettled: () => setRemoving(false) },
+                        )
                     }
                 />
             )}
-        </div>
+        </SidePanelLayout>
     );
 }

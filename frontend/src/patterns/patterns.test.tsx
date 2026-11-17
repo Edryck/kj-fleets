@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { RouteStop } from "../api/types";
 import { setReducedMotion } from "../test/motion";
+import Avatar from "./Avatar";
 import DotMatrix from "./DotMatrix";
 import HeroNumber from "./HeroNumber";
 import MiniRoute from "./MiniRoute";
@@ -212,5 +213,22 @@ describe("shared patterns", () => {
         expect(onClose).toHaveBeenCalled();
         await userEvent.click(screen.getByRole("button", { name: "Fechar" }));
         expect(onClose).toHaveBeenCalledTimes(2);
+    });
+
+    it("Avatar shows up to two initials, hidden from assistive tech, in three sizes", () => {
+        const { container } = render(
+            <>
+                <Avatar name="Marcos  Vieira da Silva" />
+                <Avatar name="ana" size="lg" />
+                <Avatar name="Bruno Teixeira" size="sm" />
+            </>,
+        );
+        const [md, lg, sm] = Array.from(container.querySelectorAll(".avatar"));
+        expect(md.textContent).toBe("MS");
+        expect(md).toHaveAttribute("aria-hidden", "true");
+        expect(md).toHaveClass("is-md");
+        expect(lg.textContent).toBe("AN");
+        expect(lg).toHaveClass("is-lg");
+        expect(sm).toHaveClass("is-sm");
     });
 });

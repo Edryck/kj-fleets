@@ -1,4 +1,5 @@
 import { Loader2 } from "lucide-react";
+import type { CSSProperties } from "react";
 import { useForm } from "react-hook-form";
 import { messageFor } from "../api/errors";
 import { ApiError, request } from "../api/http";
@@ -6,6 +7,9 @@ import type { ChangePasswordRequest } from "../api/types";
 import { useMe } from "../auth/session";
 import { ErrorState, Skeleton } from "../components/blocks";
 import { toast } from "../components/Toasts";
+import Glass from "../glass/Glass";
+import { useTitleBlock } from "../layout/titleBlockContext";
+import Avatar from "../patterns/Avatar";
 import { ROLE_LABEL } from "../routes";
 
 interface Values extends ChangePasswordRequest {
@@ -30,7 +34,6 @@ export default function Account() {
             toast.success("Senha alterada.");
         } catch (e) {
             const error = e as ApiError;
-            // a API responde 400 VALIDATION_ERROR "senha atual incorreta"
             if (error.code === "VALIDATION_ERROR" && /atual/i.test(error.message)) {
                 setError("currentPassword", { message: "Senha atual incorreta" });
             } else {
@@ -39,11 +42,11 @@ export default function Account() {
         }
     };
 
+    useTitleBlock({ title: "Minha conta" });
+
     const rows: [string, string | null | undefined, boolean?][] = me.data
         ? [
-              ["Usuário", me.data.username],
-              ["Perfil", ROLE_LABEL[me.data.role]],
-              ["Nome", me.data.name],
+              ["Usuário", me.data.username, true],
               ["E-mail", me.data.email],
               ["Telefone", me.data.phone],
               ["ID", me.data.publicId, true],
@@ -51,36 +54,60 @@ export default function Account() {
         : [];
 
     return (
-        <div className="stack form-narrow">
-            <section className="card">
-                <h2>Seus dados</h2>
+        <div className="account">
+            <Glass
+                as="section"
+                className="account-card account-who"
+                aria-labelledby="account-title"
+            >
                 {me.isError ? (
                     <ErrorState
                         message={(me.error as ApiError).message || "Tente de novo em instantes."}
                         onRetry={() => me.refetch()}
                     />
-                ) : me.isLoading ? (
-                    <div className="stack-sm">
-                        <Skeleton height={20} />
+                ) : !me.data ? (
+                    <div className="stack-sm" aria-busy="true">
+                        <Skeleton height={88} />
                         <Skeleton height={20} />
                         <Skeleton height={20} />
                     </div>
                 ) : (
-                    <dl className="dl">
-                        {rows
-                            .filter(([, value]) => value)
-                            .map(([label, value, mono]) => (
-                                <div key={label}>
-                                    <dt>{label}</dt>
-                                    <dd className={mono ? "data" : undefined}>{value}</dd>
-                                </div>
-                            ))}
-                    </dl>
+                    <>
+                        <div className="account-head">
+                            <Avatar
+                                name={me.data.name ?? me.data.username}
+                                size="lg"
+                                className="avatar-lg"
+                            />
+                            <div className="account-name">
+                                <h2 id="account-title">{me.data.name ?? me.data.username}</h2>
+                                <span className="role-pill" data-role={me.data.role}>
+                                    {ROLE_LABEL[me.data.role]}
+                                </span>
+                            </div>
+                        </div>
+                        <h3 className="account-section">Seus dados</h3>
+                        <dl className="account-rows">
+                            {rows
+                                .filter(([, value]) => value)
+                                .map(([label, value, mono]) => (
+                                    <div key={label}>
+                                        <dt>{label}</dt>
+                                        <dd className={mono ? "data" : undefined}>{value}</dd>
+                                    </div>
+                                ))}
+                        </dl>
+                    </>
                 )}
-            </section>
+            </Glass>
 
-            <section className="card">
-                <h2>Trocar senha</h2>
+            <Glass
+                as="section"
+                className="account-card account-password"
+                aria-labelledby="password-title"
+                style={{ "--i": 1 } as CSSProperties}
+            >
+                <h2 id="password-title">Trocar senha</h2>
                 <p className="field-help">As sessões já abertas continuam válidas até expirarem.</p>
                 <form onSubmit={handleSubmit(onSubmit)} noValidate>
                     <div className="field">
@@ -142,7 +169,7 @@ export default function Account() {
                         Salvar nova senha
                     </button>
                 </form>
-            </section>
+            </Glass>
         </div>
     );
 }

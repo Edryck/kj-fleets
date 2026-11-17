@@ -1,14 +1,23 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Pencil, Plus, Search, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { useCallback, useState, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
 import { messageFor } from "../api/errors";
 import { ApiError, request } from "../api/http";
 import type { Page, Place, PlaceBody } from "../api/types";
-import DataTable, { type Column } from "../components/DataTable";
-import MapView from "../components/MapView";
-import { ConfirmDialog, Drawer } from "../components/overlays";
+import { ConfirmDialog } from "../components/overlays";
 import { toast } from "../components/Toasts";
+import { useMediaQuery } from "../hooks/useMediaQuery";
+import { useTitleBlock } from "../layout/titleBlockContext";
+import { SidePanel, SidePanelLayout } from "../patterns/SidePanel";
+import {
+    PlaceAtlas,
+    PointFields,
+    coord,
+    toNumber,
+    type PickedPoint,
+    type Point,
+} from "./places/placeAtlas";
 
 interface FormValues {
     name: string;
@@ -17,16 +26,19 @@ interface FormValues {
     lng: string;
 }
 
-const toNumber = (v: string) => Number(v.replace(",", "."));
-const coord = (min: number, max: number, empty: string, invalid: string) => ({
-    validate: (v: string) => {
-        if (v.trim() === "") return empty;
-        const n = toNumber(v);
-        return (Number.isFinite(n) && n >= min && n <= max) || invalid;
-    },
-});
-
-function PlaceDrawer({ place, onClose }: { place: Place | null; onClose: () => void }) {
+function AddressForm({
+    place,
+    onClose,
+    picked,
+    onDraft,
+    inline,
+}: {
+    place: Place | null;
+    onClose: () => void;
+    picked: PickedPoint | null;
+    onDraft: (point: Point | null) => void;
+    inline: boolean;
+}) {
     const client = useQueryClient();
     const form = useForm<FormValues>({
         defaultValues: {
@@ -37,11 +49,13 @@ function PlaceDrawer({ place, onClose }: { place: Place | null; onClose: () => v
         },
     });
     const { register, handleSubmit, watch, setValue, setError, formState } = form;
-    const [lat, lng] = [watch("lat"), watch("lng")];
-    const latN = toNumber(lat);
-    const lngN = toNumber(lng);
-    const hasPoint =
-        lat.trim() !== "" && lng.trim() !== "" && Math.abs(latN) <= 90 && Math.abs(lngN) <= 180;
+    const setPoint = useCallback(
+        (a: number, b: number) => {
+            setValue("lat", a.toFixed(6), { shouldValidate: true });
+            setValue("lng", b.toFixed(6), { shouldValidate: true });
+        },
+        [setValue],
+    );
 
     const save = useMutation({
         mutationFn: (body: PlaceBody) =>
@@ -53,12 +67,11 @@ function PlaceDrawer({ place, onClose }: { place: Place | null; onClose: () => v
             void client.invalidateQueries({ queryKey: ["/customer/places"] });
             onClose();
         },
-        // 409 RESOURCE_IN_USE (endereço em pedido ativo) usa a mensagem da API
         onError: (e: ApiError) => setError("root", { message: messageFor(e.code, e.message) }),
     });
 
     return (
-        <Drawer
+        <SidePanel
             title={place ? "Editar endereço" : "Novo endereço"}
             onClose={onClose}
             footer={
@@ -125,90 +138,48 @@ function PlaceDrawer({ place, onClose }: { place: Place | null; onClose: () => v
                         <p className="field-error">{formState.errors.address.message}</p>
                     )}
                 </div>
-                <p className="field-help">
-                    Clique no mapa para marcar o ponto. A latitude e a longitude são preenchidas por
-                    ele.
-                </p>
-                <MapView
-                    markers={
-                        hasPoint
-                            ? [
-                                  {
-                                      id: "place",
-                                      kind: "pickup",
-                                      lat: latN,
-                                      lng: lngN,
-                                      title: "Ponto",
-                                  },
-                              ]
-                            : []
-                    }
-                    onPick={(a, b) => {
-                        setValue("lat", a.toFixed(6), { shouldValidate: true });
-                        setValue("lng", b.toFixed(6), { shouldValidate: true });
-                    }}
-                    pickHint="Clique no mapa para marcar o ponto"
+                <PointFields
+                    lat={register(
+                        "lat",
+                        coord(-90, 90, "Marque o ponto no mapa", "Latitude entre -90 e 90"),
+                    )}
+                    lng={register(
+                        "lng",
+                        coord(-180, 180, "Marque o ponto no mapa", "Longitude entre -180 e 180"),
+                    )}
+                    latText={watch("lat")}
+                    lngText={watch("lng")}
+                    latError={formState.errors.lat?.message}
+                    lngError={formState.errors.lng?.message}
+                    setPoint={setPoint}
+                    picked={picked}
+                    onDraft={onDraft}
+                    inline={inline}
+                    markerKind="pickup"
                 />
-                <div className="point-grid">
-                    <div className="field">
-                        <label htmlFor="place-lat">Latitude</label>
-                        <input
-                            id="place-lat"
-                            inputMode="decimal"
-                            className="data"
-                            aria-invalid={!!formState.errors.lat}
-                            {...register(
-                                "lat",
-                                coord(-90, 90, "Marque o ponto no mapa", "Latitude entre -90 e 90"),
-                            )}
-                        />
-                        {formState.errors.lat && (
-                            <p className="field-error">{formState.errors.lat.message}</p>
-                        )}
-                    </div>
-                    <div className="field">
-                        <label htmlFor="place-lng">Longitude</label>
-                        <input
-                            id="place-lng"
-                            inputMode="decimal"
-                            className="data"
-                            aria-invalid={!!formState.errors.lng}
-                            {...register(
-                                "lng",
-                                coord(
-                                    -180,
-                                    180,
-                                    "Marque o ponto no mapa",
-                                    "Longitude entre -180 e 180",
-                                ),
-                            )}
-                        />
-                        {formState.errors.lng && (
-                            <p className="field-error">{formState.errors.lng.message}</p>
-                        )}
-                    </div>
-                </div>
             </form>
-        </Drawer>
+        </SidePanel>
     );
 }
 
+type Panel = { mode: "edit"; id: string } | { mode: "new" } | null;
+
 export default function MyPlaces() {
     const client = useQueryClient();
-    const [search, setSearch] = useState("");
+    const narrow = useMediaQuery("(max-width: 1023px)");
     const [q, setQ] = useState("");
     const [limit, setLimit] = useState(20);
     const [offset, setOffset] = useState(0);
-    const [editing, setEditing] = useState<Place | "new" | null>(null);
+    const [selectedId, setSelectedId] = useState<string | null>(null);
+    const [panel, setPanel] = useState<Panel>(null);
+    const [picked, setPicked] = useState<PickedPoint | null>(null);
+    const [draft, setDraft] = useState<Point | null>(null);
     const [removing, setRemoving] = useState<Place | null>(null);
 
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            setQ(search.trim());
-            setOffset(0);
-        }, 300);
-        return () => clearTimeout(timer);
-    }, [search]);
+    const changeQuery = useCallback((value: string) => {
+        setQ(value);
+        setOffset(0);
+    }, []);
 
     const places = useQuery({
         queryKey: ["/customer/places", q, limit, offset],
@@ -227,77 +198,59 @@ export default function MyPlaces() {
         onSettled: () => setRemoving(null),
     });
 
+    const openPanel = (next: Panel) => {
+        setPicked(null);
+        setPanel(next);
+    };
+
     const add = (
-        <button type="button" className="btn btn-primary" onClick={() => setEditing("new")}>
+        <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => openPanel({ mode: "new" })}
+        >
             <Plus size={18} aria-hidden="true" />
             Novo endereço
         </button>
     );
 
-    const columns: Column<Place>[] = [
-        { header: "Nome", render: (p) => <strong>{p.name}</strong> },
-        { header: "Endereço", render: (p) => p.address },
-        {
-            header: "Ações",
-            align: "right",
-            render: (p) => (
-                <div className="row-actions">
-                    <button
-                        type="button"
-                        className="btn btn-ghost btn-icon"
-                        aria-label={`Editar ${p.name}`}
-                        onClick={() => setEditing(p)}
-                    >
-                        <Pencil size={16} aria-hidden="true" />
-                    </button>
-                    <button
-                        type="button"
-                        className="btn btn-ghost btn-icon"
-                        aria-label={`Remover ${p.name}`}
-                        onClick={() => setRemoving(p)}
-                    >
-                        <Trash2 size={16} aria-hidden="true" />
-                    </button>
-                </div>
-            ),
-        },
-    ];
+    useTitleBlock({ title: "Meus endereços", actions: add });
+
+    const items = places.data?.items;
+    const editing = panel?.mode === "edit" ? items?.find((p) => p.publicId === panel.id) : null;
+    const closePanel = () => setPanel(null);
+
+    let panelNode: ReactNode = null;
+    if (panel?.mode === "new" || editing) {
+        panelNode = (
+            <AddressForm
+                key={editing?.publicId ?? "new"}
+                place={editing ?? null}
+                onClose={closePanel}
+                picked={picked}
+                onDraft={setDraft}
+                inline={narrow}
+            />
+        );
+    }
+
+    const total = places.data?.total;
+    const heroLabel = q
+        ? total === 1
+            ? "endereço encontrado"
+            : "endereços encontrados"
+        : total === 1
+          ? "endereço salvo"
+          : "endereços salvos";
 
     return (
-        <div className="stack">
-            <header className="page-head">
-                <div>
-                    <h1>Meus endereços</h1>
-                    <p className="page-sub">
-                        Salve os lugares que você usa e escolha-os ao criar um pedido.
-                    </p>
-                </div>
-                {add}
-            </header>
-
-            <label className="search-field">
-                <Search size={16} aria-hidden="true" />
-                <input
-                    type="search"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Buscar por nome ou endereço"
-                    aria-label="Buscar endereços"
-                />
-            </label>
-
-            <DataTable
-                columns={columns}
-                rows={places.data?.items}
-                rowKey={(p) => p.publicId}
-                total={places.data?.total ?? 0}
-                limit={limit}
-                offset={offset}
-                onPage={(o, l) => {
-                    setOffset(o);
-                    setLimit(l);
-                }}
-                loading={places.isLoading}
+        <SidePanelLayout open={panelNode != null} panel={panelNode}>
+            <PlaceAtlas
+                heroLabel={heroLabel}
+                total={total}
+                searchLabel="Buscar endereços"
+                onQuery={changeQuery}
+                items={items}
                 error={
                     places.isError
                         ? messageFor(
@@ -311,14 +264,42 @@ export default function MyPlaces() {
                     q ? "Nenhum endereço com essa busca" : "Você ainda não salvou endereços"
                 }
                 emptyAction={q ? undefined : add}
+                selectedId={selectedId}
+                onSelect={setSelectedId}
+                renderActions={(p) => (
+                    <>
+                        <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            aria-label={`Editar ${p.name}`}
+                            onClick={() => openPanel({ mode: "edit", id: p.publicId })}
+                        >
+                            <Pencil size={14} aria-hidden="true" />
+                            Editar
+                        </button>
+                        <button
+                            type="button"
+                            className="btn btn-ghost btn-sm btn-danger-ghost"
+                            aria-label={`Remover ${p.name}`}
+                            onClick={() => setRemoving(p)}
+                        >
+                            <Trash2 size={14} aria-hidden="true" />
+                            Remover
+                        </button>
+                    </>
+                )}
+                limit={limit}
+                offset={offset}
+                onPage={(o, l) => {
+                    setOffset(o);
+                    setLimit(l);
+                }}
+                markerKind="pickup"
+                draft={draft}
+                editingId={editing?.publicId ?? null}
+                picking={panelNode != null && !narrow}
+                onPick={(lat, lng) => setPicked({ lat, lng, at: Date.now() })}
             />
-
-            {editing && (
-                <PlaceDrawer
-                    place={editing === "new" ? null : editing}
-                    onClose={() => setEditing(null)}
-                />
-            )}
             {removing && (
                 <ConfirmDialog
                     title="Remover endereço"
@@ -330,6 +311,6 @@ export default function MyPlaces() {
                     onConfirm={() => remove.mutate(removing)}
                 />
             )}
-        </div>
+        </SidePanelLayout>
     );
 }

@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useMemo, type CSSProperties, type ReactNode } from "react";
 import {
+    Area,
+    AreaChart,
     Bar,
     BarChart,
     CartesianGrid,
@@ -19,19 +21,63 @@ import { useSession } from "../auth/session";
 import { EmptyState, ErrorState, Skeleton } from "../components/blocks";
 import GeneratedAt from "../components/GeneratedAt";
 import { formatMinutes } from "../components/format";
+import Glass from "../glass/Glass";
+import { useTitleBlock } from "../layout/titleBlockContext";
+import { prefersReducedMotion } from "../motion/reducedMotion";
+import HeroNumber from "../patterns/HeroNumber";
 import { legendProps, tooltipStyle, useChartColors } from "./dashboardParts";
 
-// "2026-11" -> "11/26"; o último mês é o corrente, ainda parcial
 const monthLabel = (month: string) => `${month.slice(5)}/${month.slice(2, 4)}`;
+
+function ChartCard({
+    id,
+    title,
+    caption,
+    index,
+    children,
+}: {
+    id: string;
+    title: string;
+    caption: string;
+    index: number;
+    children: ReactNode;
+}) {
+    return (
+        <Glass
+            as="section"
+            className="insight-card"
+            aria-labelledby={id}
+            style={{ "--i": index } as CSSProperties}
+        >
+            <div className="insight-card-head">
+                <h2 id={id}>{title}</h2>
+                <span className="caption">{caption}</span>
+            </div>
+            {children}
+        </Glass>
+    );
+}
 
 export default function Trends() {
     const staff = useSession()?.role !== "CUSTOMER";
     const colors = useChartColors();
+    const animate = !prefersReducedMotion();
     const panel = useQuery({
         queryKey: ["analytics", "trends"],
         queryFn: () => request<YearlyTrends>("GET", "/dashboard/trends/yearly"),
     });
     const p = panel.data;
+
+    useTitleBlock({
+        title: "Tendência anual",
+        meta: p ? (
+            <GeneratedAt
+                generatedAt={p.meta.generatedAt}
+                timezone={p.meta.timezone}
+                onRefresh={() => void panel.refetch()}
+            />
+        ) : undefined,
+    });
 
     const months = useMemo(
         () =>
@@ -66,50 +112,57 @@ export default function Trends() {
         );
     }
 
+    if (!p) {
+        return (
+            <div className="insight" aria-busy="true">
+                <Skeleton height={360} />
+                <Skeleton height={240} />
+            </div>
+        );
+    }
+
     const tip = tooltipStyle(colors);
     const axis = { fill: colors["text-muted"], fontSize: 12 };
-    const hasOrders = months.some((m) => m.created > 0);
+    const total = months.reduce((sum, m) => sum + m.created, 0);
+    const hasOrders = total > 0;
+    const motion = { isAnimationActive: animate, animationDuration: 1200 };
 
     return (
-        <div className="stack dash">
-            <header className="dash-head">
-                <div className="dash-title">
-                    <h1>Tendência anual</h1>
-                    <p className="page-sub">
-                        Últimos 13 meses. Cada mês conta os pedidos criados nele.
-                    </p>
-                </div>
-                {p && (
-                    <div className="dash-tools">
-                        <GeneratedAt
-                            generatedAt={p.meta.generatedAt}
-                            timezone={p.meta.timezone}
-                            onRefresh={() => void panel.refetch()}
-                        />
+        <div className="insight">
+            <Glass as="section" className="insight-hero trend-hero" aria-labelledby="orders-title">
+                <HeroNumber
+                    label="Pedidos no ano"
+                    value={total}
+                    caption={`${months.length} meses, o atual ainda parcial`}
+                />
+                <div className="trend-curve">
+                    <div className="insight-card-head">
+                        <h2 id="orders-title">Pedidos por mês</h2>
+                        <span className="caption">* mês atual, parcial</span>
                     </div>
-                )}
-            </header>
-
-            {!p ? (
-                <Skeleton height={320} />
-            ) : !hasOrders ? (
-                <section className="card">
-                    <EmptyState
-                        title="Nenhum pedido nos últimos 13 meses"
-                        description="Os gráficos aparecem quando houver pedidos criados."
-                    />
-                </section>
-            ) : (
-                <>
-                    <section className="card" aria-labelledby="orders-title">
-                        <div className="card-head">
-                            <h2 id="orders-title">Pedidos por mês</h2>
-                            <span className="caption">* mês atual, parcial</span>
-                        </div>
-                        <div className="chart" style={{ height: 300 }}>
+                    {hasOrders ? (
+                        <div className="chart" style={{ height: 260 }}>
                             <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={months} margin={{ right: 8 }}>
-                                    <CartesianGrid vertical={false} stroke={colors.border} />
+                                <AreaChart data={months} margin={{ top: 8, right: 8 }}>
+                                    <defs>
+                                        <linearGradient id="trend-fill" x1="0" y1="0" x2="0" y2="1">
+                                            <stop
+                                                offset="0%"
+                                                stopColor={colors.accent}
+                                                stopOpacity={0.4}
+                                            />
+                                            <stop
+                                                offset="100%"
+                                                stopColor={colors.accent}
+                                                stopOpacity={0}
+                                            />
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid
+                                        vertical={false}
+                                        stroke={colors.border}
+                                        strokeDasharray="2 6"
+                                    />
                                     <XAxis dataKey="label" tick={axis} stroke={colors.border} />
                                     <YAxis
                                         allowDecimals={false}
@@ -118,77 +171,131 @@ export default function Trends() {
                                         width={36}
                                     />
                                     <Tooltip {...tip} />
-                                    <Legend {...legendProps(colors)} />
-                                    <Bar
-                                        dataKey="completed"
-                                        name="Concluídos"
-                                        stackId="orders"
-                                        fill={colors.success}
+                                    <Area
+                                        type="monotone"
+                                        dataKey="created"
+                                        name="Pedidos criados"
+                                        stroke={colors.primary}
+                                        strokeWidth={2.5}
+                                        fill="url(#trend-fill)"
+                                        {...motion}
                                     />
-                                    <Bar
-                                        dataKey="failed"
-                                        name="Falhos"
-                                        stackId="orders"
-                                        fill={colors.danger}
-                                    />
-                                    <Bar
-                                        dataKey="cancelled"
-                                        name="Cancelados"
-                                        stackId="orders"
-                                        fill={colors.offline}
-                                        radius={[3, 3, 0, 0]}
-                                    />
-                                </BarChart>
+                                </AreaChart>
                             </ResponsiveContainer>
                         </div>
-                    </section>
+                    ) : (
+                        <EmptyState
+                            title="Nenhum pedido nos últimos 13 meses"
+                            description="Os gráficos aparecem quando houver pedidos criados."
+                        />
+                    )}
+                </div>
+            </Glass>
 
-                    <section className="card" aria-labelledby="rate-title">
-                        <div className="card-head">
-                            <h2 id="rate-title">Taxa de sucesso</h2>
-                            <span className="caption">% dos pedidos criados no mês</span>
-                        </div>
-                        {!months.some((m) => m.successPct != null) ? (
-                            <EmptyState title="Sem pedidos com resultado fechado" />
-                        ) : (
-                            <div className="chart" style={{ height: 220 }}>
+            {hasOrders && (
+                <>
+                    <div className="insight-grid">
+                        <ChartCard
+                            id="outcome-title"
+                            title="Resultado por mês"
+                            caption="pedidos criados no mês, pelo desfecho"
+                            index={1}
+                        >
+                            <div className="chart" style={{ height: 240 }}>
                                 <ResponsiveContainer width="100%" height="100%">
-                                    <LineChart data={months} margin={{ right: 8 }}>
+                                    <BarChart data={months} margin={{ right: 8 }}>
                                         <CartesianGrid vertical={false} stroke={colors.border} />
                                         <XAxis dataKey="label" tick={axis} stroke={colors.border} />
                                         <YAxis
-                                            domain={[0, 100]}
-                                            unit="%"
+                                            allowDecimals={false}
                                             tick={axis}
                                             stroke={colors.border}
-                                            width={44}
+                                            width={36}
                                         />
                                         <Tooltip {...tip} />
-                                        <Line
-                                            type="monotone"
-                                            dataKey="successPct"
-                                            name="Sucesso"
-                                            stroke={colors.primary}
-                                            strokeWidth={2}
-                                            dot={{ r: 3 }}
+                                        <Legend {...legendProps(colors)} />
+                                        <Bar
+                                            dataKey="completed"
+                                            name="Concluídos"
+                                            stackId="orders"
+                                            fill={colors.success}
+                                            {...motion}
                                         />
-                                    </LineChart>
+                                        <Bar
+                                            dataKey="failed"
+                                            name="Falhos"
+                                            stackId="orders"
+                                            fill={colors.danger}
+                                            {...motion}
+                                        />
+                                        <Bar
+                                            dataKey="cancelled"
+                                            name="Cancelados"
+                                            stackId="orders"
+                                            fill={colors.offline}
+                                            radius={[4, 4, 0, 0]}
+                                            {...motion}
+                                        />
+                                    </BarChart>
                                 </ResponsiveContainer>
                             </div>
-                        )}
-                    </section>
+                        </ChartCard>
+
+                        <ChartCard
+                            id="rate-title"
+                            title="Taxa de sucesso"
+                            caption="% dos pedidos criados no mês"
+                            index={2}
+                        >
+                            {!months.some((m) => m.successPct != null) ? (
+                                <EmptyState title="Sem pedidos com resultado fechado" />
+                            ) : (
+                                <div className="chart" style={{ height: 240 }}>
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <LineChart data={months} margin={{ right: 8 }}>
+                                            <CartesianGrid
+                                                vertical={false}
+                                                stroke={colors.border}
+                                            />
+                                            <XAxis
+                                                dataKey="label"
+                                                tick={axis}
+                                                stroke={colors.border}
+                                            />
+                                            <YAxis
+                                                domain={[0, 100]}
+                                                unit="%"
+                                                tick={axis}
+                                                stroke={colors.border}
+                                                width={44}
+                                            />
+                                            <Tooltip {...tip} />
+                                            <Line
+                                                type="monotone"
+                                                dataKey="successPct"
+                                                name="Sucesso"
+                                                stroke={colors.primary}
+                                                strokeWidth={2}
+                                                dot={{ r: 3 }}
+                                                {...motion}
+                                            />
+                                        </LineChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            )}
+                        </ChartCard>
+                    </div>
 
                     {staff && (
-                        <div className="dash-grid dash-grid-even">
-                            <section className="card" aria-labelledby="cycle-title">
-                                <div className="card-head">
-                                    <h2 id="cycle-title">Ciclo médio</h2>
-                                    <span className="caption">
-                                        minutos, do despacho à conclusão
-                                    </span>
-                                </div>
+                        <div className="insight-grid">
+                            <ChartCard
+                                id="cycle-title"
+                                title="Ciclo médio"
+                                caption="minutos, do despacho à conclusão"
+                                index={3}
+                            >
                                 {months.some((m) => m.avgCycleMinutes != null) ? (
-                                    <div className="chart" style={{ height: 240 }}>
+                                    <div className="chart" style={{ height: 220 }}>
                                         <ResponsiveContainer width="100%" height="100%">
                                             <LineChart data={months} margin={{ right: 8 }}>
                                                 <CartesianGrid
@@ -217,6 +324,7 @@ export default function Trends() {
                                                     stroke={colors.info}
                                                     strokeWidth={2}
                                                     dot={{ r: 3 }}
+                                                    {...motion}
                                                 />
                                             </LineChart>
                                         </ResponsiveContainer>
@@ -224,17 +332,16 @@ export default function Trends() {
                                 ) : (
                                     <EmptyState title="Sem dados no período" />
                                 )}
-                            </section>
+                            </ChartCard>
 
-                            <section className="card" aria-labelledby="km-title">
-                                <div className="card-head">
-                                    <h2 id="km-title">Km economizados</h2>
-                                    <span className="caption">
-                                        roteirização contra a referência
-                                    </span>
-                                </div>
+                            <ChartCard
+                                id="km-title"
+                                title="Km economizados"
+                                caption="roteirização contra a referência"
+                                index={4}
+                            >
                                 {months.some((m) => m.savedKm != null) ? (
-                                    <div className="chart" style={{ height: 240 }}>
+                                    <div className="chart" style={{ height: 220 }}>
                                         <ResponsiveContainer width="100%" height="100%">
                                             <BarChart data={months} margin={{ right: 8 }}>
                                                 <CartesianGrid
@@ -256,7 +363,8 @@ export default function Trends() {
                                                     dataKey="savedKm"
                                                     name="Km economizados"
                                                     fill={colors.primary}
-                                                    radius={[3, 3, 0, 0]}
+                                                    radius={[4, 4, 0, 0]}
+                                                    {...motion}
                                                 />
                                             </BarChart>
                                         </ResponsiveContainer>
@@ -264,16 +372,17 @@ export default function Trends() {
                                 ) : (
                                     <EmptyState title="Sem dados no período" />
                                 )}
-                            </section>
+                            </ChartCard>
                         </div>
                     )}
 
                     {staff && (
-                        <section className="card" aria-labelledby="driver-title">
-                            <div className="card-head">
-                                <h2 id="driver-title">Entregas por motorista</h2>
-                                <span className="caption">concluídas por mês</span>
-                            </div>
+                        <ChartCard
+                            id="driver-title"
+                            title="Entregas por motorista"
+                            caption="concluídas por mês"
+                            index={5}
+                        >
                             {drivers.length === 0 ? (
                                 <EmptyState title="Nenhuma entrega concluída no período" />
                             ) : (
@@ -282,7 +391,7 @@ export default function Trends() {
                                     drivers={drivers}
                                 />
                             )}
-                        </section>
+                        </ChartCard>
                     )}
                 </>
             )}
@@ -290,7 +399,6 @@ export default function Trends() {
     );
 }
 
-// células vazias são "—": a API não manda o mês quando não houve entrega
 function DriverHeatmap({
     months,
     drivers,

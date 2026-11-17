@@ -25,11 +25,13 @@ export function SidePanel({
     title,
     onClose,
     footer,
+    className,
     children,
 }: {
     title: string;
     onClose: () => void;
     footer?: ReactNode;
+    className?: string;
     children: ReactNode;
 }) {
     const panelId = useId();
@@ -55,7 +57,7 @@ export function SidePanel({
         <Glass
             as="aside"
             id={panelId}
-            className="side-panel"
+            className={`side-panel${className ? ` ${className}` : ""}`}
             role="dialog"
             aria-modal="false"
             aria-labelledby={titleId}

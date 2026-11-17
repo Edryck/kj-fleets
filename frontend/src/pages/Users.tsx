@@ -1,18 +1,29 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Pencil, Plus, RotateCcw, UserX } from "lucide-react";
-import { useState } from "react";
+import { Loader2, Plus, RotateCcw, UserX } from "lucide-react";
+import { useState, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
 import { messageFor } from "../api/errors";
 import { ApiError, request } from "../api/http";
 import type { Page, Role, UserAccount } from "../api/types";
 import { useMe } from "../auth/session";
 import DataTable, { type Column } from "../components/DataTable";
-import { ConfirmDialog, Drawer, Modal } from "../components/overlays";
+import { ConfirmDialog } from "../components/overlays";
 import { toast } from "../components/Toasts";
+import { useTitleBlock } from "../layout/titleBlockContext";
+import Avatar from "../patterns/Avatar";
+import { SidePanel, SidePanelLayout } from "../patterns/SidePanel";
 import { ROLE_LABEL } from "../routes";
+import PersonHead from "./people/PersonHead";
 
-// motorista e cliente nascem e são geridos nos próprios cadastros
 const MANAGED_ROLES: Role[] = ["ADMIN", "DISPATCHER", "FLEET_MANAGER"];
+const ROLE_ORDER: Role[] = ["ADMIN", "DISPATCHER", "FLEET_MANAGER", "DRIVER", "CUSTOMER"];
+const ROLE_COUNT: Record<Role, [string, string]> = {
+    ADMIN: ["administrador", "administradores"],
+    DISPATCHER: ["despachante", "despachantes"],
+    FLEET_MANAGER: ["gestor de frota", "gestores de frota"],
+    DRIVER: ["motorista", "motoristas"],
+    CUSTOMER: ["cliente", "clientes"],
+};
 
 interface FormValues {
     username: string;
@@ -20,12 +31,30 @@ interface FormValues {
     role: Role;
 }
 
+type Panel = { mode: "detail"; id: string } | { mode: "new" } | null;
+
 function useInvalidateUsers() {
     const client = useQueryClient();
     return () => void client.invalidateQueries({ queryKey: ["users"] });
 }
 
-function NewUserDrawer({ onClose }: { onClose: () => void }) {
+function RolePill({ role }: { role: Role }) {
+    return (
+        <span className="role-pill" data-role={role}>
+            {ROLE_LABEL[role]}
+        </span>
+    );
+}
+
+function StatusPill({ active }: { active: boolean }) {
+    return active ? (
+        <span className="badge badge-success">Ativo</span>
+    ) : (
+        <span className="badge badge-offline">Inativo</span>
+    );
+}
+
+function NewUserForm({ onClose }: { onClose: () => void }) {
     const invalidate = useInvalidateUsers();
     const form = useForm<FormValues>({
         defaultValues: { username: "", password: "", role: "DISPATCHER" },
@@ -52,7 +81,7 @@ function NewUserDrawer({ onClose }: { onClose: () => void }) {
     });
 
     return (
-        <Drawer
+        <SidePanel
             title="Novo usuário"
             onClose={onClose}
             footer={
@@ -128,11 +157,11 @@ function NewUserDrawer({ onClose }: { onClose: () => void }) {
                     </select>
                 </div>
             </form>
-        </Drawer>
+        </SidePanel>
     );
 }
 
-function RoleModal({ user, onClose }: { user: UserAccount; onClose: () => void }) {
+function RoleField({ user }: { user: UserAccount }) {
     const invalidate = useInvalidateUsers();
     const [role, setRole] = useState<Role>(user.role);
 
@@ -141,57 +170,114 @@ function RoleModal({ user, onClose }: { user: UserAccount; onClose: () => void }
         onSuccess: () => {
             toast.success("Perfil atualizado.");
             invalidate();
-            onClose();
         },
         onError: (e: ApiError) => toast.error(messageFor(e.code, e.message)),
     });
 
     return (
-        <Modal
-            title={`Alterar perfil de ${user.username}`}
-            onClose={onClose}
-            footer={
-                <>
-                    <button type="button" className="btn btn-secondary" onClick={onClose}>
-                        Voltar
-                    </button>
-                    <button
-                        type="submit"
-                        form="role-form"
-                        className="btn btn-primary"
-                        disabled={save.isPending || role === user.role}
-                    >
-                        {save.isPending && (
-                            <Loader2 size={16} className="spin" aria-hidden="true" />
-                        )}
-                        Salvar perfil
-                    </button>
-                </>
-            }
+        <form
+            className="person-role"
+            onSubmit={(e) => {
+                e.preventDefault();
+                save.mutate();
+            }}
         >
-            <form
-                id="role-form"
-                onSubmit={(e) => {
-                    e.preventDefault();
-                    save.mutate();
-                }}
+            <div className="field">
+                <label htmlFor="role-select">Perfil</label>
+                <select
+                    id="role-select"
+                    value={role}
+                    onChange={(e) => setRole(e.target.value as Role)}
+                >
+                    {MANAGED_ROLES.map((r) => (
+                        <option key={r} value={r}>
+                            {ROLE_LABEL[r]}
+                        </option>
+                    ))}
+                </select>
+            </div>
+            <button
+                type="submit"
+                className="btn btn-secondary"
+                disabled={save.isPending || role === user.role}
             >
-                <div className="field">
-                    <label htmlFor="role-select">Perfil</label>
-                    <select
-                        id="role-select"
-                        value={role}
-                        onChange={(e) => setRole(e.target.value as Role)}
-                    >
-                        {MANAGED_ROLES.map((r) => (
-                            <option key={r} value={r}>
-                                {ROLE_LABEL[r]}
-                            </option>
-                        ))}
-                    </select>
-                </div>
-            </form>
-        </Modal>
+                {save.isPending && <Loader2 size={16} className="spin" aria-hidden="true" />}
+                Salvar perfil
+            </button>
+        </form>
+    );
+}
+
+function UserPanel({
+    user,
+    note,
+    manageable,
+    onDeactivate,
+    onReactivate,
+    onClose,
+}: {
+    user: UserAccount;
+    note: string | null;
+    manageable: boolean;
+    onDeactivate: () => void;
+    onReactivate: () => void;
+    onClose: () => void;
+}) {
+    let footer: ReactNode;
+    if (manageable) {
+        footer = user.active ? (
+            <button
+                type="button"
+                className="btn btn-ghost btn-danger-ghost"
+                aria-label={`Desativar ${user.username}`}
+                onClick={onDeactivate}
+            >
+                <UserX size={16} aria-hidden="true" />
+                Desativar
+            </button>
+        ) : (
+            <button
+                type="button"
+                className="btn btn-primary"
+                aria-label={`Reativar ${user.username}`}
+                onClick={onReactivate}
+            >
+                <RotateCcw size={16} aria-hidden="true" />
+                Reativar
+            </button>
+        );
+    }
+
+    return (
+        <SidePanel
+            title={user.username}
+            onClose={onClose}
+            footer={footer}
+            className="person-panel has-hero"
+        >
+            <PersonHead
+                name={user.username}
+                mono
+                meta={
+                    <>
+                        <RolePill role={user.role} />
+                        <StatusPill active={user.active} />
+                    </>
+                }
+                note={note}
+            />
+            {manageable && user.active ? (
+                <RoleField key={`${user.publicId}:${user.role}`} user={user} />
+            ) : (
+                <p className="person-note">
+                    {!manageable
+                        ? note === "Você"
+                            ? "Seu próprio acesso não é alterado por aqui."
+                            : "Motoristas e clientes são geridos nos próprios cadastros."
+                        : "Reative o acesso para alterar o perfil."}
+                </p>
+            )}
+        </SidePanel>
     );
 }
 
@@ -200,8 +286,7 @@ export default function Users() {
     const invalidate = useInvalidateUsers();
     const [limit, setLimit] = useState(20);
     const [offset, setOffset] = useState(0);
-    const [creating, setCreating] = useState(false);
-    const [changing, setChanging] = useState<UserAccount | null>(null);
+    const [panel, setPanel] = useState<Panel>(null);
     const [deactivating, setDeactivating] = useState<UserAccount | null>(null);
     const [reactivating, setReactivating] = useState<UserAccount | null>(null);
 
@@ -230,124 +315,121 @@ export default function Users() {
         onError: (e: ApiError) => toast.error(messageFor(e.code, e.message)),
     });
 
+    const items = users.data?.items;
+    const total = users.data?.total;
+    const noteFor = (u: UserAccount) =>
+        u.username === me.data?.username
+            ? "Você"
+            : !MANAGED_ROLES.includes(u.role)
+              ? "Gerido pelo próprio cadastro"
+              : null;
+    const canManage = (u: UserAccount) =>
+        u.username !== me.data?.username && MANAGED_ROLES.includes(u.role);
+
+    useTitleBlock({
+        title: "Usuários",
+        meta: total == null ? undefined : `${total} ${total === 1 ? "usuário" : "usuários"}`,
+        actions: (
+            <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => setPanel({ mode: "new" })}
+            >
+                <Plus size={18} aria-hidden="true" />
+                Novo usuário
+            </button>
+        ),
+    });
+
+    const counted = items && total != null && total <= items.length;
+    const counts = counted
+        ? ROLE_ORDER.map((role) => [role, items.filter((u) => u.role === role).length] as const)
+        : [];
+
+    const selectedId = panel?.mode === "detail" ? panel.id : null;
+    const selected = selectedId ? items?.find((u) => u.publicId === selectedId) : undefined;
+    const closePanel = () => setPanel(null);
+
+    let panelNode: ReactNode = null;
+    if (panel?.mode === "new") {
+        panelNode = <NewUserForm onClose={closePanel} />;
+    } else if (selected) {
+        panelNode = (
+            <UserPanel
+                user={selected}
+                note={noteFor(selected)}
+                manageable={canManage(selected)}
+                onDeactivate={() => setDeactivating(selected)}
+                onReactivate={() => setReactivating(selected)}
+                onClose={closePanel}
+            />
+        );
+    }
+
     const columns: Column<UserAccount>[] = [
         {
             header: "Usuário",
             render: (u) => {
-                const note =
-                    u.username === me.data?.username
-                        ? "Você"
-                        : !MANAGED_ROLES.includes(u.role)
-                          ? "Gerido pelo próprio cadastro"
-                          : null;
+                const note = noteFor(u);
                 return (
-                    <div className="route-cell">
-                        <span className="data">{u.username}</span>
-                        {note && <span className="caption">{note}</span>}
+                    <div className="team-person">
+                        <Avatar name={u.username} size="sm" />
+                        <span className="team-person-text">
+                            <b className="data">{u.username}</b>
+                            {note && <small>{note}</small>}
+                        </span>
                     </div>
                 );
             },
         },
-        {
-            header: "Perfil",
-            render: (u) => <span className="badge badge-neutral">{ROLE_LABEL[u.role]}</span>,
-        },
-        {
-            header: "Situação",
-            render: (u) =>
-                u.active ? (
-                    <span className="badge badge-success">Ativo</span>
-                ) : (
-                    <span className="badge badge-offline">Inativo</span>
-                ),
-        },
-        {
-            header: "Ações",
-            align: "right",
-            render: (u) => {
-                if (u.username === me.data?.username || !MANAGED_ROLES.includes(u.role)) {
-                    return null;
-                }
-                return (
-                    <div className="row-actions">
-                        {u.active ? (
-                            <>
-                                <button
-                                    type="button"
-                                    className="btn btn-ghost btn-icon"
-                                    aria-label={`Alterar perfil de ${u.username}`}
-                                    onClick={() => setChanging(u)}
-                                >
-                                    <Pencil size={16} aria-hidden="true" />
-                                </button>
-                                <button
-                                    type="button"
-                                    className="btn btn-ghost btn-icon"
-                                    aria-label={`Desativar ${u.username}`}
-                                    onClick={() => setDeactivating(u)}
-                                >
-                                    <UserX size={16} aria-hidden="true" />
-                                </button>
-                            </>
-                        ) : (
-                            <button
-                                type="button"
-                                className="btn btn-ghost btn-sm"
-                                aria-label={`Reativar ${u.username}`}
-                                onClick={() => setReactivating(u)}
-                            >
-                                <RotateCcw size={14} aria-hidden="true" />
-                                Reativar
-                            </button>
-                        )}
-                    </div>
-                );
-            },
-        },
+        { header: "Perfil", render: (u) => <RolePill role={u.role} /> },
+        { header: "Situação", render: (u) => <StatusPill active={u.active} /> },
     ];
 
     return (
-        <div className="stack">
-            <header className="page-head">
-                <div>
-                    <h1>Usuários</h1>
-                    <p className="page-sub">
-                        Quem acessa a área da equipe e com qual perfil. Motoristas e clientes
-                        aparecem aqui só para consulta.
-                    </p>
-                </div>
-                <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>
-                    <Plus size={18} aria-hidden="true" />
-                    Novo usuário
-                </button>
-            </header>
-
-            <DataTable
-                columns={columns}
-                rows={users.data?.items}
-                rowKey={(u) => u.publicId}
-                total={users.data?.total ?? 0}
-                limit={limit}
-                offset={offset}
-                onPage={(o, l) => {
-                    setOffset(o);
-                    setLimit(l);
-                }}
-                loading={users.isLoading}
-                error={
-                    users.isError
-                        ? messageFor(
-                              (users.error as ApiError).code,
-                              (users.error as ApiError).message,
-                          )
-                        : undefined
-                }
-                onRetry={() => users.refetch()}
-                emptyTitle="Nenhum usuário cadastrado"
-            />
-
-            {creating && <NewUserDrawer onClose={() => setCreating(false)} />}
-            {changing && <RoleModal user={changing} onClose={() => setChanging(null)} />}
+        <SidePanelLayout open={panelNode != null} panel={panelNode}>
+            <div className="people">
+                {counted && (
+                    <ul className="role-counts" aria-label="Usuários por perfil">
+                        {counts
+                            .filter(([, n]) => n > 0)
+                            .map(([role, n]) => (
+                                <li key={role} className="role-pill" data-role={role}>
+                                    {`${n} ${ROLE_COUNT[role][n === 1 ? 0 : 1]}`}
+                                </li>
+                            ))}
+                    </ul>
+                )}
+                <DataTable
+                    columns={columns}
+                    rows={items}
+                    rowKey={(u) => u.publicId}
+                    total={total ?? 0}
+                    limit={limit}
+                    offset={offset}
+                    onPage={(o, l) => {
+                        setOffset(o);
+                        setLimit(l);
+                    }}
+                    loading={users.isLoading}
+                    error={
+                        users.isError
+                            ? messageFor(
+                                  (users.error as ApiError).code,
+                                  (users.error as ApiError).message,
+                              )
+                            : undefined
+                    }
+                    onRetry={() => users.refetch()}
+                    onRowClick={(u) =>
+                        setPanel(
+                            u.publicId === selectedId ? null : { mode: "detail", id: u.publicId },
+                        )
+                    }
+                    selectedKey={selectedId}
+                    emptyTitle="Nenhum usuário cadastrado"
+                />
+            </div>
             {deactivating && (
                 <ConfirmDialog
                     title="Desativar usuário"
@@ -379,6 +461,6 @@ export default function Users() {
                     }
                 />
             )}
-        </div>
+        </SidePanelLayout>
     );
 }

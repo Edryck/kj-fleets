@@ -5,6 +5,9 @@ import { legsFromStops } from "../components/RouteLegs";
 import type { Padding } from "../map/camera";
 import type { SceneMarker } from "../map/markers";
 import type { MapScene } from "../map/sceneStore";
+import { initials } from "../patterns/initials";
+
+export { initials };
 
 export interface LiveMapSceneInput {
     drivers: Driver[];
@@ -12,14 +15,6 @@ export interface LiveMapSceneInput {
     selectedId: string | null;
     route: OrderRoute | null;
     padding: Padding;
-}
-
-export function initials(name: string): string {
-    const parts = name.trim().split(/\s+/).filter(Boolean);
-    if (parts.length === 0) return "?";
-    const letters =
-        parts.length > 1 ? parts[0][0] + parts[parts.length - 1][0] : parts[0].slice(0, 2);
-    return letters.toUpperCase();
 }
 
 function legPoints(from: RouteStop, to: RouteStop): [number, number][] | null {

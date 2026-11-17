@@ -1,36 +1,47 @@
 import { useQuery } from "@tanstack/react-query";
 import { Search } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { messageFor } from "../api/errors";
 import { ApiError, request } from "../api/http";
 import type { Customer, Page } from "../api/types";
-import DataTable, { type Column } from "../components/DataTable";
 import { ErrorState, Skeleton } from "../components/blocks";
-import { Drawer } from "../components/overlays";
+import DataTable, { type Column } from "../components/DataTable";
+import Glass from "../glass/Glass";
+import { useTitleBlock } from "../layout/titleBlockContext";
+import Avatar from "../patterns/Avatar";
+import HeroNumber from "../patterns/HeroNumber";
+import { SidePanel, SidePanelLayout } from "../patterns/SidePanel";
+import PersonHead from "./people/PersonHead";
 
-// só leitura: o cliente nasce no próprio cadastro (S02), a equipe não cria nem edita
-function CustomerDrawer({ customerId, onClose }: { customerId: string; onClose: () => void }) {
+function Row({ label, children }: { label: string; children: ReactNode }) {
+    return (
+        <div className="rowline dp-row">
+            <span>{label}</span>
+            <b>{children}</b>
+        </div>
+    );
+}
+
+function CustomerPanel({ summary, onClose }: { summary: Customer; onClose: () => void }) {
     const customer = useQuery({
-        queryKey: ["customer", customerId],
-        queryFn: () => request<Customer>("GET", `/customers/${customerId}`),
+        queryKey: ["customer", summary.publicId],
+        queryFn: () => request<Customer>("GET", `/customers/${summary.publicId}`),
     });
+    const c = customer.data;
 
     return (
-        <Drawer
-            title="Cliente"
+        <SidePanel
+            title={summary.name}
             onClose={onClose}
+            className="person-panel has-hero"
             footer={
-                <>
-                    <button type="button" className="btn btn-secondary" onClick={onClose}>
-                        Fechar
-                    </button>
-                    <Link to={`/orders?customerId=${customerId}`} className="btn btn-primary">
-                        Ver pedidos
-                    </Link>
-                </>
+                <Link to={`/orders?customerId=${summary.publicId}`} className="btn btn-primary">
+                    Ver pedidos
+                </Link>
             }
         >
+            <PersonHead name={c?.name ?? summary.name} note="Cadastro feito pelo próprio cliente" />
             {customer.isError ? (
                 <ErrorState
                     message={messageFor(
@@ -39,25 +50,17 @@ function CustomerDrawer({ customerId, onClose }: { customerId: string; onClose: 
                     )}
                     onRetry={() => customer.refetch()}
                 />
-            ) : !customer.data ? (
-                <Skeleton height={120} />
+            ) : !c ? (
+                <Skeleton height={96} />
             ) : (
-                <dl className="dl">
-                    <div>
-                        <dt>Nome</dt>
-                        <dd>{customer.data.name}</dd>
-                    </div>
-                    <div>
-                        <dt>E-mail</dt>
-                        <dd className="data">{customer.data.email ?? "—"}</dd>
-                    </div>
-                    <div>
-                        <dt>Telefone</dt>
-                        <dd>{customer.data.phone ?? "—"}</dd>
-                    </div>
-                </dl>
+                <div className="dp-rows">
+                    <Row label="E-mail">
+                        <span className="data">{c.email ?? "—"}</span>
+                    </Row>
+                    <Row label="Telefone">{c.phone ?? "—"}</Row>
+                </div>
             )}
-        </Drawer>
+        </SidePanel>
     );
 }
 
@@ -83,45 +86,52 @@ export default function Customers() {
         placeholderData: (previous) => previous,
     });
 
+    useTitleBlock({ title: "Clientes", meta: "Só consulta" });
+
+    const items = customers.data?.items;
+    const total = customers.data?.total;
+    const open = openId ? items?.find((c) => c.publicId === openId) : undefined;
+
     const columns: Column<Customer>[] = [
         {
-            header: "Nome",
+            header: "Cliente",
             render: (c) => (
-                <button
-                    type="button"
-                    className="table-link table-link-button"
-                    onClick={() => setOpenId(c.publicId)}
-                >
-                    {c.name}
-                </button>
+                <div className="team-person">
+                    <Avatar name={c.name} size="sm" />
+                    <span className="team-person-text">
+                        <b>{c.name}</b>
+                    </span>
+                </div>
             ),
         },
         { header: "E-mail", render: (c) => <span className="data">{c.email ?? "—"}</span> },
         { header: "Telefone", render: (c) => c.phone ?? "—" },
-        {
-            header: "Ações",
-            align: "right",
-            render: (c) => (
-                <Link to={`/orders?customerId=${c.publicId}`} className="btn btn-ghost btn-sm">
-                    Ver pedidos
-                </Link>
-            ),
-        },
     ];
 
-    return (
-        <div className="stack">
-            <header className="page-head">
-                <div>
-                    <h1>Clientes</h1>
-                    <p className="page-sub">
-                        Quem já se cadastrou para pedir entregas. Só consulta.
-                    </p>
-                </div>
-            </header>
+    const heroLabel = q
+        ? total === 1
+            ? "cliente encontrado"
+            : "clientes encontrados"
+        : total === 1
+          ? "cliente cadastrado"
+          : "clientes cadastrados";
 
-            <section className="filters" aria-label="Filtros">
-                <div className="filters-row">
+    return (
+        <SidePanelLayout
+            open={open != null}
+            panel={
+                open && (
+                    <CustomerPanel
+                        key={open.publicId}
+                        summary={open}
+                        onClose={() => setOpenId(null)}
+                    />
+                )
+            }
+        >
+            <div className="people">
+                <Glass as="section" className="people-head" aria-label="Filtros">
+                    <HeroNumber size="large" label={heroLabel} value={total ?? null} />
                     <label className="search-field">
                         <Search size={16} aria-hidden="true" />
                         <input
@@ -132,34 +142,33 @@ export default function Customers() {
                             aria-label="Buscar clientes"
                         />
                     </label>
-                </div>
-            </section>
-
-            <DataTable
-                columns={columns}
-                rows={customers.data?.items}
-                rowKey={(c) => c.publicId}
-                total={customers.data?.total ?? 0}
-                limit={limit}
-                offset={offset}
-                onPage={(o, l) => {
-                    setOffset(o);
-                    setLimit(l);
-                }}
-                loading={customers.isLoading}
-                error={
-                    customers.isError
-                        ? messageFor(
-                              (customers.error as ApiError).code,
-                              (customers.error as ApiError).message,
-                          )
-                        : undefined
-                }
-                onRetry={() => customers.refetch()}
-                emptyTitle={q ? "Nenhum cliente encontrado" : "Nenhum cliente cadastrado"}
-            />
-
-            {openId && <CustomerDrawer customerId={openId} onClose={() => setOpenId(null)} />}
-        </div>
+                </Glass>
+                <DataTable
+                    columns={columns}
+                    rows={items}
+                    rowKey={(c) => c.publicId}
+                    total={total ?? 0}
+                    limit={limit}
+                    offset={offset}
+                    onPage={(o, l) => {
+                        setOffset(o);
+                        setLimit(l);
+                    }}
+                    loading={customers.isLoading}
+                    error={
+                        customers.isError
+                            ? messageFor(
+                                  (customers.error as ApiError).code,
+                                  (customers.error as ApiError).message,
+                              )
+                            : undefined
+                    }
+                    onRetry={() => customers.refetch()}
+                    onRowClick={(c) => setOpenId(c.publicId === openId ? null : c.publicId)}
+                    selectedKey={openId}
+                    emptyTitle={q ? "Nenhum cliente encontrado" : "Nenhum cliente cadastrado"}
+                />
+            </div>
+        </SidePanelLayout>
     );
 }

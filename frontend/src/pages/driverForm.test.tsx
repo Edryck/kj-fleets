@@ -2,7 +2,7 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Driver, DriverStatus } from "../api/types";
-import { DriverDrawer } from "./Drivers";
+import DriverForm from "./drivers/DriverForm";
 
 vi.mock("../api/http", async (importOriginal) => ({
     ...(await importOriginal<typeof import("../api/http")>()),
@@ -29,7 +29,7 @@ const driver = (status: DriverStatus): Driver => ({
 const renderDrawer = (d: Driver) =>
     render(
         <QueryClientProvider client={new QueryClient()}>
-            <DriverDrawer driver={d} onClose={() => {}} />
+            <DriverForm driver={d} onClose={() => {}} />
         </QueryClientProvider>,
     );
 

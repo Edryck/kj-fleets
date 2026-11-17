@@ -1,7 +1,7 @@
 import { waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHookWithClient } from "../test/render";
-import { useTotals } from "./useTotals";
+import { useTotal, useTotals } from "./useTotals";
 
 const { request } = vi.hoisted(() => ({ request: vi.fn() }));
 
@@ -47,5 +47,14 @@ describe("useTotals", () => {
         expect(result.current).toEqual({ CREATED: undefined, FAILED: undefined });
         await waitFor(() => expect(result.current.CREATED).toBe(3));
         expect(result.current.FAILED).toBeUndefined();
+    });
+});
+
+describe("useTotal", () => {
+    it("reads the unfiltered total with limit=1", async () => {
+        request.mockResolvedValue({ items: [], total: 12, limit: 1, offset: 0 });
+        const { result } = renderHookWithClient(() => useTotal("/vehicles"));
+        await waitFor(() => expect(result.current).toBe(12));
+        expect(request).toHaveBeenCalledWith("GET", "/vehicles", undefined, { limit: 1 });
     });
 });

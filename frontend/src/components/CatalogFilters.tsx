@@ -1,5 +1,5 @@
 import { Search } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useSession } from "../auth/session";
 import Glass from "../glass/Glass";
 
@@ -12,7 +12,12 @@ interface Props {
     onStatus: (status: string) => void;
     includeInactive: boolean;
     onIncludeInactive: (on: boolean) => void;
+    counts?: Record<string, number | undefined>;
+    total?: number;
+    action?: ReactNode;
 }
+
+const shown = (value: number | undefined) => (value == null ? "—" : value);
 
 export default function CatalogFilters({
     searchLabel,
@@ -23,6 +28,9 @@ export default function CatalogFilters({
     onStatus,
     includeInactive,
     onIncludeInactive,
+    counts,
+    total,
+    action,
 }: Props) {
     const role = useSession()?.role;
     const canSeeInactive = role === "ADMIN" || role === "FLEET_MANAGER";
@@ -34,8 +42,33 @@ export default function CatalogFilters({
     }, [search, onQuery]);
 
     return (
-        <Glass as="section" className="filter-bar is-single" aria-label="Filtros">
+        <Glass
+            as="section"
+            className={`filter-bar is-single${counts ? " is-pill" : ""}`}
+            aria-label="Filtros"
+        >
             <div className="filter-bar-row">
+                {counts && (
+                    <div className="segmented filter-segment" role="group" aria-label="Status">
+                        <button
+                            type="button"
+                            aria-pressed={status === ""}
+                            onClick={() => onStatus("")}
+                        >
+                            Todos <span className="num">{shown(total)}</span>
+                        </button>
+                        {statuses.map(([value, label]) => (
+                            <button
+                                key={value}
+                                type="button"
+                                aria-pressed={status === value}
+                                onClick={() => onStatus(value)}
+                            >
+                                {label} <span className="num">{shown(counts[value])}</span>
+                            </button>
+                        ))}
+                    </div>
+                )}
                 <label className="search-field">
                     <Search size={16} aria-hidden="true" />
                     <input
@@ -46,17 +79,19 @@ export default function CatalogFilters({
                         aria-label={searchLabel}
                     />
                 </label>
-                <label className="filter-field">
-                    <span>Status</span>
-                    <select value={status} onChange={(e) => onStatus(e.target.value)}>
-                        <option value="">Todos</option>
-                        {statuses.map(([value, label]) => (
-                            <option key={value} value={value}>
-                                {label}
-                            </option>
-                        ))}
-                    </select>
-                </label>
+                {!counts && (
+                    <label className="filter-field">
+                        <span>Status</span>
+                        <select value={status} onChange={(e) => onStatus(e.target.value)}>
+                            <option value="">Todos</option>
+                            {statuses.map(([value, label]) => (
+                                <option key={value} value={value}>
+                                    {label}
+                                </option>
+                            ))}
+                        </select>
+                    </label>
+                )}
                 {canSeeInactive && (
                     <label className="filter-toggle">
                         <input
@@ -68,6 +103,7 @@ export default function CatalogFilters({
                         Mostrar inativos
                     </label>
                 )}
+                {action}
             </div>
         </Glass>
     );

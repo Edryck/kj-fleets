@@ -1,219 +1,124 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useQueries, useQuery } from "@tanstack/react-query";
+import { Layers, Pencil, Plus, Trash2 } from "lucide-react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { messageFor } from "../api/errors";
 import { ApiError, request } from "../api/http";
-import type { Driver, FleetDetail, FleetSummary, Page } from "../api/types";
+import type { FleetDetail, FleetSummary, Page } from "../api/types";
 import { useSession } from "../auth/session";
-import DataTable, { type Column } from "../components/DataTable";
-import { ErrorState, Skeleton } from "../components/blocks";
-import { ConfirmDialog, Drawer } from "../components/overlays";
-import StatusBadge from "../components/StatusBadge";
-import { toast } from "../components/Toasts";
+import { EmptyState, ErrorState, Skeleton } from "../components/blocks";
+import { PAGE_SIZES, Pager } from "../components/DataTable";
+import { ConfirmDialog } from "../components/overlays";
+import Glass from "../glass/Glass";
+import { useTitleBlock } from "../layout/titleBlockContext";
+import { SidePanel, SidePanelLayout } from "../patterns/SidePanel";
+import {
+    AvatarStack,
+    FleetEditor,
+    FleetStatusBar,
+    MemberList,
+    useDeleteFleet,
+} from "./fleets/fleetParts";
 
-export function useInvalidateFleets() {
-    const client = useQueryClient();
-    return () => {
-        void client.invalidateQueries({ queryKey: ["fleets"] });
-        void client.invalidateQueries({ queryKey: ["fleet"] });
-        void client.invalidateQueries({ queryKey: ["drivers"] });
-    };
-}
+type Panel = { mode: "members" | "edit"; id: string } | { mode: "new" } | null;
 
-export function useDeleteFleet(onDeleted?: () => void) {
-    const invalidate = useInvalidateFleets();
-    return useMutation({
-        mutationFn: (fleet: FleetSummary) => request<void>("DELETE", `/fleets/${fleet.publicId}`),
-        onSuccess: () => {
-            toast.success("Frota excluída.");
-            invalidate();
-            onDeleted?.();
-        },
-        onError: (e: ApiError) => toast.error(messageFor(e.code, e.message)),
-    });
-}
+const motoristas = (n: number) => (n === 1 ? "motorista" : "motoristas");
 
-// todos os motoristas (inclusive inativos, para não sumirem da frota) marcados ou não
-export function DriverChecklist({
+function FleetCard({
+    fleet,
+    detail,
     selected,
-    onChange,
+    index,
+    onSelect,
 }: {
-    selected: string[];
-    onChange: (ids: string[]) => void;
+    fleet: FleetSummary;
+    detail: FleetDetail | undefined;
+    selected: boolean;
+    index: number;
+    onSelect: () => void;
 }) {
-    const PAGE = 100;
-    const drivers = useInfiniteQuery({
-        queryKey: ["drivers", "fleet-options"],
-        initialPageParam: 0,
-        queryFn: ({ pageParam }) =>
-            request<Page<Driver>>("GET", "/drivers", undefined, {
-                includeInactive: true,
-                limit: PAGE,
-                offset: pageParam,
-            }),
-        // a API limita a página em 100, então busca o resto sob demanda
-        getNextPageParam: (last, all) => {
-            const loaded = all.length * PAGE;
-            return loaded < last.total ? loaded : undefined;
-        },
-    });
-    const items = drivers.data?.pages.flatMap((p) => p.items) ?? [];
-
-    if (drivers.isLoading) return <Skeleton height={120} />;
-    if (drivers.isError) {
-        const e = drivers.error as ApiError;
-        return (
-            <ErrorState message={messageFor(e.code, e.message)} onRetry={() => drivers.refetch()} />
-        );
-    }
-    if (!items.length) {
-        return <p className="caption">Nenhum motorista cadastrado ainda.</p>;
-    }
-
-    const toggle = (id: string, on: boolean) =>
-        onChange(on ? [...selected, id] : selected.filter((x) => x !== id));
-
     return (
-        <ul className="checklist" aria-label="Motoristas da frota">
-            {items.map((d) => (
-                <li key={d.publicId}>
-                    <label className="checklist-row">
-                        <input
-                            type="checkbox"
-                            className="check"
-                            checked={selected.includes(d.publicId)}
-                            onChange={(e) => toggle(d.publicId, e.target.checked)}
-                        />
-                        <span className="checklist-name">{d.name}</span>
-                        <span className="caption data">{d.username}</span>
-                        <StatusBadge kind="driver" value={d.status} />
-                        {!d.active && <span className="badge badge-neutral">Inativo</span>}
-                    </label>
-                </li>
-            ))}
-            {drivers.hasNextPage && (
-                <li>
+        <Glass
+            as="article"
+            className={`fleet-card${selected ? " is-selected" : ""}`}
+            style={{ "--i": Math.min(index, 12) } as CSSProperties}
+        >
+            <h2 className="fleet-card-name">
+                <button type="button" aria-pressed={selected} onClick={onSelect}>
+                    {fleet.name}
+                </button>
+            </h2>
+            <span className="fleet-count">
+                <b>{fleet.driverCount}</b> {motoristas(fleet.driverCount)}
+            </span>
+            {detail ? (
+                <>
+                    <FleetStatusBar drivers={detail.drivers} />
+                    <AvatarStack drivers={detail.drivers} />
+                </>
+            ) : (
+                <div className="fleet-card-loading" aria-hidden="true">
+                    <Skeleton height={8} />
+                    <Skeleton height={30} width="45%" />
+                </div>
+            )}
+        </Glass>
+    );
+}
+
+function MembersPanel({
+    fleet,
+    detail,
+    canWrite,
+    onEdit,
+    onRemove,
+    onClose,
+}: {
+    fleet: FleetSummary;
+    detail: FleetDetail | undefined;
+    canWrite: boolean;
+    onEdit: () => void;
+    onRemove: () => void;
+    onClose: () => void;
+}) {
+    const footer = (
+        <>
+            <Link className="btn btn-secondary" to={`/fleets/${fleet.publicId}`}>
+                Abrir frota
+            </Link>
+            {canWrite && (
+                <>
+                    <button type="button" className="btn btn-ghost" onClick={onEdit}>
+                        <Pencil size={16} aria-hidden="true" />
+                        Editar
+                    </button>
                     <button
                         type="button"
-                        className="btn btn-ghost btn-sm"
-                        disabled={drivers.isFetchingNextPage}
-                        onClick={() => void drivers.fetchNextPage()}
+                        className="btn btn-ghost btn-danger-ghost"
+                        onClick={onRemove}
                     >
-                        Carregar mais motoristas
-                    </button>
-                </li>
-            )}
-        </ul>
-    );
-}
-
-function FleetForm({ fleet, onClose }: { fleet: FleetDetail | null; onClose: () => void }) {
-    const invalidate = useInvalidateFleets();
-    const [driverIds, setDriverIds] = useState<string[]>(
-        () => fleet?.drivers.map((d) => d.publicId) ?? [],
-    );
-    const form = useForm<{ name: string }>({ defaultValues: { name: fleet?.name ?? "" } });
-    const { register, handleSubmit, setError, formState } = form;
-
-    const save = useMutation({
-        mutationFn: (body: { name: string; driverIds: string[] }) =>
-            fleet
-                ? request<FleetDetail>("PUT", `/fleets/${fleet.publicId}`, body)
-                : request<FleetDetail>("POST", "/fleets", body),
-        onSuccess: () => {
-            toast.success(fleet ? "Frota atualizada." : "Frota criada.");
-            invalidate();
-            onClose();
-        },
-        onError: (e: ApiError) => setError("root", { message: messageFor(e.code, e.message) }),
-    });
-
-    return (
-        <Drawer
-            title={fleet ? "Editar frota" : "Nova frota"}
-            onClose={onClose}
-            footer={
-                <>
-                    <button type="button" className="btn btn-secondary" onClick={onClose}>
-                        Cancelar
-                    </button>
-                    <button
-                        type="submit"
-                        form="fleet-form"
-                        className="btn btn-primary"
-                        disabled={save.isPending}
-                    >
-                        {save.isPending && (
-                            <Loader2 size={16} className="spin" aria-hidden="true" />
-                        )}
-                        {fleet ? "Salvar frota" : "Criar frota"}
+                        <Trash2 size={16} aria-hidden="true" />
+                        Excluir
                     </button>
                 </>
-            }
-        >
-            <form
-                id="fleet-form"
-                className="stack"
-                noValidate
-                onSubmit={handleSubmit((v) => save.mutate({ name: v.name.trim(), driverIds }))}
-            >
-                {formState.errors.root && (
-                    <p className="notice notice-danger" role="alert">
-                        {formState.errors.root.message}
-                    </p>
-                )}
-                <div className="field">
-                    <label htmlFor="fleet-name">Nome</label>
-                    <input
-                        id="fleet-name"
-                        placeholder="Ex.: Turno da manhã"
-                        aria-invalid={!!formState.errors.name}
-                        {...register("name", {
-                            validate: (v) => v.trim() !== "" || "Informe o nome da frota",
-                        })}
-                    />
-                    {formState.errors.name && (
-                        <p className="field-error">{formState.errors.name.message}</p>
-                    )}
-                </div>
-                <div className="field">
-                    <span className="field-label">Motoristas</span>
-                    <DriverChecklist selected={driverIds} onChange={setDriverIds} />
-                </div>
-            </form>
-        </Drawer>
+            )}
+        </>
     );
-}
-
-// a lista de frotas abre o drawer com o detalhe (motoristas atuais) já carregado
-export function FleetDrawer({ fleetId, onClose }: { fleetId: string | null; onClose: () => void }) {
-    const detail = useQuery({
-        queryKey: ["fleet", fleetId],
-        queryFn: () => request<FleetDetail>("GET", `/fleets/${fleetId}`),
-        enabled: fleetId !== null,
-    });
-
-    if (fleetId && detail.isError) {
-        const e = detail.error as ApiError;
-        return (
-            <Drawer title="Editar frota" onClose={onClose}>
-                <ErrorState
-                    message={messageFor(e.code, e.message)}
-                    onRetry={() => detail.refetch()}
-                />
-            </Drawer>
-        );
-    }
-    if (fleetId && !detail.data) {
-        return (
-            <Drawer title="Editar frota" onClose={onClose}>
-                <Skeleton height={200} />
-            </Drawer>
-        );
-    }
-    return <FleetForm fleet={detail.data ?? null} onClose={onClose} />;
+    return (
+        <SidePanel title={fleet.name} onClose={onClose} footer={footer} className="fleet-panel">
+            <span className="fleet-count is-panel">
+                <b>{fleet.driverCount}</b> {motoristas(fleet.driverCount)}
+            </span>
+            {detail ? (
+                <>
+                    <FleetStatusBar drivers={detail.drivers} />
+                    <MemberList drivers={detail.drivers} />
+                </>
+            ) : (
+                <Skeleton height={160} />
+            )}
+        </SidePanel>
+    );
 }
 
 export default function Fleets() {
@@ -221,8 +126,7 @@ export default function Fleets() {
     const canWrite = session?.role === "ADMIN" || session?.role === "FLEET_MANAGER";
     const [limit, setLimit] = useState(20);
     const [offset, setOffset] = useState(0);
-    // "new" abre o drawer vazio; um id abre a edição
-    const [editing, setEditing] = useState<string | "new" | null>(null);
+    const [panel, setPanel] = useState<Panel>(null);
     const [removing, setRemoving] = useState<FleetSummary | null>(null);
     const remove = useDeleteFleet();
 
@@ -231,95 +135,127 @@ export default function Fleets() {
         queryFn: () => request<Page<FleetSummary>>("GET", "/fleets", undefined, { limit, offset }),
         placeholderData: (previous) => previous,
     });
+    const items = fleets.data?.items;
+    const details = useQueries({
+        queries: (items ?? []).map((f) => ({
+            queryKey: ["fleet", f.publicId],
+            queryFn: () => request<FleetDetail>("GET", `/fleets/${f.publicId}`),
+            staleTime: 30_000,
+        })),
+    });
+    const detailOf = (id: string) =>
+        details[items?.findIndex((f) => f.publicId === id) ?? -1]?.data;
 
-    const add = (
-        <button type="button" className="btn btn-primary" onClick={() => setEditing("new")}>
+    const add = canWrite ? (
+        <button type="button" className="btn btn-primary" onClick={() => setPanel({ mode: "new" })}>
             <Plus size={18} aria-hidden="true" />
             Nova frota
         </button>
-    );
+    ) : undefined;
+    const total = fleets.data?.total;
 
-    const columns: Column<FleetSummary>[] = [
-        {
-            header: "Nome",
-            render: (f) => (
-                <Link to={`/fleets/${f.publicId}`} className="table-link">
-                    {f.name}
-                </Link>
-            ),
-        },
-        { header: "Motoristas", align: "right", render: (f) => f.driverCount },
-        ...(canWrite
-            ? [
-                  {
-                      header: "Ações",
-                      align: "right" as const,
-                      render: (f: FleetSummary) => (
-                          <div className="row-actions">
-                              <button
-                                  type="button"
-                                  className="btn btn-ghost btn-icon"
-                                  aria-label={`Editar ${f.name}`}
-                                  onClick={() => setEditing(f.publicId)}
-                              >
-                                  <Pencil size={16} aria-hidden="true" />
-                              </button>
-                              <button
-                                  type="button"
-                                  className="btn btn-ghost btn-icon"
-                                  aria-label={`Excluir ${f.name}`}
-                                  onClick={() => setRemoving(f)}
-                              >
-                                  <Trash2 size={16} aria-hidden="true" />
-                              </button>
-                          </div>
-                      ),
-                  },
-              ]
-            : []),
-    ];
+    useTitleBlock({
+        title: "Frotas",
+        meta: total == null ? undefined : `${total} ${total === 1 ? "frota" : "frotas"}`,
+        actions: add,
+    });
+
+    const selectedId = panel && panel.mode !== "new" ? panel.id : null;
+    const selected = selectedId ? items?.find((f) => f.publicId === selectedId) : undefined;
+    const closePanel = () => setPanel(null);
+
+    let panelNode: ReactNode = null;
+    if (panel?.mode === "new") {
+        panelNode = <FleetEditor fleetId={null} onClose={closePanel} />;
+    } else if (panel && selected) {
+        const toMembers = () => setPanel({ mode: "members", id: selected.publicId });
+        panelNode =
+            panel.mode === "edit" ? (
+                <FleetEditor
+                    key={selected.publicId}
+                    fleetId={selected.publicId}
+                    onClose={toMembers}
+                />
+            ) : (
+                <MembersPanel
+                    fleet={selected}
+                    detail={detailOf(selected.publicId)}
+                    canWrite={canWrite}
+                    onEdit={() => setPanel({ mode: "edit", id: selected.publicId })}
+                    onRemove={() => setRemoving(selected)}
+                    onClose={closePanel}
+                />
+            );
+    }
+
+    let body: ReactNode;
+    if (fleets.isError) {
+        const e = fleets.error as ApiError;
+        body = (
+            <ErrorState message={messageFor(e.code, e.message)} onRetry={() => fleets.refetch()} />
+        );
+    } else if (!items) {
+        body = (
+            <div className="fleet-grid" aria-busy="true">
+                {Array.from({ length: 4 }, (_, i) => (
+                    <Glass key={i} className="fleet-card is-loading">
+                        <Skeleton height={20} width="50%" />
+                        <Skeleton height={40} width="35%" />
+                        <Skeleton height={8} />
+                    </Glass>
+                ))}
+            </div>
+        );
+    } else if (items.length === 0) {
+        body = (
+            <EmptyState
+                icon={Layers}
+                title="Nenhuma frota"
+                description="Agrupe motoristas para filtrar o dashboard."
+                action={add}
+            />
+        );
+    } else {
+        body = (
+            <>
+                <div className="fleet-grid">
+                    {items.map((f, i) => (
+                        <FleetCard
+                            key={f.publicId}
+                            fleet={f}
+                            detail={details[i]?.data}
+                            index={i}
+                            selected={f.publicId === selectedId}
+                            onSelect={() =>
+                                setPanel(
+                                    f.publicId === selectedId
+                                        ? null
+                                        : { mode: "members", id: f.publicId },
+                                )
+                            }
+                        />
+                    ))}
+                </div>
+                {(fleets.data?.total ?? 0) > PAGE_SIZES[0] && (
+                    <Glass className="garage-pager">
+                        <Pager
+                            total={fleets.data?.total ?? 0}
+                            limit={limit}
+                            offset={offset}
+                            onPage={(o, l) => {
+                                setOffset(o);
+                                setLimit(l);
+                            }}
+                        />
+                    </Glass>
+                )}
+            </>
+        );
+    }
 
     return (
-        <div className="stack">
-            <header className="page-head">
-                <div>
-                    <h1>Frotas</h1>
-                    <p className="page-sub">Grupos de motoristas. Filtram o dashboard de gestão.</p>
-                </div>
-                {canWrite && add}
-            </header>
-
-            <DataTable
-                columns={columns}
-                rows={fleets.data?.items}
-                rowKey={(f) => f.publicId}
-                total={fleets.data?.total ?? 0}
-                limit={limit}
-                offset={offset}
-                onPage={(o, l) => {
-                    setOffset(o);
-                    setLimit(l);
-                }}
-                loading={fleets.isLoading}
-                error={
-                    fleets.isError
-                        ? messageFor(
-                              (fleets.error as ApiError).code,
-                              (fleets.error as ApiError).message,
-                          )
-                        : undefined
-                }
-                onRetry={() => fleets.refetch()}
-                emptyTitle="Nenhuma frota. Agrupe motoristas para filtrar o dashboard"
-                emptyAction={canWrite ? add : undefined}
-            />
-
-            {editing && (
-                <FleetDrawer
-                    fleetId={editing === "new" ? null : editing}
-                    onClose={() => setEditing(null)}
-                />
-            )}
+        <SidePanelLayout open={panelNode != null} panel={panelNode}>
+            <div className="fleets">{body}</div>
             {removing && (
                 <ConfirmDialog
                     title="Excluir frota"
@@ -329,10 +265,13 @@ export default function Fleets() {
                     busy={remove.isPending}
                     onClose={() => setRemoving(null)}
                     onConfirm={() =>
-                        remove.mutate(removing, { onSettled: () => setRemoving(null) })
+                        remove.mutate(removing, {
+                            onSettled: () => setRemoving(null),
+                            onSuccess: () => setPanel(null),
+                        })
                     }
                 />
             )}
-        </div>
+        </SidePanelLayout>
     );
 }

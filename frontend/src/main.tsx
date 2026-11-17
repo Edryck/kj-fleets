@@ -26,6 +26,8 @@ import "./styles/dashboard.css";
 import "./styles/dashboard-aerial.css";
 import "./styles/customer.css";
 import "./styles/catalogs.css";
+import "./styles/garage.css";
+import "./styles/insights.css";
 import App from "./App";
 import { getSession, subscribeSession } from "./auth/session";
 import { applyTheme, readTheme } from "./theme";

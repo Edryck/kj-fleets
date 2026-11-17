@@ -51,8 +51,6 @@ export default function DataTable<T>({
     if (!loading && rows?.length === 0)
         return <EmptyState title={emptyTitle} action={emptyAction} />;
 
-    const from = total === 0 ? 0 : offset + 1;
-    const to = Math.min(offset + limit, total);
     return (
         <Glass className="table-wrap">
             <div className="table-scroll">
@@ -111,39 +109,59 @@ export default function DataTable<T>({
                     </tbody>
                 </table>
             </div>
-            <div className="table-footer">
-                <label className="inline-field caption">
-                    Por página
-                    <select value={limit} onChange={(e) => onPage(0, Number(e.target.value))}>
-                        {[20, 50, 100].map((n) => (
-                            <option key={n} value={n}>
-                                {n}
-                            </option>
-                        ))}
-                    </select>
-                </label>
-                <span className="caption">
-                    {from}-{to} de {total}
-                </span>
-                <button
-                    type="button"
-                    className="btn btn-secondary btn-icon"
-                    disabled={offset === 0}
-                    onClick={() => onPage(Math.max(0, offset - limit), limit)}
-                    aria-label="Página anterior"
-                >
-                    <ChevronLeft size={18} aria-hidden="true" />
-                </button>
-                <button
-                    type="button"
-                    className="btn btn-secondary btn-icon"
-                    disabled={offset + limit >= total}
-                    onClick={() => onPage(offset + limit, limit)}
-                    aria-label="Próxima página"
-                >
-                    <ChevronRight size={18} aria-hidden="true" />
-                </button>
-            </div>
+            <Pager total={total} limit={limit} offset={offset} onPage={onPage} />
         </Glass>
+    );
+}
+
+export const PAGE_SIZES = [20, 50, 100];
+
+export function Pager({
+    total,
+    limit,
+    offset,
+    onPage,
+}: {
+    total: number;
+    limit: number;
+    offset: number;
+    onPage: (offset: number, limit: number) => void;
+}) {
+    const from = total === 0 ? 0 : offset + 1;
+    const to = Math.min(offset + limit, total);
+    return (
+        <div className="table-footer">
+            <label className="inline-field caption">
+                Por página
+                <select value={limit} onChange={(e) => onPage(0, Number(e.target.value))}>
+                    {PAGE_SIZES.map((n) => (
+                        <option key={n} value={n}>
+                            {n}
+                        </option>
+                    ))}
+                </select>
+            </label>
+            <span className="caption">
+                {from}-{to} de {total}
+            </span>
+            <button
+                type="button"
+                className="btn btn-secondary btn-icon"
+                disabled={offset === 0}
+                onClick={() => onPage(Math.max(0, offset - limit), limit)}
+                aria-label="Página anterior"
+            >
+                <ChevronLeft size={18} aria-hidden="true" />
+            </button>
+            <button
+                type="button"
+                className="btn btn-secondary btn-icon"
+                disabled={offset + limit >= total}
+                onClick={() => onPage(offset + limit, limit)}
+                aria-label="Próxima página"
+            >
+                <ChevronRight size={18} aria-hidden="true" />
+            </button>
+        </div>
     );
 }

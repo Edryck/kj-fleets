@@ -1,5 +1,6 @@
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetSessionForTests, startSession } from "../auth/session";
 import type { Role } from "../api/types";
 import CatalogFilters from "./CatalogFilters";
@@ -43,5 +44,37 @@ describe("filtros de cadastro", () => {
         login("FLEET_MANAGER");
         renderFilters();
         expect(screen.getByRole("checkbox", { name: "Mostrar inativos" })).toBeTruthy();
+    });
+
+    it("com contagens, o status vira segmento com os totais e a ação fica no fim", async () => {
+        login("FLEET_MANAGER");
+        const onStatus = vi.fn();
+        render(
+            <CatalogFilters
+                searchLabel="Buscar veículos"
+                placeholder="Buscar por placa ou tipo"
+                onQuery={() => {}}
+                statuses={[
+                    ["AVAILABLE", "Disponível"],
+                    ["MAINTENANCE", "Manutenção"],
+                ]}
+                status=""
+                onStatus={onStatus}
+                includeInactive={false}
+                onIncludeInactive={() => {}}
+                counts={{ AVAILABLE: 5, MAINTENANCE: undefined }}
+                total={12}
+                action={<button type="button">Novo veículo</button>}
+            />,
+        );
+        expect(screen.queryByRole("combobox")).toBeNull();
+        expect(screen.getByRole("button", { name: "Todos 12" })).toHaveAttribute(
+            "aria-pressed",
+            "true",
+        );
+        expect(screen.getByRole("button", { name: "Manutenção —" })).toBeInTheDocument();
+        await userEvent.click(screen.getByRole("button", { name: "Disponível 5" }));
+        expect(onStatus).toHaveBeenCalledWith("AVAILABLE");
+        expect(screen.getByRole("button", { name: "Novo veículo" })).toBeInTheDocument();
     });
 });
