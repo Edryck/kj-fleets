@@ -111,17 +111,37 @@
 }
 
 .map-marker-dropoff {
-    border-radius: 6px;
-    transform: rotate(45deg);
-    background: var(--color-accent);
+    isolation: isolate;
+    background: none;
+    box-shadow: none;
     color: var(--color-accent-ink);
 }
 
-.map-marker-dropoff .map-marker-label {
-    transform: rotate(-45deg);
+.map-marker-dropoff::before {
+    content: "";
+    position: absolute;
+    inset: 3px;
+    z-index: -1;
+    border-radius: 6px;
+    background: var(--color-accent);
+    box-shadow:
+        0 0 0 2px var(--color-route-casing),
+        0 4px 12px rgb(0 0 0 / 0.3);
+    transform: rotate(45deg);
 }
 
 .map-marker.is-next {
+    box-shadow:
+        0 0 0 2px var(--color-route-casing),
+        0 0 0 6px color-mix(in srgb, var(--color-text) 25%, transparent),
+        0 0 24px color-mix(in srgb, var(--color-text) 50%, transparent);
+}
+
+.map-marker-dropoff.is-next {
+    box-shadow: none;
+}
+
+.map-marker-dropoff.is-next::before {
     box-shadow:
         0 0 0 2px var(--color-route-casing),
         0 0 0 6px color-mix(in srgb, var(--color-text) 25%, transparent),

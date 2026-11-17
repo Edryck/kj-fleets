@@ -9,13 +9,12 @@ import {
     observeTheme,
     switchStyle,
 } from "./maplibre";
+import { HOME_CENTER } from "./camera";
 import { animateArcs, animateLegs, introSpin, startComets } from "./mapMotion";
 import { PALETTES } from "./mapStyle";
 import { createMarkerLayer } from "./markers";
 import { createSceneEngine } from "./sceneEngine";
 import { getScene, subscribeMapCommand, subscribeScene } from "./sceneStore";
-
-const CENTER: [number, number] = [-54.18, -24.93];
 
 export default function MapStage({ visible }: { visible: boolean }) {
     const container = useRef<HTMLDivElement>(null);
@@ -30,7 +29,7 @@ export default function MapStage({ visible }: { visible: boolean }) {
             const map = new MapLibreMap({
                 container: container.current,
                 style,
-                center: CENTER,
+                center: HOME_CENTER,
                 zoom: 9,
                 maxPitch: 75,
                 attributionControl: { compact: true },

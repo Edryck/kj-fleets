@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cometPositions, cometsDone, partialLine } from "./mapMotion";
+import { cometPositions, cometsDone, cutLegs, partialLine } from "./mapMotion";
 
 describe("map motion math", () => {
     const line: [number, number][] = [
@@ -24,5 +24,21 @@ describe("map motion math", () => {
         expect(cometPositions(paths, 200, 2200, 2)[1]).toBeNull();
         expect(cometsDone(2, 2200 * 2.17 + 1, 2200, 2)).toBe(true);
         expect(cometsDone(2, 2200 * 2.17 - 1, 2200, 2)).toBe(false);
+    });
+
+    it("keeps the original-order layer whole while the route draws", () => {
+        const original = { kind: "original" as const, points: line };
+        const road = { kind: "road" as const, points: line };
+        expect(cutLegs([original, road], 0)).toEqual([original]);
+        expect(cutLegs([original, road], 0.5)).toEqual([
+            original,
+            {
+                kind: "road",
+                points: [
+                    [0, 0],
+                    [0, 5],
+                ],
+            },
+        ]);
     });
 });

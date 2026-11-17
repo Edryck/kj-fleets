@@ -10,6 +10,8 @@ export interface Padding {
 
 export const ZERO: Padding = { top: 0, bottom: 0, left: 0, right: 0 };
 
+export const HOME_CENTER: [number, number] = [-54.18, -24.93];
+
 export interface SceneCamera {
     fit: "markers" | "legs" | "points" | null;
     points?: [number, number][];

@@ -264,3 +264,34 @@ describe("camera changes while following", () => {
         expect(deps.camera.followTo).toHaveBeenCalledTimes(1);
     });
 });
+
+describe("progressive legs", () => {
+    const leg = (lat: number): MapLeg => ({
+        kind: "road",
+        points: [
+            [lat, 0],
+            [lat, 1],
+        ],
+    });
+
+    it("draws once per owner while the scene keeps asking for it", () => {
+        const deps = makeDeps();
+        const engine = createSceneEngine(fakeMap(), deps);
+        const owner = Symbol("order");
+        engine.apply({ owner, scene: { markers: [], legs: [leg(0)], animateLegs: true } });
+        engine.apply({ owner, scene: { markers: [], legs: [leg(1)], animateLegs: true } });
+        expect(deps.motion.animateLegs).toHaveBeenCalledTimes(1);
+        expect(deps.layers.setLegs).toHaveBeenLastCalledWith(expect.anything(), [leg(1)]);
+    });
+
+    it("draws the next legs progressively after a scene that stopped asking", () => {
+        const deps = makeDeps();
+        const engine = createSceneEngine(fakeMap(), deps);
+        const owner = Symbol("lab");
+        engine.apply({ owner, scene: { markers: [], legs: [leg(0)], animateLegs: true } });
+        engine.apply({ owner, scene: { markers: [], legs: [], animateLegs: false } });
+        engine.apply({ owner, scene: { markers: [], legs: [leg(2)], animateLegs: true } });
+        expect(deps.motion.animateLegs).toHaveBeenCalledTimes(2);
+        expect(deps.motion.animateLegs).toHaveBeenLastCalledWith(expect.anything(), [leg(2)]);
+    });
+});

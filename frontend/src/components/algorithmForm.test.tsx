@@ -6,7 +6,15 @@ import AlgorithmFields from "./AlgorithmFields";
 
 afterEach(cleanup);
 
-function Harness({ waypoints, start = "" }: { waypoints: number; start?: string }) {
+function Harness({
+    waypoints,
+    start = "",
+    compact = false,
+}: {
+    waypoints: number;
+    start?: string;
+    compact?: boolean;
+}) {
     const [algorithm, setAlgorithm] = useState(start);
     const [seed, setSeed] = useState("");
     return (
@@ -16,6 +24,7 @@ function Harness({ waypoints, start = "" }: { waypoints: number; start?: string 
             seed={seed}
             onSeed={setSeed}
             waypointCount={waypoints}
+            compact={compact}
         />
     );
 }
@@ -42,5 +51,17 @@ describe("AlgorithmFields", () => {
         expect(
             (screen.getByRole("option", { name: /Held-Karp/ }) as HTMLOptionElement).disabled,
         ).toBe(false);
+    });
+
+    it("no modo compacto tira as ajudas do fluxo e mantém as regras", async () => {
+        render(<Harness waypoints={16} compact />);
+        expect(screen.queryByText(/Held-Karp vai até/)).toBeNull();
+        const option = screen.getByRole("option", { name: /Held-Karp/ }) as HTMLOptionElement;
+        expect(option.disabled).toBe(true);
+        await userEvent.selectOptions(screen.getByLabelText("Algoritmo"), "SIMULATED_ANNEALING");
+        expect(screen.getByLabelText("Seed").getAttribute("title")).toBe(
+            "Mesma seed, mesmo resultado.",
+        );
+        expect(screen.queryByText("Mesma seed, mesmo resultado.")).toBeNull();
     });
 });

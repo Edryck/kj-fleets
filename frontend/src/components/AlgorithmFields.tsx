@@ -10,12 +10,12 @@ export const ALGORITHM_LABEL: Record<string, string> = {
 };
 
 interface Props {
-    // "" = deixa a API escolher
     algorithm: string;
     onAlgorithm: (value: string) => void;
     seed: string;
     onSeed: (value: string) => void;
     waypointCount: number;
+    compact?: boolean;
 }
 
 export default function AlgorithmFields({
@@ -24,12 +24,13 @@ export default function AlgorithmFields({
     seed,
     onSeed,
     waypointCount,
+    compact = false,
 }: Props) {
     const algorithmId = useId();
     const seedId = useId();
     const tooLarge = waypointCount > HELD_KARP_MAX;
     return (
-        <div className="field-row">
+        <div className={`field-row${compact ? " is-compact" : ""}`}>
             <div className="field">
                 <label htmlFor={algorithmId}>Algoritmo</label>
                 <select
@@ -53,7 +54,7 @@ export default function AlgorithmFields({
                         </option>
                     ))}
                 </select>
-                {tooLarge && (
+                {tooLarge && !compact && (
                     <p className="field-help">
                         Held-Karp vai até {HELD_KARP_MAX} paradas; este pedido tem {waypointCount}.
                     </p>
@@ -68,8 +69,9 @@ export default function AlgorithmFields({
                         value={seed}
                         onChange={(e) => onSeed(e.target.value.replace(/[^0-9]/g, ""))}
                         placeholder="Opcional"
+                        title={compact ? "Mesma seed, mesmo resultado." : undefined}
                     />
-                    <p className="field-help">Mesma seed, mesmo resultado.</p>
+                    {!compact && <p className="field-help">Mesma seed, mesmo resultado.</p>}
                 </div>
             )}
         </div>

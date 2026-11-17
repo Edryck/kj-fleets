@@ -21,11 +21,12 @@ export function partialLine(points: [number, number][], progress: number): [numb
     return cut;
 }
 
-function cutLegs(legs: MapLeg[], progress: number): MapLeg[] {
-    const total = legs.reduce((n, leg) => n + Math.max(0, leg.points.length - 1), 0);
+export function cutLegs(legs: MapLeg[], progress: number): MapLeg[] {
+    const drawn = legs.filter((leg) => leg.kind !== "original");
+    const total = drawn.reduce((n, leg) => n + Math.max(0, leg.points.length - 1), 0);
     let budget = progress * total;
-    const out: MapLeg[] = [];
-    for (const leg of legs) {
+    const out: MapLeg[] = legs.filter((leg) => leg.kind === "original");
+    for (const leg of drawn) {
         const segments = leg.points.length - 1;
         if (budget <= 0 || segments < 1) break;
         if (budget >= segments) {

@@ -161,6 +161,7 @@ export function createSceneEngine(map: MapLibreMap, deps: EngineDeps): SceneEngi
 
     const applyLegs = (s: MapScene) => {
         const legs = legsOf(s);
+        if (!s.animateLegs) legsAnimated = false;
         const key = JSON.stringify(legs);
         if (key === legsKey) return;
         legsKey = key;
