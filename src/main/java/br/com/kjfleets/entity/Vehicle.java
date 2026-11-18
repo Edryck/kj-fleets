@@ -12,6 +12,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 @Entity
@@ -40,6 +41,20 @@ public class Vehicle {
 
     @Column(nullable = false)
     private boolean active = true;
+    @Column(length = 40)
+    private String brand;
+    @Column(length = 60)
+    private String model;
+    @Column(name = "model_year")
+    private Integer modelYear;
+    @Column(length = 20)
+    private String color;
+    @Column(name = "capacity_kg")
+    private Integer capacityKg;
+    @Column(name = "volume_m3", precision = 6, scale = 2)
+    private BigDecimal volumeM3;
+    @Column(name = "odometer_km")
+    private Integer odometerKm;
 
     @PrePersist
     void prePersist() {

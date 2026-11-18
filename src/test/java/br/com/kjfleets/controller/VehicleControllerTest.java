@@ -11,6 +11,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
+import java.time.Year;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -156,5 +158,100 @@ class VehicleControllerTest extends IntegrationTest {
         createVehicle(Map.of("plate", plate(), "type", "VAN"), Role.FLEET_MANAGER)
                 .andExpect(status().isCreated());
         send(get("/vehicles"), Role.CUSTOMER).andExpect(status().isForbidden());
+    }
+
+    private Map<String, Object> identity(String plate) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("plate", plate);
+        body.put("type", "Furgão");
+        body.put("brand", "  Fiat ");
+        body.put("model", "Fiorino ");
+        body.put("year", 2023);
+        body.put("color", "Branco");
+        body.put("capacityKg", 650);
+        body.put("volumeM3", 3.1);
+        body.put("odometerKm", 48210);
+        return body;
+    }
+
+    @Test
+    void createsVehicleWithIdentityFields() throws Exception {
+        String plate = plate();
+        String id = json.readTree(createVehicle(identity(plate), Role.FLEET_MANAGER)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.brand").value("Fiat"))
+                .andExpect(jsonPath("$.model").value("Fiorino"))
+                .andExpect(jsonPath("$.year").value(2023))
+                .andExpect(jsonPath("$.color").value("Branco"))
+                .andExpect(jsonPath("$.capacityKg").value(650))
+                .andExpect(jsonPath("$.volumeM3").value(3.1))
+                .andExpect(jsonPath("$.odometerKm").value(48210))
+                .andReturn().getResponse().getContentAsString()).get("publicId").asString();
+        Map<String, Object> changed = identity(plate);
+        changed.put("odometerKm", 50000);
+        changed.put("color", "Prata");
+        updateVehicle(id, changed, Role.FLEET_MANAGER)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.odometerKm").value(50000))
+                .andExpect(jsonPath("$.color").value("Prata"));
+        send(get("/vehicles/" + id), Role.DISPATCHER)
+                .andExpect(jsonPath("$.model").value("Fiorino"));
+    }
+
+    @Test
+    void blankIdentityFieldsBecomeNull() throws Exception {
+        Map<String, Object> body = identity(plate());
+        body.put("brand", "   ");
+        body.put("model", "");
+        body.put("color", " ");
+        body.put("year", null);
+        createVehicle(body, Role.FLEET_MANAGER)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.brand").doesNotExist())
+                .andExpect(jsonPath("$.model").doesNotExist())
+                .andExpect(jsonPath("$.color").doesNotExist())
+                .andExpect(jsonPath("$.year").doesNotExist());
+    }
+
+    @Test
+    void rejectsYearTooFarAhead() throws Exception {
+        int next = Year.now().getValue() + 1;
+        Map<String, Object> late = identity(plate());
+        late.put("year", next + 1);
+        createVehicle(late, Role.FLEET_MANAGER)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+        Map<String, Object> ok = identity(plate());
+        ok.put("year", next);
+        createVehicle(ok, Role.FLEET_MANAGER).andExpect(status().isCreated());
+        Map<String, Object> old = identity(plate());
+        old.put("year", 1979);
+        createVehicle(old, Role.FLEET_MANAGER).andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void rejectsOutOfRangeNumbers() throws Exception {
+        Map<String, Object> capacity = identity(plate());
+        capacity.put("capacityKg", 0);
+        createVehicle(capacity, Role.FLEET_MANAGER).andExpect(status().isBadRequest());
+        Map<String, Object> volume = identity(plate());
+        volume.put("volumeM3", 151);
+        createVehicle(volume, Role.FLEET_MANAGER).andExpect(status().isBadRequest());
+        Map<String, Object> odometer = identity(plate());
+        odometer.put("odometerKm", -1);
+        createVehicle(odometer, Role.FLEET_MANAGER).andExpect(status().isBadRequest());
+        Map<String, Object> model = identity(plate());
+        model.put("model", "x".repeat(61));
+        createVehicle(model, Role.FLEET_MANAGER).andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void searchMatchesBrandAndModel() throws Exception {
+        String plate = plate();
+        Map<String, Object> body = identity(plate);
+        body.put("model", "Fiorino Endurance " + plate);
+        createVehicle(body, Role.FLEET_MANAGER).andExpect(status().isCreated());
+        send(get("/vehicles").param("q", "endurance " + plate.toLowerCase()), Role.DISPATCHER)
+                .andExpect(jsonPath("$.items[0].plate").value(plate));
     }
 }
