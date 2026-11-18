@@ -1,26 +1,69 @@
 import { useQuery } from "@tanstack/react-query";
-import { Ban, Search, Timer, TriangleAlert } from "lucide-react";
-import { useState } from "react";
+import { Ban, PackageSearch, Search } from "lucide-react";
+import { useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ApiError, request } from "../api/http";
 import type { TrackResponse } from "../api/types";
 import { useSession } from "../auth/session";
-import { ErrorState, Skeleton } from "../components/blocks";
-import { formatDateTime, formatMinutes } from "../components/format";
-import JourneyRail from "../components/JourneyRail";
-import StatusBadge from "../components/StatusBadge";
+import { EmptyState, ErrorState, Skeleton } from "../components/blocks";
+import { formatDateTime } from "../components/format";
+import { badgeEntry } from "../components/StatusBadge";
 import Wordmark from "../components/Wordmark";
-import { isActive, showsEta, STATUS_HELP, TIMELINE_LABEL } from "./orderActions";
+import Glass from "../glass/Glass";
+import AmbientBackground from "../layout/AmbientBackground";
+import { timelineFromEvents } from "../patterns/eventTimeline";
+import HeroNumber from "../patterns/HeroNumber";
+import StopTimeline from "../patterns/StopTimeline";
+import { isActive, showsEta, STATUS_HELP } from "./orderActions";
 
-// não há tópico público: enquanto o pedido anda, consulta a cada 30 s
 export const trackInterval = (data: TrackResponse | undefined) =>
     data && isActive(data.status) ? 30_000 : false;
+
+function TrackResult({ data }: { data: TrackResponse }) {
+    const { label, tone } = badgeEntry("order", data.status);
+    const live = isActive(data.status);
+    const eta = showsEta(data.status) ? data.etaMinutes : null;
+    return (
+        <div className="track-result" aria-live="polite">
+            <span className="track-code data">{data.trackingNumber}</span>
+            <div className={`big-status tone-${tone}${live ? " is-live" : ""}`}>
+                <span className="big-status-dot" aria-hidden="true" />
+                <h1>{label}</h1>
+            </div>
+            <p className="track-help">{STATUS_HELP[data.status]}</p>
+            {eta != null && (
+                <HeroNumber
+                    size="large"
+                    label="Chegada estimada"
+                    value={eta}
+                    unit="min"
+                    caption="Previsão calculada pela operação"
+                />
+            )}
+            {(data.status === "CANCELLED" || data.status === "FAILED") && (
+                <p className="notice notice-danger">
+                    <Ban size={14} aria-hidden="true" /> Em caso de dúvida, fale com quem fez o
+                    pedido.
+                </p>
+            )}
+            {data.timeline.length > 0 && (
+                <StopTimeline stops={timelineFromEvents(data.timeline)} label="Eventos" />
+            )}
+            <p className="track-foot">
+                Pedido feito em {formatDateTime(data.createdAt)}
+                {data.finishedAt && <>, finalizado em {formatDateTime(data.finishedAt)}</>}
+                {live && ". Esta página atualiza sozinha."}
+            </p>
+        </div>
+    );
+}
 
 export default function Track() {
     const { trackingNumber = "" } = useParams();
     const navigate = useNavigate();
     const session = useSession();
     const [code, setCode] = useState(trackingNumber);
+    const input = useRef<HTMLInputElement>(null);
 
     const track = useQuery({
         queryKey: ["track", trackingNumber],
@@ -38,9 +81,14 @@ export default function Track() {
 
     const error = track.error as ApiError | null;
     const data = track.data;
+    const checkCode = () => {
+        input.current?.focus();
+        input.current?.select();
+    };
 
     return (
         <div className="track">
+            <AmbientBackground visible />
             <header className="track-top">
                 <Link to="/login" aria-label="KJ Fleets">
                     <Wordmark />
@@ -51,102 +99,71 @@ export default function Track() {
             </header>
 
             <main className="track-main">
-                <h1>Rastrear pedido</h1>
-                <form
-                    className="track-form"
-                    onSubmit={(e) => {
-                        e.preventDefault();
-                        const next = code.trim();
-                        if (next) navigate(`/track/${encodeURIComponent(next)}`);
-                    }}
-                >
-                    <label className="sr-only" htmlFor="track-code">
-                        Código do pedido
-                    </label>
-                    <input
-                        id="track-code"
-                        className="data"
-                        value={code}
-                        onChange={(e) => setCode(e.target.value)}
-                        placeholder="Código do pedido"
-                        autoComplete="off"
-                    />
-                    <button type="submit" className="btn btn-primary">
-                        <Search size={16} aria-hidden="true" />
-                        Rastrear
-                    </button>
-                </form>
+                <Glass as="section" className="track-card" aria-label="Rastrear pedido">
+                    {data ? (
+                        <p className="track-eyebrow">Rastrear pedido</p>
+                    ) : (
+                        <h1 className="track-title">Rastrear pedido</h1>
+                    )}
+                    <form
+                        className="track-form"
+                        onSubmit={(e) => {
+                            e.preventDefault();
+                            const next = code.trim();
+                            if (next) navigate(`/track/${encodeURIComponent(next)}`);
+                        }}
+                    >
+                        <label className="sr-only" htmlFor="track-code">
+                            Código do pedido
+                        </label>
+                        <input
+                            ref={input}
+                            id="track-code"
+                            className="data"
+                            value={code}
+                            onChange={(e) => setCode(e.target.value)}
+                            placeholder="Código do pedido"
+                            autoComplete="off"
+                        />
+                        <button type="submit" className="btn btn-primary">
+                            <Search size={16} aria-hidden="true" />
+                            Rastrear
+                        </button>
+                    </form>
 
-                {trackingNumber === "" && (
-                    <p className="page-sub">
-                        Digite o código que você recebeu para ver onde está o pedido.
-                    </p>
-                )}
-
-                {track.isPending && trackingNumber !== "" && <Skeleton height={240} />}
-
-                {error?.status === 404 && (
-                    <p className="notice notice-warning" role="alert">
-                        <TriangleAlert size={14} aria-hidden="true" /> Código não encontrado,
-                        confira e tente de novo.
-                    </p>
-                )}
-                {track.isError && error?.status !== 404 && (
-                    <ErrorState
-                        message="Não foi possível consultar agora."
-                        onRetry={() => track.refetch()}
-                    />
-                )}
-
-                {data && (
-                    <section className="card track-card" aria-live="polite">
-                        <div className="track-head">
-                            <span className="data track-code">{data.trackingNumber}</span>
-                            <StatusBadge kind="order" value={data.status} />
-                        </div>
-                        <p className="status-help">{STATUS_HELP[data.status]}</p>
-                        <JourneyRail status={data.status} />
-                        {(data.status === "CANCELLED" || data.status === "FAILED") && (
-                            <p className="notice notice-danger">
-                                <Ban size={14} aria-hidden="true" /> Em caso de dúvida, fale com
-                                quem fez o pedido.
-                            </p>
-                        )}
-                        {showsEta(data.status) && data.etaMinutes != null && (
-                            <p className="status-fact">
-                                <Timer size={18} aria-hidden="true" />
-                                <span>
-                                    Chega em cerca de{" "}
-                                    <strong>{formatMinutes(data.etaMinutes)}</strong>
-                                </span>
-                            </p>
-                        )}
-                        <ol className="timeline">
-                            {[...data.timeline].reverse().map((t, i) => (
-                                <li
-                                    key={`${t.at}-${i}`}
-                                    className={
-                                        t.status === "CANCELLED" || t.status === "FAILED"
-                                            ? "tl-bad"
-                                            : undefined
-                                    }
-                                >
-                                    <div className="tl-head">
-                                        <strong>{TIMELINE_LABEL[t.code] ?? t.code}</strong>
-                                        <span className="caption">{formatDateTime(t.at)}</span>
-                                    </div>
-                                </li>
-                            ))}
-                        </ol>
-                        <p className="caption">
-                            Pedido feito em {formatDateTime(data.createdAt)}
-                            {data.finishedAt && (
-                                <>, finalizado em {formatDateTime(data.finishedAt)}</>
-                            )}
-                            {isActive(data.status) && ". Esta página atualiza sozinha."}
+                    {trackingNumber === "" && (
+                        <p className="track-help">
+                            Digite o código que você recebeu para ver onde está o pedido.
                         </p>
-                    </section>
-                )}
+                    )}
+
+                    {track.isPending && trackingNumber !== "" && <Skeleton height={240} />}
+
+                    {error?.status === 404 && (
+                        <EmptyState
+                            icon={PackageSearch}
+                            title="Código não encontrado"
+                            description="Confira as letras e os números e tente de novo."
+                            action={
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary"
+                                    onClick={checkCode}
+                                >
+                                    Conferir o código
+                                </button>
+                            }
+                        />
+                    )}
+                    {track.isError && error?.status !== 404 && (
+                        <ErrorState
+                            message="Não foi possível consultar agora."
+                            onRetry={() => track.refetch()}
+                        />
+                    )}
+
+                    {data && <TrackResult data={data} />}
+                </Glass>
             </main>
         </div>
     );

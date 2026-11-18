@@ -1,23 +1,25 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Ban, CheckCircle2, PackagePlus, Timer, TriangleAlert, UserRound } from "lucide-react";
-import { useState } from "react";
+import { Ban, ChevronRight, FileCheck2, PackagePlus, TriangleAlert, UserRound } from "lucide-react";
+import { useState, type CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import { messageFor } from "../api/errors";
 import { ApiError, request } from "../api/http";
-import type { CustomerActive, CustomerPanel } from "../api/types";
-import { EmptyState, ErrorState, KpiCard, Skeleton } from "../components/blocks";
+import type { CustomerActive, CustomerPanel, OrdersSummary } from "../api/types";
+import { EmptyState, ErrorState, Skeleton } from "../components/blocks";
 import { formatDateTime, formatMinutes } from "../components/format";
-import JourneyRail from "../components/JourneyRail";
+import GeneratedAt from "../components/GeneratedAt";
 import { ConfirmDialog } from "../components/overlays";
 import { usePeriod } from "../components/PeriodSelect";
-import RateValue from "../components/RateValue";
-import StatusBadge from "../components/StatusBadge";
+import { badgeEntry } from "../components/StatusBadge";
 import { toast } from "../components/Toasts";
+import Glass from "../glass/Glass";
+import { useTitleBlock } from "../layout/titleBlockContext";
+import HeroNumber from "../patterns/HeroNumber";
 import { useTopics } from "../realtime/useTopic";
+import StopProgress from "./customer/StopProgress";
+import { DashTitleActions } from "./dashboard/dashParts";
 import { isActive, showsEta, STATUS_HELP } from "./orderActions";
-import { DashHeader } from "./dashboardParts";
 
-// limite razoável de assinaturas por tela
 const MAX_LIVE = 20;
 
 interface LiveEvent {
@@ -26,6 +28,129 @@ interface LiveEvent {
     etaMinutes: number | null;
     stopsDone: number;
     stopsTotal: number;
+}
+
+const rise = (i: number) => ({ "--i": i }) as CSSProperties;
+
+function heroCaption(active: CustomerActive[]): string {
+    if (active.length === 0) return "Nada a caminho agora";
+    const etas = active
+        .filter((a) => showsEta(a.status) && a.etaMinutes != null)
+        .map((a) => a.etaMinutes as number);
+    if (etas.length === 0) return "Aguardando a saída do motorista";
+    return `A próxima chega em ${formatMinutes(Math.min(...etas))}`;
+}
+
+function ActiveCard({
+    order,
+    index,
+    onCancel,
+}: {
+    order: CustomerActive;
+    index: number;
+    onCancel: (order: CustomerActive) => void;
+}) {
+    const { label, tone } = badgeEntry("order", order.status);
+    const eta = showsEta(order.status) ? order.etaMinutes : null;
+    return (
+        <Glass as="article" className="cd-card" style={rise(index + 1)}>
+            <div className="cd-card-top">
+                <Link className="cd-code data" to={`/orders/${order.orderId}`}>
+                    {order.trackingNumber}
+                </Link>
+                <Link
+                    className="cd-open"
+                    to={`/orders/${order.orderId}`}
+                    aria-label={`Ver pedido ${order.trackingNumber}`}
+                >
+                    <ChevronRight size={18} aria-hidden="true" />
+                </Link>
+            </div>
+            <div className={`big-status tone-${tone}`}>
+                <span className="big-status-dot" aria-hidden="true" />
+                <b>{label}</b>
+            </div>
+            <p className="cd-help">{STATUS_HELP[order.status]}</p>
+            {eta != null && (
+                <div className="cd-eta">
+                    <span className="cd-eta-label">Chegada em</span>
+                    <span className="cd-eta-value">
+                        <b>{eta}</b>
+                        <small>min</small>
+                    </span>
+                </div>
+            )}
+            {order.stopsTotal > 0 && (
+                <StopProgress done={order.stopsDone} total={order.stopsTotal} />
+            )}
+            <div className="cd-card-foot">
+                <span className="cd-driver">
+                    <UserRound size={16} aria-hidden="true" />
+                    {order.driverName ?? "Aguardando motorista"}
+                </span>
+                {order.cancellable && (
+                    <button
+                        type="button"
+                        className="btn btn-secondary btn-sm btn-danger-ghost"
+                        onClick={() => onCancel(order)}
+                    >
+                        <Ban size={14} aria-hidden="true" />
+                        Cancelar pedido
+                    </button>
+                )}
+            </div>
+        </Glass>
+    );
+}
+
+function SummaryPanel({ summary, index }: { summary: OrdersSummary; index: number }) {
+    const rate = summary.successRate;
+    return (
+        <Glass
+            as="section"
+            className="cd-panel cd-summary"
+            aria-labelledby="cd-summary-title"
+            style={rise(index)}
+        >
+            <h2 id="cd-summary-title">Resumo do período</h2>
+            <div className="cd-stats">
+                <HeroNumber size="stat" label="Pedidos feitos" value={summary.created} />
+                <HeroNumber size="stat" label="Entregues" value={summary.completed} />
+                <HeroNumber
+                    size="stat"
+                    label="Não entregues"
+                    value={summary.failed + summary.cancelled}
+                    caption={`${summary.failed} ${summary.failed === 1 ? "falhou" : "falharam"}, ${summary.cancelled} ${summary.cancelled === 1 ? "cancelado" : "cancelados"}`}
+                />
+                <HeroNumber
+                    size="stat"
+                    label="Entregas com sucesso"
+                    value={rate.rate == null ? null : rate.rate * 100}
+                    decimals={1}
+                    unit="%"
+                    caption={
+                        rate.rate == null
+                            ? "Sem pedidos fechados"
+                            : `${rate.n} ${rate.n === 1 ? "pedido" : "pedidos"}`
+                    }
+                />
+                <HeroNumber
+                    size="stat"
+                    label="Espera até sair"
+                    value={summary.avgWaitMinutes}
+                    unit="min"
+                    caption="Do pedido ao despacho"
+                />
+                <HeroNumber
+                    size="stat"
+                    label="Tempo de entrega"
+                    value={summary.avgCycleMinutes}
+                    unit="min"
+                    caption="Do despacho à entrega"
+                />
+            </div>
+        </Glass>
+    );
 }
 
 export default function CustomerDashboard() {
@@ -39,7 +164,6 @@ export default function CustomerDashboard() {
     });
     const p = panel.data;
 
-    // sem posição do motorista: o evento só traz status, previsão e paradas
     const liveIds = (p?.active ?? []).slice(0, MAX_LIVE).map((a) => `/topic/orders/${a.orderId}`);
     useTopics<LiveEvent>(liveIds, (e) => {
         if (!isActive(e.status)) {
@@ -84,6 +208,18 @@ export default function CustomerDashboard() {
         },
     });
 
+    useTitleBlock({
+        title: "Minhas entregas",
+        meta: p ? (
+            <GeneratedAt
+                generatedAt={p.meta.generatedAt}
+                timezone={p.meta.timezone}
+                onRefresh={() => void panel.refetch()}
+            />
+        ) : undefined,
+        actions: <DashTitleActions />,
+    });
+
     if (panel.isError) {
         const e = panel.error as ApiError;
         return (
@@ -91,189 +227,139 @@ export default function CustomerDashboard() {
         );
     }
 
+    if (!p) {
+        return (
+            <div className="cd" aria-busy="true">
+                <Skeleton height={160} />
+                <Skeleton height={300} />
+            </div>
+        );
+    }
+
+    const newOrder = (
+        <Link className="btn btn-primary" to="/orders/new">
+            <PackagePlus size={18} aria-hidden="true" />
+            Novo pedido
+        </Link>
+    );
+
     const empty =
-        p &&
         p.active.length === 0 &&
         p.recentDelivered.length === 0 &&
         p.attention.length === 0 &&
         p.summary.created === 0;
 
+    if (empty) {
+        return (
+            <div className="cd">
+                <Glass as="section" className="cd-panel cd-empty">
+                    <EmptyState
+                        icon={PackagePlus}
+                        title="Você ainda não tem pedidos"
+                        description="Crie o primeiro e acompanhe a entrega por aqui."
+                        action={newOrder}
+                    />
+                </Glass>
+            </div>
+        );
+    }
+
     return (
-        <div className="stack dash">
-            <DashHeader
-                title="Seus pedidos"
-                sub="O que está a caminho, o que precisa de atenção e o que já chegou."
-                generatedAt={p?.meta.generatedAt}
-                timezone={p?.meta.timezone}
-                onRefresh={() => void panel.refetch()}
-            >
-                <Link className="btn btn-primary" to="/orders/new">
-                    <PackagePlus size={18} aria-hidden="true" />
-                    Novo pedido
-                </Link>
-            </DashHeader>
-
-            {!p && <Skeleton height={220} />}
-
-            {empty && (
-                <EmptyState
-                    title="Você ainda não tem pedidos"
-                    description="Crie o primeiro e acompanhe a entrega por aqui."
-                    action={
-                        <Link className="btn btn-primary" to="/orders/new">
-                            Novo pedido
-                        </Link>
-                    }
+        <div className="cd">
+            <section className="cd-hero" aria-label="Destaque">
+                <HeroNumber
+                    label="Em andamento"
+                    value={p.active.length}
+                    caption={heroCaption(p.active)}
                 />
-            )}
+                {newOrder}
+            </section>
 
-            {p && p.attention.length > 0 && (
-                <section className="stack-sm" aria-label="Precisam de atenção">
-                    {p.attention.map((a) => (
-                        <Link
-                            key={a.orderId}
-                            to={`/orders/${a.orderId}`}
-                            className={`attention ${a.kind === "FAILED" ? "attention-bad" : ""}`}
+            <div className="cd-layout">
+                <section className="cd-active" aria-label="Entregas em andamento">
+                    {p.active.length === 0 ? (
+                        <Glass className="cd-panel cd-none" style={rise(1)}>
+                            <p>Nenhuma entrega a caminho. Os pedidos novos aparecem aqui.</p>
+                        </Glass>
+                    ) : (
+                        p.active.map((a, i) => (
+                            <ActiveCard
+                                key={a.orderId}
+                                order={a}
+                                index={i}
+                                onCancel={setCancelling}
+                            />
+                        ))
+                    )}
+                </section>
+
+                <div className="cd-side">
+                    {p.attention.length > 0 && (
+                        <Glass
+                            as="section"
+                            className="cd-panel"
+                            aria-labelledby="cd-attention-title"
+                            style={rise(2)}
                         >
-                            <TriangleAlert size={18} aria-hidden="true" />
-                            <span>
-                                <strong className="data">{a.trackingNumber}</strong>
-                                {a.kind === "FAILED"
-                                    ? ` não foi entregue${a.reason ? `: ${a.reason}` : "."}`
-                                    : ` está parado há ${formatMinutes(a.minutesInStage)}.`}
-                            </span>
-                        </Link>
-                    ))}
-                </section>
-            )}
-
-            {p && p.active.length > 0 && (
-                <section className="stack-sm">
-                    <h2>Em andamento</h2>
-                    <div className="active-grid">
-                        {p.active.map((a) => (
-                            <article key={a.orderId} className="card active-card">
-                                <div className="track-head">
-                                    <Link className="data table-link" to={`/orders/${a.orderId}`}>
-                                        {a.trackingNumber}
-                                    </Link>
-                                    <StatusBadge kind="order" value={a.status} />
-                                </div>
-                                <p className="status-help">{STATUS_HELP[a.status]}</p>
-                                <JourneyRail status={a.status} />
-                                <div className="status-facts">
-                                    {showsEta(a.status) && (
-                                        <span className="status-fact">
-                                            <Timer size={18} aria-hidden="true" />
+                            <h2 id="cd-attention-title">Precisa de atenção</h2>
+                            <ul className="cd-list">
+                                {p.attention.map((a) => (
+                                    <li key={a.orderId} data-kind={a.kind}>
+                                        <TriangleAlert size={16} aria-hidden="true" />
+                                        <div className="cd-list-text">
+                                            <Link
+                                                className="cd-code data"
+                                                to={`/orders/${a.orderId}`}
+                                            >
+                                                {a.trackingNumber}
+                                            </Link>
                                             <span>
-                                                Chegada em{" "}
-                                                <strong>{formatMinutes(a.etaMinutes)}</strong>
+                                                {a.kind === "FAILED"
+                                                    ? `Não foi entregue${a.reason ? `: ${a.reason}` : ""}`
+                                                    : `Parado há ${formatMinutes(a.minutesInStage)}`}
                                             </span>
-                                        </span>
-                                    )}
-                                    {a.driverName && (
-                                        <span className="status-fact">
-                                            <UserRound size={18} aria-hidden="true" />
-                                            <span>{a.driverName}</span>
-                                        </span>
-                                    )}
-                                    {a.stopsTotal > 0 && (
-                                        <span className="status-fact progress">
-                                            <progress value={a.stopsDone} max={a.stopsTotal} />
-                                            <span>
-                                                {a.stopsDone} de {a.stopsTotal} paradas
-                                            </span>
-                                        </span>
-                                    )}
-                                </div>
-                                <div className="active-actions">
-                                    <Link
-                                        className="btn btn-secondary btn-sm"
-                                        to={`/orders/${a.orderId}`}
-                                    >
-                                        Ver pedido
-                                    </Link>
-                                    {a.cancellable && (
-                                        <button
-                                            type="button"
-                                            className="btn btn-secondary btn-sm btn-danger-ghost"
-                                            onClick={() => setCancelling(a)}
-                                        >
-                                            <Ban size={14} aria-hidden="true" />
-                                            Cancelar
-                                        </button>
-                                    )}
-                                </div>
-                            </article>
-                        ))}
-                    </div>
-                </section>
-            )}
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
+                        </Glass>
+                    )}
 
-            {p && !empty && (
-                <>
-                    <section className="stack-sm">
-                        <h2>Resumo do período</h2>
-                        <div className="kpi-row">
-                            <KpiCard label="Pedidos feitos" value={p.summary.created} />
-                            <KpiCard
-                                label="Entregues"
-                                value={p.summary.completed}
-                                icon={CheckCircle2}
-                            />
-                            <KpiCard
-                                label="Não entregues"
-                                value={p.summary.failed + p.summary.cancelled}
-                                hint={`${p.summary.failed} falharam, ${p.summary.cancelled} cancelados`}
-                            />
-                            <KpiCard
-                                label="Entregas com sucesso"
-                                value={<RateValue value={p.summary.successRate} />}
-                            />
-                            <KpiCard
-                                label="Espera até sair"
-                                value={formatMinutes(p.summary.avgWaitMinutes)}
-                                hint="Do pedido até o despacho"
-                            />
-                            <KpiCard
-                                label="Tempo de entrega"
-                                value={formatMinutes(p.summary.avgCycleMinutes)}
-                                hint="Do despacho até a entrega"
-                            />
-                        </div>
-                    </section>
-
-                    <section className="card">
-                        <h2>Últimas entregas</h2>
+                    <Glass
+                        as="section"
+                        className="cd-panel"
+                        aria-labelledby="cd-delivered-title"
+                        style={rise(3)}
+                    >
+                        <h2 id="cd-delivered-title">Entregues recentemente</h2>
                         {p.recentDelivered.length === 0 ? (
-                            <p className="field-help">Nenhuma entrega concluída ainda.</p>
+                            <p className="cd-muted">Nenhuma entrega concluída ainda.</p>
                         ) : (
-                            <ul className="delivered-list">
+                            <ul className="cd-list">
                                 {p.recentDelivered.map((d) => (
-                                    <li key={d.orderId}>
-                                        <Link
-                                            className="data table-link"
-                                            to={`/orders/${d.orderId}`}
-                                        >
-                                            {d.trackingNumber}
-                                        </Link>
-                                        <span className="caption">
-                                            {formatDateTime(d.finishedAt)}
-                                            {d.hasPod && " · com comprovante"}
-                                        </span>
-                                        <Link
-                                            className="btn btn-ghost btn-sm"
-                                            to={`/orders/${d.orderId}`}
-                                        >
-                                            Ver
-                                        </Link>
+                                    <li key={d.orderId} data-kind="DELIVERED">
+                                        <FileCheck2 size={16} aria-hidden="true" />
+                                        <div className="cd-list-text">
+                                            <Link
+                                                className="cd-code data"
+                                                to={`/orders/${d.orderId}`}
+                                            >
+                                                {d.trackingNumber}
+                                            </Link>
+                                            <span>{formatDateTime(d.finishedAt)}</span>
+                                        </div>
+                                        {d.hasPod && (
+                                            <span className="pod-chip">Com comprovante</span>
+                                        )}
                                     </li>
                                 ))}
                             </ul>
                         )}
-                    </section>
-                </>
-            )}
+                    </Glass>
+                </div>
+            </div>
+
+            <SummaryPanel summary={p.summary} index={4} />
 
             {cancelling && (
                 <ConfirmDialog

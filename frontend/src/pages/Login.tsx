@@ -6,31 +6,16 @@ import { ApiError } from "../api/http";
 import { messageFor } from "../api/errors";
 import { consumeExpiredNotice, login, useSession } from "../auth/session";
 import Wordmark from "../components/Wordmark";
+import Glass from "../glass/Glass";
+import StaticMapBackdrop from "../map/StaticMapBackdrop";
 
 interface Values {
     username: string;
     password: string;
 }
 
-// next só vale como caminho interno; "//host" abriria redirecionamento externo
 function safeNext(next: string | null): string {
     return next && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
-}
-
-export function AuthBrandPanel() {
-    return (
-        <div className="brand-panel" aria-hidden="true">
-            <svg className="brand-route" viewBox="0 0 600 800" preserveAspectRatio="xMidYMid slice">
-                <path d="M-20 620 C 120 560, 160 420, 300 440 S 480 300, 640 180" />
-                <path d="M-20 700 C 140 650, 200 520, 340 540 S 500 420, 640 300" />
-                <path d="M-20 780 C 160 740, 240 620, 380 640 S 520 540, 640 420" />
-            </svg>
-            <div className="brand-copy">
-                <Wordmark size="lg" />
-                <p className="brand-tagline">Soluções em frota e logística</p>
-            </div>
-        </div>
-    );
 }
 
 export default function Login() {
@@ -68,14 +53,15 @@ export default function Login() {
     };
 
     return (
-        <div className="auth-split">
-            <AuthBrandPanel />
-            <section className="auth-form-side">
-                <div className="auth-form">
-                    <div className="auth-mobile-brand">
-                        <Wordmark />
+        <div className="auth">
+            <StaticMapBackdrop />
+            <main className="auth-main">
+                <Glass as="section" className="auth-card" aria-labelledby="auth-title">
+                    <div className="auth-brand">
+                        <Wordmark size="lg" />
+                        <p className="auth-tagline">Soluções em frota e logística</p>
                     </div>
-                    <h1>Acesse sua conta</h1>
+                    <h1 id="auth-title">Acesse sua conta</h1>
                     <p className="auth-lead">Entre para acompanhar operações e pedidos.</p>
                     {registered && (
                         <p className="notice notice-success" role="status">
@@ -153,15 +139,14 @@ export default function Login() {
                         <Link to="/register">Criar conta</Link>
                         <Link to="/track">Rastrear pedido</Link>
                     </p>
-                </div>
-            </section>
+                </Glass>
+            </main>
         </div>
     );
 }
 
 type DevLogin = { label: string; username: string; password: string };
 
-// atalho só de desenvolvimento: lê os logins de frontend/.env.local (fora do Git) e some no build
 function DevLogins({ onPick }: { onPick: (username: string, password: string) => void }) {
     if (!import.meta.env.DEV) return null;
     let logins: DevLogin[] = [];
