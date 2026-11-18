@@ -150,6 +150,9 @@ interface Item {
     glide: number;
 }
 
+const GLIDE_MS = 600;
+const GLIDING: ReadonlySet<SceneMarker["kind"]> = new Set(["driver", "vehicle"]);
+
 export function createMarkerLayer(map: MapLibreMap, onClick: (id: string) => void): MarkerLayer {
     const items = new Map<string, Item>();
     const data = new Map<string, SceneMarker>();
@@ -158,6 +161,25 @@ export function createMarkerLayer(map: MapLibreMap, onClick: (id: string) => voi
     const stopGlide = (item: Item) => {
         if (item.glide) cancelAnimationFrame(item.glide);
         item.glide = 0;
+    };
+
+    const glide = (item: Item, lat: number, lng: number, ms: number) => {
+        stopGlide(item);
+        if (prefersReducedMotion() || ms <= 0) {
+            item.marker.setLngLat([lng, lat]);
+            return;
+        }
+        const start = item.marker.getLngLat();
+        const from: [number, number] = [start.lat, start.lng];
+        const to: [number, number] = [lat, lng];
+        const t0 = performance.now();
+        const tick = (now: number) => {
+            const t = Math.min(1, (now - t0) / ms);
+            const [la, ln] = glidePosition(from, to, t);
+            item.marker.setLngLat([ln, la]);
+            item.glide = t < 1 ? requestAnimationFrame(tick) : 0;
+        };
+        item.glide = requestAnimationFrame(tick);
     };
 
     const paint = (item: Item, marker: SceneMarker) => {
@@ -206,8 +228,7 @@ export function createMarkerLayer(map: MapLibreMap, onClick: (id: string) => voi
             for (const marker of update) {
                 const item = items.get(marker.id)!;
                 if (item.data.lat !== marker.lat || item.data.lng !== marker.lng) {
-                    stopGlide(item);
-                    item.marker.setLngLat([marker.lng, marker.lat]);
+                    glide(item, marker.lat, marker.lng, GLIDING.has(marker.kind) ? GLIDE_MS : 0);
                 }
                 item.data = marker;
                 data.set(marker.id, marker);
@@ -219,27 +240,12 @@ export function createMarkerLayer(map: MapLibreMap, onClick: (id: string) => voi
             }
             if (clickChanged) items.forEach((item) => paint(item, item.data));
         },
-        glideTo(id, lat, lng, ms = 600) {
+        glideTo(id, lat, lng, ms = GLIDE_MS) {
             const item = items.get(id);
             if (!item) return;
-            stopGlide(item);
             item.data = { ...item.data, lat, lng };
             data.set(id, item.data);
-            if (prefersReducedMotion() || ms <= 0) {
-                item.marker.setLngLat([lng, lat]);
-                return;
-            }
-            const start = item.marker.getLngLat();
-            const from: [number, number] = [start.lat, start.lng];
-            const to: [number, number] = [lat, lng];
-            const t0 = performance.now();
-            const tick = (now: number) => {
-                const t = Math.min(1, (now - t0) / ms);
-                const [la, ln] = glidePosition(from, to, t);
-                item.marker.setLngLat([ln, la]);
-                item.glide = t < 1 ? requestAnimationFrame(tick) : 0;
-            };
-            item.glide = requestAnimationFrame(tick);
+            glide(item, lat, lng, ms);
         },
         clear() {
             items.forEach((item) => {

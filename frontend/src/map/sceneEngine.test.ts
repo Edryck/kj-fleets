@@ -36,7 +36,7 @@ function makeDeps(motion: Partial<EngineDeps["motion"]> = {}) {
         layers: { ensure: vi.fn(), setLegs: vi.fn(), setArcs: vi.fn(), setComets: vi.fn() },
         motion: {
             animateLegs: vi.fn(() => () => {}),
-            animateArcs: vi.fn(() => Promise.resolve()),
+            animateArcs: vi.fn(() => ({ done: Promise.resolve(), cancel: () => {} })),
             startComets: vi.fn(() => () => {}),
             introSpin: vi.fn(() => () => {}),
             ...motion,
@@ -334,4 +334,39 @@ describe("viewport", () => {
             false,
         );
     });
+});
+
+function pendingArcs() {
+    const cancel = vi.fn();
+    const animateArcs = vi.fn(() => ({ done: new Promise<void>(() => {}), cancel }));
+    return { cancel, animateArcs };
+}
+
+it("cancels a half-drawn plan when the arcs are cleared", () => {
+    const { cancel, animateArcs } = pendingArcs();
+    const deps = makeDeps({ animateArcs });
+    const engine = createSceneEngine(fakeMap(), deps);
+    const owner = Symbol("dispatch");
+    engine.apply({ owner, scene: { markers: [] } });
+    engine.apply({ owner, scene: { markers: [], arcs: [arc], comets: 2 } });
+    expect(animateArcs).toHaveBeenCalledTimes(1);
+    engine.apply({ owner, scene: { markers: [] } });
+    expect(cancel).toHaveBeenCalled();
+});
+
+it("cancels a half-drawn plan when the owner changes or the scene is torn down", () => {
+    const first = pendingArcs();
+    const deps = makeDeps({ animateArcs: first.animateArcs });
+    const engine = createSceneEngine(fakeMap(), deps);
+    const dispatch = Symbol("dispatch");
+    engine.apply({ owner: dispatch, scene: { markers: [] } });
+    engine.apply({ owner: dispatch, scene: { markers: [], arcs: [arc] } });
+    engine.apply({ owner: Symbol("live"), scene: { markers: [] } });
+    expect(first.cancel).toHaveBeenCalled();
+    const second = pendingArcs();
+    deps.motion.animateArcs = second.animateArcs;
+    engine.apply({ owner: dispatch, scene: { markers: [] } });
+    engine.apply({ owner: dispatch, scene: { markers: [], arcs: [arc] } });
+    engine.apply(null);
+    expect(second.cancel).toHaveBeenCalled();
 });

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Pencil, Plus, RotateCcw, Trash2, Truck } from "lucide-react";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
 import { messageFor } from "../api/errors";
 import { ApiError, request } from "../api/http";
@@ -133,10 +133,14 @@ function VehicleForm({
     const models = forType.filter((m) => !brand.trim() || fold(m.brand) === fold(brand));
     const year = nextYear();
 
+    const matchKey = findModel(brand, model)?.key ?? "";
+    const lastMatch = useRef(matchKey);
     useEffect(() => {
+        if (matchKey === lastMatch.current) return;
+        lastMatch.current = matchKey;
         const match = findModel(brand, model);
-        if (match && match.type !== type) setValue("type", match.type, { shouldDirty: true });
-    }, [brand, model, type, setValue]);
+        if (match) setValue("type", match.type, { shouldDirty: true });
+    }, [matchKey, brand, model, setValue]);
 
     const save = useMutation({
         mutationFn: (body: object) =>

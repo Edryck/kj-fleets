@@ -22,7 +22,10 @@ export interface EngineDeps {
     };
     motion: {
         animateLegs(map: MapLibreMap, legs: MapLeg[]): () => void;
-        animateArcs(map: MapLibreMap, arcs: SceneArc[]): Promise<void>;
+        animateArcs(
+            map: MapLibreMap,
+            arcs: SceneArc[],
+        ): { done: Promise<void>; cancel: () => void };
         startComets(map: MapLibreMap, arcs: SceneArc[], options?: { cycles?: number }): () => void;
         introSpin(map: MapLibreMap): () => void;
     };
@@ -100,6 +103,7 @@ export function createSceneEngine(map: MapLibreMap, deps: EngineDeps): SceneEngi
     let ownerStops: (() => void)[] = [];
     let stopLegs: () => void = () => {};
     let stopComets: () => void = () => {};
+    let stopArcs: () => void = () => {};
     let arcsToken = 0;
     let legsKey = "";
     let arcsKey = "";
@@ -158,6 +162,8 @@ export function createSceneEngine(map: MapLibreMap, deps: EngineDeps): SceneEngi
         stopLegs = () => {};
         stopComets();
         stopComets = () => {};
+        stopArcs();
+        stopArcs = () => {};
         arcsToken++;
         legsAnimated = false;
         stopArrival();
@@ -194,6 +200,8 @@ export function createSceneEngine(map: MapLibreMap, deps: EngineDeps): SceneEngi
         arcsKey = key;
         stopComets();
         stopComets = () => {};
+        stopArcs();
+        stopArcs = () => {};
         const token = ++arcsToken;
         if (arcs.length === 0) {
             deps.layers.setArcs(map, []);
@@ -201,8 +209,9 @@ export function createSceneEngine(map: MapLibreMap, deps: EngineDeps): SceneEngi
             return;
         }
         const drawing = deps.motion.animateArcs(map, arcs);
+        stopArcs = drawing.cancel;
         if (isNewOwner) return;
-        void drawing.then(() => {
+        void drawing.done.then(() => {
             if (token === arcsToken && arrived) runComets(arcs, s.comets);
         });
     };

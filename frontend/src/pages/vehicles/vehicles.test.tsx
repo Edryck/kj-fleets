@@ -208,6 +208,37 @@ describe("Vehicles garage", () => {
         expect(mockRequest).not.toHaveBeenCalledWith("POST", "/vehicles", expect.anything());
     });
 
+    it("keeps a type the user picks after a catalog model filled it", async () => {
+        renderGarage();
+        await userEvent.click(await screen.findByRole("button", { name: "Novo veículo" }));
+        const panel = screen.getByRole("dialog", { name: "Novo veículo" });
+        await userEvent.type(within(panel).getByLabelText("Marca"), "Fiat");
+        await userEvent.type(within(panel).getByLabelText("Modelo"), "Ducato");
+        expect(within(panel).getByLabelText("Tipo")).toHaveValue("Van");
+        await userEvent.selectOptions(within(panel).getByLabelText("Tipo"), "Furgão");
+        expect(within(panel).getByLabelText("Tipo")).toHaveValue("Furgão");
+    });
+
+    it("does not rewrite the saved type when opening the edit form", async () => {
+        mockRequest.mockImplementation((_m: string, _p: string, _b: unknown, params = {}) => {
+            if ((params as Record<string, unknown>).limit === 1)
+                return Promise.resolve({ items: [], total: 1, limit: 1, offset: 0 });
+            return Promise.resolve({
+                items: [
+                    vehicle({ type: "Caminhão", brand: "Mercedes-Benz", model: "Accelo 1016" }),
+                ],
+                total: 1,
+                limit: 20,
+                offset: 0,
+            });
+        });
+        renderGarage();
+        await userEvent.click((await screen.findByText("BRA2E19")).closest("button")!);
+        await userEvent.click(screen.getByRole("button", { name: "Editar" }));
+        const panel = screen.getByRole("dialog", { name: "Editar veículo" });
+        expect(within(panel).getByLabelText("Tipo")).toHaveValue("Caminhão");
+    });
+
     it("keeps an older free-text type selectable when editing", async () => {
         mockRequest.mockImplementation((_m: string, _p: string, _b: unknown, params = {}) => {
             if ((params as Record<string, unknown>).limit === 1)

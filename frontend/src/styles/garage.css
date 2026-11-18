@@ -274,14 +274,18 @@
 
     .vdetail-shot {
         grid-row: span 2;
-        height: 100%;
+        align-self: start;
+        height: auto;
         min-height: 180px;
         margin: 0;
     }
 
     .vdetail-shot .vehicle-shot {
-        width: 100%;
         margin-top: 0;
+    }
+
+    .vdetail-shot .vehicle-shot > img {
+        max-height: 170px;
     }
 
     .vdetail-plate {

@@ -60,21 +60,38 @@ export function animateLegs(map: MapLibreMap, legs: MapLeg[], duration = 1400): 
     };
 }
 
-export function animateArcs(map: MapLibreMap, arcs: SceneArc[], duration = 900): Promise<void> {
+export interface ArcDrawing {
+    done: Promise<void>;
+    cancel: () => void;
+}
+
+export function animateArcs(map: MapLibreMap, arcs: SceneArc[], duration = 900): ArcDrawing {
     if (prefersReducedMotion()) {
         setArcData(map, arcs, 1);
-        return Promise.resolve();
+        return { done: Promise.resolve(), cancel: noop };
     }
-    return new Promise((resolve) => {
+    let raf = 0;
+    const done = new Promise<void>((resolve) => {
         const t0 = performance.now();
         const tick = (now: number) => {
             const t = Math.min(1, (now - t0) / duration);
             setArcData(map, arcs, easeOutCubic(t));
-            if (t < 1) requestAnimationFrame(tick);
-            else resolve();
+            if (t < 1) {
+                raf = requestAnimationFrame(tick);
+            } else {
+                raf = 0;
+                resolve();
+            }
         };
-        requestAnimationFrame(tick);
+        raf = requestAnimationFrame(tick);
     });
+    return {
+        done,
+        cancel: () => {
+            if (raf) cancelAnimationFrame(raf);
+            raf = 0;
+        },
+    };
 }
 
 export function cometPositions(

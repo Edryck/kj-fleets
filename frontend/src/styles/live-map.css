@@ -932,6 +932,6 @@
 
 .live-sheet .live-card-shot .vehicle-shot {
     right: 0;
-    width: 250px;
+    max-width: 250px;
     margin: 0 auto;
 }

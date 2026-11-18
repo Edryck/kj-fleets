@@ -22,7 +22,7 @@ import {
 
 type Panel = { mode: "members" | "edit"; id: string } | { mode: "new" } | null;
 
-const motoristas = (n: number) => (n === 1 ? "motorista" : "motoristas");
+const driverLabel = (n: number) => (n === 1 ? "motorista" : "motoristas");
 
 function FleetCard({
     fleet,
@@ -49,7 +49,7 @@ function FleetCard({
                 </button>
             </h2>
             <span className="fleet-count">
-                <b>{fleet.driverCount}</b> {motoristas(fleet.driverCount)}
+                <b>{fleet.driverCount}</b> {driverLabel(fleet.driverCount)}
             </span>
             {detail ? (
                 <>
@@ -107,7 +107,7 @@ function MembersPanel({
     return (
         <SidePanel title={fleet.name} onClose={onClose} footer={footer} className="fleet-panel">
             <span className="fleet-count is-panel">
-                <b>{fleet.driverCount}</b> {motoristas(fleet.driverCount)}
+                <b>{fleet.driverCount}</b> {driverLabel(fleet.driverCount)}
             </span>
             {detail ? (
                 <>
