@@ -14,7 +14,7 @@ function Overlay({
     children,
     footer,
     variant,
-}: OverlayProps & { variant: "modal" | "drawer" }) {
+}: OverlayProps & { variant: "modal" }) {
     const titleId = useId();
     const panel = useRef<HTMLDivElement>(null);
 
@@ -58,7 +58,6 @@ function Overlay({
 }
 
 export const Modal = (props: OverlayProps) => <Overlay {...props} variant="modal" />;
-export const Drawer = (props: OverlayProps) => <Overlay {...props} variant="drawer" />;
 
 export function ConfirmDialog({
     title,

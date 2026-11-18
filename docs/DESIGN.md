@@ -30,6 +30,10 @@ As telas falam a mesma língua, mas cada uma tem uma ideia de composição próp
 | Despacho | Mesa de planejamento: mapa plano, visto de cima, com os arcos do plano |
 | Veículos | Garagem: sem mapa, cartões com os renders dos veículos |
 | Mapa ao vivo | Operação: lista de motoristas, filtros e mapa em tempo real |
+| Pedidos | Mesa de pedidos: contagem por status na barra de filtros, tabela e prévia no `SidePanel` |
+| Novo pedido | A rota sendo montada: as paradas formam uma linha do tempo que cresce, com o mapa em vidro ao lado |
+| Simulador de rota | Laboratório sobre o mapa plano: pontos marcados com o clique e resultado contra a ordem original |
+| Área do cliente | Sem mapa: cartões por entrega, com status grande, ETA e paradas |
 
 Toda tela nova escreve o seu ponto de vista em uma linha antes de ser desenhada. Uma tela que só troca as cores de uma tabela não está pronta.
 
@@ -44,22 +48,24 @@ Os tokens ficam em `frontend/src/styles/tokens.css`. O tema escuro é o padrão 
 | `--color-bg` | `#0c1511` | `#e8ede4` | Fundo de base |
 | `--color-text` | `#eef4ec` | `#16211a` | Texto principal |
 | `--color-text-muted` | `#9fb2a5` | `#56665b` | Texto secundário |
-| `--color-text-subtle` | `#6e8476` | `#7b8a80` | Metadados |
+| `--color-text-subtle` | `#82978a` | `#5d6c62` | Metadados |
+| `--color-link` | `#b7f52a` | `#3f6b08` | Links de texto |
 | `--color-accent` | `#b7f52a` | `#b7f52a` | Verde-limão: ação principal, seleção, atividade |
 | `--color-accent-ink` | `#13200a` | `#13200a` | Texto sobre limão |
 | `--color-accent-soft` | limão a 14% | verde a 16% | Fundo de seleção e anel de foco de campo |
 | `--color-active-bg` / `--color-active-ink` | limão / `#13200a` | `#16211a` / `#f4f8f1` | Item ativo de navegação e segmento. No claro vira pílula grafite |
 | `--color-route` | `#b7f52a` | `#5f9410` | Linha da rota pelas ruas |
 | `--color-route-casing` | `#0b1410` | `#ffffff` | Contorno da rota e dos marcadores |
-| `--color-success` | `#5ed3a2` | `#17885a` | Disponível e concluído. Verde-menta, distinto do limão |
-| `--color-warning` | `#f2b84b` | `#9a6400` | Ocupado, atenção, trecho estimado |
-| `--color-danger` | `#f47272` | `#c43d3d` | Falha, cancelamento, erro |
-| `--color-info` | `#7cc4e8` | `#2a7fb0` | Informação neutra, etapa "Despachado" do funil |
-| `--color-offline` | `#7d9184` | `#6b7b70` | Sem sinal |
+| `--color-success` | `#5ed3a2` | `#126e48` | Disponível e concluído. Verde-menta, distinto do limão |
+| `--color-warning` | `#f2b84b` | `#875800` | Ocupado, atenção, trecho estimado |
+| `--color-danger` | `#f47272` | `#b33535` | Falha, cancelamento, erro |
+| `--color-info` | `#7cc4e8` | `#226a94` | Informação neutra, etapa "Despachado" do funil |
+| `--color-offline` | `#7d9184` | `#5c6b61` | Sem sinal |
 | `--color-fill` / `--color-fill-hover` | branco 6% / 10% | grafite 5% / 9% | Preenchimento chapado dentro do vidro |
 | `--color-solid-raised` | `#17251d` | `#fbfcf9` | Popover, tooltip, modal, drawer, toast, menu lateral expandido |
 | `--color-pill-bg` / `--color-pill-ink` | `#f4f8f1` / `#142019` | `#ffffff` / `#16211a` | Pílulas de distância e marcador de retirada |
 | `--color-brand-orange` | `#ff6a00` | `#ff6a00` | Laranja institucional: só no selo "KJ", no logotipo e no favicon |
+| `--color-scrim` | preto a 55% | preto a 55% | Véu atrás da gaveta do menu no celular e dos modais |
 
 O limão nunca comunica sucesso, e o verde-menta nunca comunica ação. Status sempre leva rótulo em português.
 
@@ -85,7 +91,7 @@ Tokens de cena, por tema: `--color-hud-line`, `--color-hud-bg`, `--color-dot`, `
 
 ### 2.4 Aliases das telas antigas
 
-Enquanto houver tela antiga, `--color-background`, `--color-surface`, `--color-surface-raised`, `--color-surface-muted`, `--color-border`, `--color-primary`, `--color-primary-hover`, `--color-primary-soft`, `--color-on-primary`, `--font-heading` e `--color-brand-graphite/white/gray` apontam para os tokens novos. No tema claro, `--color-primary` aponta para `--color-route`, porque limão como texto sobre fundo claro é ilegível. Código novo não usa aliases. Eles saem quando a última tela antiga for refeita.
+Os aliases de transição (`--color-background`, `--color-surface`, `--color-surface-raised`, `--color-surface-muted`, `--color-border`, `--color-primary`, `--color-primary-hover`, `--color-primary-soft`, `--color-on-primary`, `--font-heading` e `--color-brand-graphite/white/gray`) saíram com a última tela antiga. `tokens.test.ts` garante que eles não voltam. Para texto de link, use `--color-link`, que no tema claro é verde-escuro, porque limão como texto sobre fundo claro é ilegível.
 
 ## 3. Tipografia
 
@@ -101,20 +107,20 @@ Display vai em títulos e números grandes. Interface vai em texto, rótulos, bo
 
 | Nível | Tamanho / peso / espaçamento |
 |---|---|
-| Número de destaque do dashboard | 148 px, peso 200, −0,055 em; a unidade em 52 px, peso 200 |
-| Título de tela | 46 px, peso 600, −0,03 em |
-| Status grande (detalhe do pedido) | 34 px, peso 500, −0,03 em |
+| Número de destaque do dashboard | 148 px, peso 200, −0,055 em; a unidade em 52 px, peso 200. No dashboard, cai para 112 px abaixo de 1280 px e para 88 px abaixo de 768 px |
+| Título de tela | 46 px, peso 500, −0,025 em; 32 px abaixo de 768 px |
+| Status grande (detalhe e prévia do pedido) | 30 px, peso 500, −0,025 em; 38 px no detalhe do pedido do cliente |
 | Números secundários (estatísticas, ETA) | 34–46 px, peso 200, −0,03 em, com unidade em 13 px |
-| Título de painel | 15 px, peso 600 |
+| Título de painel | 15 px, peso 600; 18 px, peso 500, Display, nos painéis sobre o mapa (dashboards e Mapa ao vivo); 17 px, peso 600, no `SidePanel` |
 | Rótulo pequeno em caixa alta (`.micro`) | 10,5 px, peso 600, +0,14 em |
 | Texto | 13–14 px |
-| Placa em destaque | 26 px no cartão e 40 px no detalhe, mono, peso 600, +0,06 em |
+| Placa em destaque | mono, peso 600: 26 px e +0,06 em no `VehicleCard`, 20 px e +0,05 em no cartão da garagem, 40 px e +0,04 em no detalhe do veículo |
 
 ## 4. Vidro líquido
 
 O componente é `Glass` (`frontend/src/glass/Glass.tsx`). O motor de refração fica em `liquidGlass.ts` (funções puras) e em `glassRegistry.ts` (filtros SVG). O `<GlassDefs />` é montado uma vez no `App`. As classes são `.glass`, `.glass-regular`, `.glass-clear`, `.glass-press` e `.glass-flat`.
 
-1. **Onde há vidro:** em todo elemento que flutua diretamente sobre o mapa ou sobre o fundo ambiente. Isso inclui menu lateral, barras de comando, botões redondos, chip do usuário, painéis, blocos de indicadores, controles do mapa, bottom sheets, cartões de veículo e o cartão de login. A única exceção é o número de destaque do dashboard, que é tipografia sobre um degradê.
+1. **Onde há vidro:** em todo elemento que flutua diretamente sobre o mapa ou sobre o fundo ambiente. Isso inclui menu lateral, barras de comando, botões redondos, chip do usuário, painéis, blocos de indicadores, controles do mapa, bottom sheets, cartões de veículo e o cartão de login. A única exceção é o número de destaque do dashboard, que é tipografia sobre um degradê. Abaixo de 768 px, o menu lateral vira gaveta opaca (`--color-solid-raised`) e o `SidePanel` vira tela cheia opaca (`--color-bg`), ambos sem vidro.
 2. **Sem vidro sobre vidro.** Dentro de um vidro, tudo é chapado (`--color-fill`), sem blur, refração ou brilho: blocos de dados, linhas, segmentos, botões internos, campos e cabeçalhos de tabela. Um `Glass` dentro de outro renderiza chapado sozinho e avisa no console em desenvolvimento. Popovers, tooltips, menus, modais, drawers, toasts e o menu lateral expandido, que podem cair sobre um vidro, usam `--color-solid-raised` opaco.
 3. **Duas variantes:**
    - `regular`, para superfícies com texto: tinta mais forte, blur de 4,5 px;
@@ -138,13 +144,13 @@ O componente é `Glass` (`frontend/src/glass/Glass.tsx`). O motor de refração 
 9. **Alternativas:**
    - fora do Chromium: blur, saturação, tinta e um contorno em gradiente desenhado em CSS (`::before` com máscara);
    - com `prefers-reduced-transparency: reduce`: superfície opaca em `--color-solid-raised`.
-10. **Mapas por tamanho:** os mapas são gerados no tamanho exato do elemento, com cache pela chave `variante:LxA:raio`, de modo que elementos iguais compartilham o mesmo filtro. Um `ResizeObserver` mede no primeiro quadro e, depois, regenera só 160 ms após o tamanho assentar. Assim, uma lista que encolhe com animação ou uma janela redimensionada não gera um filtro por quadro.
+10. **Mapas por tamanho:** os mapas acompanham o tamanho do elemento. Botões, chips e qualquer elemento abaixo de 20 000 px² usam mapa no tamanho exato. Painéis maiores usam mapa em meia resolução (`MAP_SCALE`, primeiro corte da regra 13), gerado direto em meia resolução com o brilho da borda calculado como média de cada pixel do mapa. Em Retina, a diferença para o mapa cheio não passa de 20/255 em 0,002% dos pixels. Há cache pela chave `variante:LxA:raio`, de modo que elementos iguais compartilham o mesmo filtro. Um `ResizeObserver` mede no primeiro quadro e, depois, regenera só 160 ms após o tamanho assentar. Assim, uma lista que encolhe com animação ou uma janela redimensionada não gera um filtro por quadro.
 11. **Nada se move sem parar atrás do vidro.** Sempre que o fundo muda, o filtro recalcula naquele quadro. Medições com Chrome a 1440 × 900:
     - fundo com curvas de nível derivando atrás dos cartões: 25 fps; parado: 61 fps;
     - dashboard com órbita contínua da câmera: 44 fps; a mesma órbita sem refração: 60 fps; o relevo em 3D não custou quadros;
     - cometas do despacho em laço infinito: 25 fps.
 
-    Por isso, atrás do vidro só há movimento finito: transições de câmera, giros de entrada, desenho de rota, resposta a um gesto do usuário ou a uma posição real que chegou. As únicas animações infinitas permitidas são o pulso do marcador selecionado, o anel do veículo seguido e o ponto de "Tempo real". Dentro do vidro também não há laço: o skeleton é chapado e parado, e o marcador da próxima parada tem brilho fixo.
+    Por isso, atrás do vidro só há movimento finito: transições de câmera, giros de entrada, desenho de rota, resposta a um gesto do usuário ou a uma posição real que chegou. As únicas animações infinitas permitidas são o pulso do marcador selecionado, o anel do veículo seguido e o ponto de "Tempo real". O ponto respira em quatro passos (`steps(4, jump-none)`), não em curva contínua: cada quadro novo obriga todo vidro da tela a recalcular, e o ponto suave derrubava a tela parada de Veículos de 157 para 27 fps. O teste `motionBudget.test.ts` fixa essa lista e os passos. Dentro do vidro também não há laço: o skeleton é chapado e parado, e o marcador da próxima parada tem brilho fixo.
 12. **Ancestral de vidro não anima.** Opacidade, `filter`, `transform`, máscara ou animação num ancestral transformam esse ancestral em raiz do fundo, e o vidro perde o mapa atrás. As animações de entrada e saída vão no próprio elemento de vidro, com `animation-fill-mode: backwards`, nunca no wrapper.
 13. **Orçamento de desempenho:** pelo menos 55 fps no Chromium, a 1440 × 900, com uma única aba aberta. Se algum cenário ficar abaixo, a ordem de corte é: primeiro a resolução dos mapas do vidro, depois o especular colorido dos painéis grandes. A refração dos botões fica. Nenhum corte visível é feito sem avisar o dono do produto.
 
@@ -211,16 +217,22 @@ A transformação também acrescenta as fontes de relevo, a camada de sombreamen
 
 Com o terreno desligado, `setTerrain(null)` libera a GPU e o sombreamento continua. Antes de cada enquadramento, o motor para a câmera e zera o padding, senão o padding da câmera anterior soma-se ao novo.
 
-## 6. Renders de veículos
+O motor adapta a câmera à largura (`adaptCamera`, em `frontend/src/map/responsive.ts`). No tablet, a inclinação para em 60°. No celular, para em 45°, sem terreno e sem giro de entrada. Ao redimensionar a janela, a câmera é reaplicada depois de 200 ms.
 
-- **Origem:** modelos 3D próprios, procedurais, feitos em Three.js no estúdio `docs/design/vehicle-studio.html`. Pintura em argila clara com faixa limão, ambiente de estúdio, sombras suaves e sombra de contato. Não há licença de terceiros.
-- **Arquivos:** `frontend/public/renders/truck-34.webp` (960 × 569), `truck-side.webp` (900 × 410), `van-34.webp` (960 × 541) e `van-side.webp` (874 × 360), em WebP com alfa. A vista 3/4 vai nos detalhes e a lateral nos cartões. A pasta não se chama `vehicles` porque `/vehicles` é rota da API e o proxy a encaminharia para o backend.
-- **Novos ângulos ou modelos** saem do estúdio com os mesmos parâmetros (`?m=truck|van&v=34|side&w=&h=`).
-- **Tipo para render:** o tipo do veículo é texto livre. `vehicleRender(type, view)` decide, depois de `trim()`:
-  - `/caminh|truck/i` → caminhão;
-  - `/van|furg|utilit/i` → van;
-  - qualquer outro → `null`. A interface mostra o ícone `Truck` com "Sem imagem para “<tipo>”". Não há render de moto.
-- **Imagens:** `width` e `height` declarados, `loading="lazy"` e `decoding="async"`. Nos cartões de lista, `alt=""`, porque placa e tipo já estão em texto. No detalhe, `alt` descritivo ("Van BRA2E19"). O render "chega" deslizando 46 px da direita (`.motion-drive`).
+Na câmera de acompanhamento do detalhe do pedido, o veículo é seguido com zoom 15,4, virado para a rota à frente. Um gesto do usuário no mapa suspende o acompanhamento, e o botão "Seguir veículo" retoma.
+
+## 6. Renders de veículos e figuras de pessoas
+
+- **Origem:** modelos 3D próprios, feitos por código no Blender 5.3 (Cycles), sem arquivos de terceiros. Os modelos lembram os reais pela silhueta e pelas proporções, sem logotipos. Pintura em argila clara com faixa limão, vidros escuros esverdeados, plásticos pretos, rodas cinza, luz de estúdio suave e sombra de contato.
+- **Gerador dos veículos** (`docs/design/vehicles/`): `build_vehicles.py` monta as três famílias (vans, caminhões de cabine avançada e motos) a partir de `models.py` e `motorcycles.py`, com as primitivas, o estúdio, a câmera e a máscara em `vehicle_kit.py`. `finish_renders.py` recorta pelo alfa e grava os WebP. Comandos:
+  - `blender -b --factory-startup -P docs/design/vehicles/build_vehicles.py -- --out <pasta> --fraction 0.75 --samples 64 --cpu`;
+  - `python3 docs/design/vehicles/finish_renders.py --src <pasta> --out frontend/public/renders --scale 0.8`, que imprime os tamanhos para a tabela `SIZES` de `vehicleRender.ts`.
+- **Arquivos:** `frontend/public/renders/<chave>-34.webp` e `<chave>-side.webp`, com alfa, mais `<chave>-34-paint.webp` e `<chave>-side-paint.webp`, as máscaras da pintura com o mesmo tamanho do render. As chaves são `sprinter`, `ducato`, `fiorino`, `kangoo`, `delivery`, `accelo`, `constellation`, `atego`, `cg-cargo` e `biz`. A vista 3/4 vai nos detalhes, no `VehicleCard` e no cartão do mapa ao vivo; a lateral vai na garagem e na lista de motoristas. A pasta não se chama `vehicles` porque `/vehicles` é rota da API e o proxy a encaminharia para o backend.
+- **Modelo para render:** `vehicleRender(vehicle, view)` (`frontend/src/vehicles/vehicleRender.ts`) procura marca e modelo no catálogo (`catalog.ts`), sem diferenciar acentos nem maiúsculas. Sem resultado, usa o modelo padrão do tipo: Van → Sprinter, Furgão → Fiorino, Caminhão leve → Delivery, Caminhão → Constellation, Moto → CG 160 Cargo. Sem tipo conhecido devolve `null`, e a interface mostra o ícone com "Sem imagem para “<tipo>”".
+- **Cor:** `VehicleShot` pinta a máscara com a cor do cadastro (`mix-blend-mode: multiply` dentro de um wrapper com `isolation: isolate`), e a imagem fica intacta. Branco ou sem cor mostra a argila clara.
+- **Imagens:** `width` e `height` declarados (tabela `SIZES`), `loading="lazy"` e `decoding="async"`. Nos cartões de lista, `alt=""`, porque placa e nome já estão em texto. No detalhe, `alt` descritivo ("Mercedes-Benz Sprinter BRA2E19"). O render "chega" deslizando 46 px da direita (`.motion-drive`).
+- **Contenção:** o render nunca passa por cima de texto. No cartão da garagem ele fica no fluxo, abaixo da placa e do modelo, centralizado, com no máximo 132 px de altura e 100% da largura útil. No detalhe do veículo, no cartão do mapa ao vivo e no `VehicleCard`, a altura máxima (226, 204 e 196 px) e a largura máxima limitam motos e caminhões, que têm proporções diferentes das vans. O `VehicleCard` continua saindo pelo topo do cartão, onde não há texto. O teste `vehicleShots.test.ts` fixa essas regras.
+- **Figuras de pessoas** (`docs/design/people/`): `build_people.py` monta cinco figuras sem rosto, uma por perfil, no mesmo estúdio: administrador com notebook, despachante com fone e tablet, gestor de frota com prancheta e capacete, motorista com boné e colete segurando uma caixa, cliente recebendo um pacote. `finish_people.py` grava `frontend/public/people/<perfil>.webp` (corpo inteiro com 600 px de altura e só uma sombra de contato elíptica sob os pés, porque a sombra do chão vista de frente aparecia como uma caixa cinza no tema claro) e `<perfil>-bust.webp` (busto quadrado de 256 px para o avatar). `personFigure(role, variant)` resolve o arquivo, e `RoleFigure` mostra a imagem por cima das iniciais, que voltam se a imagem falhar.
 
 ## 7. Movimento
 
@@ -232,7 +244,7 @@ Os utilitários ficam em `frontend/src/styles/motion.css` e a contagem de númer
   - barras crescem da esquerda em 1,1 s (`.motion-grow`);
   - pontos aparecem com repique, escalonados 28 ms (`.motion-pop`);
   - números contam de 0 até o valor em 1,4 s, desacelerando, na primeira exibição. Quando o valor muda, contam do antigo ao novo em 600 ms;
-  - renders chegam deslizando 46 px em 1,2 s (`.motion-drive`). No cartão, o hover desloca 8 px e aumenta para 1,035, com mola.
+  - renders chegam deslizando 46 px em 1,2 s (`.motion-drive`). No cartão da garagem, o hover sobe 3 px e aumenta para 1,03, com mola.
 - **Mapa:**
   - desenho progressivo da rota em cerca de 1,4 s ao abrir o pedido;
   - arcos do plano desenhados em 900 ms; depois, cometas percorrem cada arco duas vezes e param;
@@ -248,21 +260,24 @@ Os utilitários ficam em `frontend/src/styles/motion.css` e a contagem de númer
 
 ### 8.1 Padrões
 
-Ficam em `frontend/src/patterns/` e valem para todas as telas.
+Valem para todas as telas. Ficam em `frontend/src/patterns/`, menos `StatusBadge` e os estados (`frontend/src/components/`) e o `AmbientBackground` (`frontend/src/layout/`).
 
 | Padrão | Uso |
 |---|---|
 | `HeroNumber` | Número de destaque com contagem, unidade, rótulo e delta opcional, nos tamanhos `hero` (148 px), `large` (46 px) e `stat` (34 px) |
-| `StopTimeline` / `timelineFromRoute` | Linha do tempo vertical de paradas numa `<ol>`: concluída, próxima, a fazer; retirada "R", paradas numeradas, entrega "E" em losango |
+| `StopTimeline` / `timelineFromRoute` / `timelineFromOrder` | Linha do tempo vertical de paradas numa `<ol>`: concluída, próxima, a fazer; retirada "R", paradas numeradas, entrega "E" em losango |
 | `MiniRoute` | Retirada → "+N paradas" → entrega, compacta, para listas e cartões |
-| `VehicleCard` | Render saindo do cartão, placa, status, tipo, último sinal e motorista; estados carregando e sem veículo |
-| `SidePanelLayout` / `SidePanel` | Painel de vidro de 450 px à direita, com `role="dialog"` não modal. A lista encolhe com mola para ele não cair sobre outro vidro. Fecha com botão, Esc ou novo clique, e devolve o foco ao fechar. Substitui o drawer opaco em detalhe, criação e edição de cadastros e na prévia da lista de pedidos |
+| `VehicleCard` | Render saindo do cartão, placa, status, nome do veículo (`vehicleName`: "Marca Modelo" ou, sem eles, o tipo), último sinal e motorista; estados carregando e sem veículo. Aparece no painel e no detalhe do motorista e no detalhe do pedido |
+| `SidePanelLayout` / `SidePanel` | Painel de vidro com `role="dialog"` não modal, para detalhe, criação e edição nos cadastros, na prévia da lista de pedidos e na edição do detalhe do motorista e da frota. Tem 450 px à direita a partir de 1280 px e 360 px de 1024 a 1279 px, e a lista encolhe com mola para ele não cair sobre outro vidro. De 768 a 1023 px vira folha inferior com alça e três alturas. Abaixo de 768 px ocupa a tela inteira, opaco. Fecha com o botão, com Esc (menos quando há modal aberto) ou com novo clique na mesma linha, e devolve o foco ao fechar |
+| `BottomSheet` | Folha inferior de vidro com três alturas (recolhida, média e cheia) e abas opcionais. A alça troca a altura com arraste, clique ou as setas para cima e para baixo. Recebe o painel direito do Mapa ao vivo no tablet e no celular |
+| `Avatar` | Figura 3D sem rosto do perfil da pessoa (`RoleFigure`), com as iniciais por baixo quando a imagem falha. Nos cabeçalhos de pessoa, nas listas de motoristas, usuários e clientes, nos membros das frotas e no chip do usuário. Minha conta mostra também a figura inteira |
+| `GlassMapFrame` | Mapa embutido numa moldura de vidro, para telas sem o mapa contínuo: Novo pedido, Lugares, Meus endereços, detalhe da frota, posição do motorista e Mapa viário |
 | `StatusBadge` | Pílula com ponto, cor semântica e rótulo em português |
 | `DotMatrix` / `dotScale` | Contagem em pontos, com teto de 12 por coluna e escala ("1 ponto = 3 pedidos"); pontos parados vazados em âmbar |
 | `EmptyState` / `ErrorState` | Ícone, frase e ação primária sobre o halo ambiente; o erro tem "Tentar de novo" |
 | `AmbientBackground` | Gradientes e curvas de nível estáticos atrás das telas sem mapa |
 
-Primitivas em `components.css`: `.btn` (pílula; `.btn-primary` limão com texto escuro, `.btn-secondary` e `.btn-ghost` chapados, `.btn-danger` com tinta de perigo a 14%), `.segmented`, `.field`, `.badge-*`, `.notice-*`, `.micro`, `.chip-flat`, `.delta` (com `delta-success`, `delta-danger` e `delta-neutral`), `.est-chip` (`.is-road` quando o trecho é pelas ruas), `.rowline`, `.skeleton` e `.state`. Modais opacos ficam só para confirmações.
+Primitivas em `components.css`: `.btn` (pílula; `.btn-primary` limão com texto escuro, `.btn-secondary` e `.btn-ghost` chapados, `.btn-danger` com tinta de perigo a 14%), `.segmented`, `.field`, `.badge-*`, `.notice-*`, `.micro`, `.chip-flat`, `.delta` (com `delta-success`, `delta-danger` e `delta-neutral`), `.est-chip` (`.is-road` quando o trecho é pelas ruas), `.rowline`, `.skeleton` e `.state`. Modais opacos ficam para confirmações e para as duas ações curtas do pedido: atribuir motorista e registrar a prova de entrega.
 
 ### 8.2 Critério de pronto (toda tela)
 
@@ -272,18 +287,41 @@ Primitivas em `components.css`: `.btn` (pílula; `.btn-primary` limão com texto
 4. **Vidro:** as regras da seção 4, sem exceção. Dentro do vidro, tudo chapado.
 5. **Recursos visuais onde o dado existe:**
    - render do veículo sempre que um veículo aparece com tipo conhecido;
-   - avatar de iniciais para pessoas;
+   - `Avatar` com a figura do perfil para pessoas, com as iniciais como reserva; marcadores e linhas compactas do mapa ficam com as iniciais;
    - mapa embutido sempre que houver coordenadas;
    - mini-rota ou linha do tempo vertical sempre que houver paradas.
 6. **Estados desenhados:** carregando (skeleton chapado dentro do vidro), vazio (ícone, frase e ação, sobre o fundo ambiente), erro (mensagem e "Tentar de novo") e sem permissão. Nenhum estado é só uma linha de texto.
 7. **Dois temas e três larguras** (1440 × 900, 1024 × 768 e 390 × 844), verificados com captura.
 8. **Honestidade dos dados:** só o que a API devolve.
 
+### 8.3 Composição e larguras
+
+As telas imersivas da equipe (dashboards, Mapa ao vivo, Despacho, Simulador de rota e detalhe do pedido) ficam sobre o mapa contínuo do Shell. As demais e todas as do cliente ficam sobre o fundo ambiente. A lista está em `frontend/src/map/immersive.ts`.
+
+As telas montam a composição com as mesmas peças, cada uma com as que precisa:
+- bloco de título no canto superior esquerdo, com o chip "Tempo real";
+- barra de comando em pílula no topo;
+- painel esquerdo e painel direito presos às bordas;
+- faixa inferior;
+- `SidePanel` à direita das listas.
+
+Os controles globais (sino, tema e chip do usuário) ficam no canto superior direito, e o menu lateral à esquerda. O padding da câmera reserva o espaço dos painéis, para o conteúdo do mapa cair na área livre. No detalhe do pedido, ele é medido nos próprios painéis.
+
+As faixas de largura saem de `viewportFor` (`frontend/src/map/responsive.ts`):
+
+| Faixa | Largura | Comportamento |
+|---|---|---|
+| `full` | ≥ 1280 px | Composição completa |
+| `compact` | 1024 a 1279 px | Painéis laterais mais estreitos (320 px no Mapa ao vivo), blocos secundários da faixa inferior ocultos, barra de comando junto ao título, `SidePanel` com 360 px e número de destaque do dashboard em 112 px |
+| `tablet` | 768 a 1023 px | Menu lateral sempre recolhido. O painel direito do Mapa ao vivo e o `SidePanel` viram folha inferior com alça e três alturas. Inclinação máxima de 60° |
+| `phone` | < 768 px | Barra superior com o botão de menu, e o menu vira gaveta opaca. Nas telas imersivas, mapa no topo e painéis em uma coluna. O Mapa ao vivo usa folha inferior com as abas "Lista" e "Detalhe" e controles do mapa de 44 px à direita, acima da folha. `SidePanel` em tela cheia e tabelas como cartões de registro, com o rótulo de cada coluna. Sem terreno, sem giro de entrada e inclinação máxima de 45° |
+
 ## 9. Acessibilidade
 
 - Contraste WCAG AA para texto e controles. Limão nunca é usado como texto sobre fundo claro.
 - Foco visível em todo elemento interativo: anel limão de 2 px (`:focus-visible`); campos ganham borda limão e anel `--color-accent-soft`.
 - Ordem de tabulação previsível. O `SidePanel` recebe o foco ao abrir e devolve ao fechar; modais prendem o foco e fecham com Esc.
+- A alça do `BottomSheet` e do `SidePanel` no tablet é um botão com nome ("Expandir painel" ou "Recolher painel") e troca a altura também com as setas para cima e para baixo. As abas da folha inferior usam `role="tab"`.
 - Labels associados aos campos. Ícones decorativos com `aria-hidden`; botões só de ícone com nome acessível.
 - Status sempre com texto além da cor. A linha do tempo informa o estado de cada parada também em texto para leitor de tela.
 - `prefers-reduced-motion: reduce`: sem animação, contagem ou viagem de câmera.
@@ -293,14 +331,14 @@ Primitivas em `components.css`: `.btn` (pílula; `.btn-primary` limão com texto
 ## 10. Restrições funcionais
 
 O design respeita o inventário de telas, a matriz de perfis (ADMIN, DISPATCHER, FLEET_MANAGER e CUSTOMER) e os contratos atuais da API. Não desenhar como se já existissem:
-- custos, faturamento, consumo, CO₂, odômetro ou relatórios exportáveis;
+- custos, faturamento, consumo, CO₂ ou relatórios exportáveis;
 - manutenção agendada ou documentos de veículos;
 - login Google ou recuperação de senha;
 - geocodificação, busca global de pedidos ou histórico de posições;
 - rastreio público em mapa ou posição do motorista para o cliente;
 - ruas reais fora do modo `road` ou sem o grafo carregado. Nesse caso, o trecho aparece como estimado, tracejado.
 
-Já existem na API e no frontend, e podem ser desenhados: edição de perfil, troca de senha, edição e desativação de usuários.
+Já existem na API e no frontend, e podem ser desenhados: edição de perfil, troca de senha, edição e desativação de usuários, e a identidade do veículo (marca, modelo, ano, cor, capacidade em kg, volume em m³ e hodômetro em km), com o catálogo de modelos em `frontend/src/vehicles/catalog.ts`.
 
 A semântica do mapa é preservada: linha sólida é rota pelas ruas, tracejada é trecho estimado, retirada, parada e entrega têm símbolos diferentes, as paradas são numeradas, as concluídas ficam atenuadas e posição nula significa "sem posição".
 

@@ -15,7 +15,8 @@ import { useTitleBlock } from "../layout/titleBlockContext";
 import Avatar from "../patterns/Avatar";
 import { SidePanelLayout } from "../patterns/SidePanel";
 import { useTopic, type LocationEvent } from "../realtime/useTopic";
-import { vehicleRender } from "../vehicles/vehicleRender";
+import { vehicleName } from "../vehicles/catalog";
+import VehicleShot from "../vehicles/VehicleShot";
 import DriverForm from "./drivers/DriverForm";
 import DriverPanel from "./drivers/DriverPanel";
 import { useDriverActions } from "./drivers/useDriverActions";
@@ -31,24 +32,20 @@ type Panel = { mode: "detail" | "edit"; id: string } | { mode: "new" } | null;
 
 function VehicleCell({ vehicle }: { vehicle: Driver["vehicle"] }) {
     if (!vehicle) return <span className="team-muted">Sem veículo</span>;
+    const name = vehicleName(vehicle);
     const type = vehicle.type.trim();
-    const render = vehicleRender(type, "side");
+    const named = Boolean(vehicle.brand?.trim() || vehicle.model?.trim());
     return (
         <div className="team-vehicle">
-            {render ? (
-                <img
-                    src={render.src}
-                    width={render.width}
-                    height={render.height}
-                    alt={`${type} ${vehicle.plate}`}
-                    loading="lazy"
-                />
-            ) : (
-                <span className="team-vehicle-none" aria-hidden="true" />
-            )}
+            <VehicleShot
+                vehicle={vehicle}
+                view="side"
+                alt={`${name} ${vehicle.plate}`}
+                fallback={<span className="team-vehicle-none" aria-hidden="true" />}
+            />
             <span className="team-vehicle-text">
                 <span className="data">{vehicle.plate}</span>
-                <small>{type}</small>
+                <small>{named ? name : type}</small>
             </span>
         </div>
     );
@@ -153,7 +150,7 @@ export default function Drivers() {
             header: "Motorista",
             render: (d) => (
                 <div className="team-person">
-                    <Avatar name={d.name} size="sm" />
+                    <Avatar name={d.name} role="DRIVER" size="sm" />
                     <span className="team-person-text">
                         <b>{d.name}</b>
                         <small className="data">{d.username}</small>

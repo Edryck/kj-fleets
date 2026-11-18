@@ -3,7 +3,8 @@ import type { CSSProperties } from "react";
 import type { Vehicle } from "../../api/types";
 import StatusBadge from "../../components/StatusBadge";
 import Glass from "../../glass/Glass";
-import { vehicleRender } from "../../vehicles/vehicleRender";
+import { vehicleName } from "../../vehicles/catalog";
+import VehicleShot from "../../vehicles/VehicleShot";
 
 export default function VehicleGarageCard({
     vehicle,
@@ -17,7 +18,8 @@ export default function VehicleGarageCard({
     index?: number;
 }) {
     const type = vehicle.type.trim();
-    const render = vehicleRender(type, "side");
+    const name = vehicleName(vehicle);
+    const label = name === "Veículo" ? "Sem tipo" : name;
     const classes = ["vcard", selected && "is-selected", !vehicle.active && "is-inactive"]
         .filter(Boolean)
         .join(" ");
@@ -40,23 +42,20 @@ export default function VehicleGarageCard({
                 )}
             </span>
             <span className="vcard-sub">
-                {type || "Sem tipo"} · {vehicle.driverName ?? "Sem motorista"}
+                {label} · {vehicle.driverName ?? "Sem motorista"}
             </span>
-            {render ? (
-                <img
-                    className="vcard-shot"
-                    src={render.src}
-                    width={render.width}
-                    height={render.height}
-                    alt={`${type} ${vehicle.plate}`}
-                    loading="lazy"
-                />
-            ) : (
-                <span className="vcard-none">
-                    <Truck size={26} aria-hidden="true" />
-                    <span>Sem imagem para “{type}”</span>
-                </span>
-            )}
+            <VehicleShot
+                vehicle={vehicle}
+                view="side"
+                className="vcard-shot"
+                alt={`${name} ${vehicle.plate}`}
+                fallback={
+                    <span className="vcard-none">
+                        <Truck size={26} aria-hidden="true" />
+                        <span>Sem imagem para “{type}”</span>
+                    </span>
+                }
+            />
         </Glass>
     );
 }

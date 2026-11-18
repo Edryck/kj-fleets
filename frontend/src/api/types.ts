@@ -178,7 +178,7 @@ export interface Driver {
     lng: number | null;
     lastSeenAt: string | null;
     fleets: Ref[];
-    vehicle: { publicId: string; plate: string; type: string } | null;
+    vehicle: VehicleRef | null;
     active: boolean;
 }
 
@@ -190,7 +190,17 @@ export interface Vehicle {
     driverId: string | null;
     driverName: string | null;
     active: boolean;
+    brand?: string | null;
+    model?: string | null;
+    year?: number | null;
+    color?: string | null;
+    capacityKg?: number | null;
+    volumeM3?: number | null;
+    odometerKm?: number | null;
 }
+
+export type VehicleRef = Pick<Vehicle, "publicId" | "plate" | "type"> &
+    Pick<Vehicle, "brand" | "model" | "year" | "color" | "capacityKg" | "volumeM3" | "odometerKm">;
 
 export interface Customer {
     publicId: string;

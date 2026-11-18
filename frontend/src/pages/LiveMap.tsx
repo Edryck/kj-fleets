@@ -11,7 +11,7 @@ import {
     WifiOff,
     X,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { messageFor } from "../api/errors";
 import { ApiError, request } from "../api/http";
@@ -23,12 +23,15 @@ import { MapLegend } from "../components/RouteLegs";
 import StatusBadge from "../components/StatusBadge";
 import Glass from "../glass/Glass";
 import { useTitleBlock } from "../layout/titleBlockContext";
-import type { Padding } from "../map/camera";
 import { sendMapCommand } from "../map/sceneStore";
 import { useMapScene } from "../map/useMapScene";
+import { useViewport } from "../map/useViewport";
+import BottomSheet, { type SheetSnap } from "../patterns/BottomSheet";
 import { useConnectionState, useTopic, type LocationEvent } from "../realtime/useTopic";
+import { vehicleName } from "../vehicles/catalog";
 import { vehicleRender } from "../vehicles/vehicleRender";
-import { initials, liveMapScene } from "./liveMapScene";
+import VehicleShot from "../vehicles/VehicleShot";
+import { initials, liveMapScene, livePadding } from "./liveMapScene";
 
 type Filter = DriverStatus | "ALL";
 
@@ -61,13 +64,6 @@ async function loadAllDrivers(): Promise<Driver[]> {
 
 interface FleetStatusRows {
     drivers?: { driverId: string; pingStale: boolean }[];
-}
-
-function scenePadding(): Padding {
-    const width = typeof window === "undefined" ? 1440 : window.innerWidth;
-    if (width < 768) return { top: 120, bottom: 80, left: 40, right: 40 };
-    if (width < 1280) return { top: 220, bottom: 160, left: 120, right: 400 };
-    return { top: 170, bottom: 170, left: 150, right: 400 };
 }
 
 function DriverDot({ driver, size }: { driver: Driver; size?: "lg" }) {
@@ -140,6 +136,30 @@ function ActiveOrder({ order, route }: { order: OrderSummary; route: OrderRoute 
     );
 }
 
+function Panel({
+    flat,
+    className,
+    label,
+    children,
+}: {
+    flat: boolean;
+    className: string;
+    label: string;
+    children: ReactNode;
+}) {
+    if (flat)
+        return (
+            <section className={`${className} is-flat`} aria-label={label}>
+                {children}
+            </section>
+        );
+    return (
+        <Glass as="section" className={className} aria-label={label}>
+            {children}
+        </Glass>
+    );
+}
+
 function DriverCard({
     driver,
     stale,
@@ -148,7 +168,9 @@ function DriverCard({
     route,
     loadingOrder,
     onClose,
+    flat,
 }: {
+    flat: boolean;
     driver: Driver;
     stale: boolean;
     now: number;
@@ -158,22 +180,24 @@ function DriverCard({
     onClose: () => void;
 }) {
     const vehicle = driver.vehicle;
-    const render = vehicle ? vehicleRender(vehicle.type, "34") : null;
+    const render = vehicle ? vehicleRender(vehicle, "34") : null;
+    const name = vehicle ? vehicleName(vehicle) : null;
+    const named = Boolean(vehicle?.brand?.trim() || vehicle?.model?.trim());
     return (
-        <Glass
-            as="section"
+        <Panel
+            flat={flat}
             className={`live-panel live-card${render ? " has-shot" : ""}`}
-            aria-label="Motorista escolhido"
+            label="Motorista escolhido"
         >
             {render && vehicle && (
                 <div className="live-card-shot">
-                    <img
+                    <VehicleShot
                         key={driver.publicId}
+                        vehicle={vehicle}
+                        view="34"
                         className="motion-drive"
-                        src={render.src}
-                        width={render.width}
-                        height={render.height}
-                        alt={`${vehicle.type.trim()} ${vehicle.plate}`}
+                        alt={`${name} ${vehicle.plate}`}
+                        eager
                     />
                 </div>
             )}
@@ -209,7 +233,13 @@ function DriverCard({
                 </div>
                 <div>
                     <dt>Veículo</dt>
-                    <dd>{driver.vehicle?.type ?? "—"}</dd>
+                    <dd>
+                        {vehicle
+                            ? named && vehicle.type.trim()
+                                ? `${name} · ${vehicle.type.trim()}`
+                                : name
+                            : "—"}
+                    </dd>
                 </div>
                 <div>
                     <dt>Último sinal</dt>
@@ -239,7 +269,7 @@ function DriverCard({
                     Ver motorista
                 </Link>
             </div>
-        </Glass>
+        </Panel>
     );
 }
 
@@ -252,7 +282,6 @@ export default function LiveMap() {
     const [filter, setFilter] = useState<Filter>("ALL");
     const [fleetId, setFleetId] = useState("");
     const [selectedId, setSelectedId] = useState<string | null>(() => params.get("driver"));
-    const [padding] = useState(scenePadding);
     const [now, setNow] = useState(Date.now);
 
     useEffect(() => {
@@ -335,8 +364,15 @@ export default function LiveMap() {
     });
     const routeData = order ? (route.data ?? null) : null;
 
+    const viewport = useViewport();
+    const sheet = viewport === "tablet" || viewport === "phone";
+    const phone = viewport === "phone";
+    const [snap, setSnap] = useState<SheetSnap>("half");
+    const [tab, setTab] = useState<"list" | "detail">(selectedId ? "detail" : "list");
+
     const select = (id: string | null) => {
         setSelectedId(id);
+        setTab(id ? "detail" : "list");
         setParams(
             (prev) => {
                 const next = new URLSearchParams(prev);
@@ -348,6 +384,10 @@ export default function LiveMap() {
         );
     };
 
+    const padding = useMemo(
+        () => livePadding(viewport, snap, window.innerHeight),
+        [viewport, snap],
+    );
     const scene = liveMapScene({
         drivers: visible,
         staleIds,
@@ -425,6 +465,66 @@ export default function LiveMap() {
     const legs = scene.legs ?? [];
     const total = all.length || 1;
 
+    const driverCard = selected && (
+        <DriverCard
+            key={selected.publicId}
+            driver={selected}
+            stale={staleIds.has(selected.publicId)}
+            now={now}
+            order={order}
+            route={routeData}
+            loadingOrder={activeOrder.isLoading}
+            onClose={() => select(null)}
+            flat={sheet}
+        />
+    );
+    const driverList = (
+        <Panel flat={sheet} className="live-panel live-list-panel" label="Lista de motoristas">
+            <h2 className="live-panel-title">
+                Motoristas <span className="data">{visible.length}</span>
+            </h2>
+            {drivers.isLoading ? (
+                <div className="stack-sm">
+                    <Skeleton height={44} />
+                    <Skeleton height={44} />
+                    <Skeleton height={44} />
+                </div>
+            ) : visible.length === 0 ? (
+                <p className="caption">Nenhum motorista com esses filtros.</p>
+            ) : (
+                <ul className="live-list">
+                    {visible.map((d) => (
+                        <li key={d.publicId}>
+                            <button
+                                type="button"
+                                className={`live-row${d.publicId === selectedId ? " is-selected" : ""}`}
+                                aria-pressed={d.publicId === selectedId}
+                                onClick={() => select(d.publicId)}
+                            >
+                                <DriverDot driver={d} />
+                                <span className="live-who">
+                                    <b>{d.name}</b>
+                                    <small>
+                                        <span className="data">
+                                            {d.vehicle?.plate ?? "Sem veículo"}
+                                        </span>
+                                        {" · "}
+                                        <span>
+                                            {d.lat == null
+                                                ? "Sem posição"
+                                                : formatAgo(d.lastSeenAt, now)}
+                                        </span>
+                                    </small>
+                                </span>
+                                <StatusBadge kind="driver" value={d.status} />
+                            </button>
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </Panel>
+    );
+
     return (
         <div className="live-map">
             <div className="live-command-wrap">
@@ -480,68 +580,32 @@ export default function LiveMap() {
                 </Glass>
             </div>
 
-            <aside className="live-side" aria-label="Motoristas">
-                {selected && (
-                    <DriverCard
-                        key={selected.publicId}
-                        driver={selected}
-                        stale={staleIds.has(selected.publicId)}
-                        now={now}
-                        order={order}
-                        route={routeData}
-                        loadingOrder={activeOrder.isLoading}
-                        onClose={() => select(null)}
-                    />
-                )}
-                <Glass
-                    as="section"
-                    className="live-panel live-list-panel"
-                    aria-label="Lista de motoristas"
+            {sheet ? (
+                <BottomSheet
+                    className="live-sheet"
+                    label="Motoristas"
+                    snap={snap}
+                    onSnapChange={setSnap}
+                    tabs={
+                        phone
+                            ? [
+                                  { id: "list", label: "Lista" },
+                                  { id: "detail", label: "Detalhe", disabled: !selected },
+                              ]
+                            : undefined
+                    }
+                    tab={tab}
+                    onTabChange={(id) => setTab(id === "detail" ? "detail" : "list")}
                 >
-                    <h2 className="live-panel-title">
-                        Motoristas <span className="data">{visible.length}</span>
-                    </h2>
-                    {drivers.isLoading ? (
-                        <div className="stack-sm">
-                            <Skeleton height={44} />
-                            <Skeleton height={44} />
-                            <Skeleton height={44} />
-                        </div>
-                    ) : visible.length === 0 ? (
-                        <p className="caption">Nenhum motorista com esses filtros.</p>
-                    ) : (
-                        <ul className="live-list">
-                            {visible.map((d) => (
-                                <li key={d.publicId}>
-                                    <button
-                                        type="button"
-                                        className={`live-row${d.publicId === selectedId ? " is-selected" : ""}`}
-                                        aria-pressed={d.publicId === selectedId}
-                                        onClick={() => select(d.publicId)}
-                                    >
-                                        <DriverDot driver={d} />
-                                        <span className="live-who">
-                                            <b>{d.name}</b>
-                                            <small>
-                                                <span className="data">
-                                                    {d.vehicle?.plate ?? "Sem veículo"}
-                                                </span>
-                                                {" · "}
-                                                <span>
-                                                    {d.lat == null
-                                                        ? "Sem posição"
-                                                        : formatAgo(d.lastSeenAt, now)}
-                                                </span>
-                                            </small>
-                                        </span>
-                                        <StatusBadge kind="driver" value={d.status} />
-                                    </button>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-                </Glass>
-            </aside>
+                    {(!phone || tab === "detail") && driverCard}
+                    {(!phone || tab === "list" || !selected) && driverList}
+                </BottomSheet>
+            ) : (
+                <aside className="live-side" aria-label="Motoristas">
+                    {driverCard}
+                    {driverList}
+                </aside>
+            )}
 
             <div className="live-zoom">
                 <Glass
@@ -603,7 +667,7 @@ export default function LiveMap() {
                     </div>
                 </Glass>
                 {showsStale && stale.isSuccess && (
-                    <Glass as="section" className="live-tile" aria-label="Sem sinal">
+                    <Glass as="section" className="live-tile is-secondary" aria-label="Sem sinal">
                         <h3>
                             <TriangleAlert size={14} aria-hidden="true" className="live-warn" />
                             Sem sinal <em>· acima do limite</em>

@@ -68,6 +68,13 @@ export function bezelFor(width: number, height: number, config: GlassConfig): nu
     return Math.min(config.bezel ?? 0, shortest * 0.3);
 }
 
+function falloff(depth: number, step: number, reach: number): number {
+    if (step <= 1) return Math.exp(-Math.max(depth, 0) / reach);
+    const from = Math.max(depth - step / 2, 0);
+    const to = Math.max(depth + step / 2, from + 1e-6);
+    return (reach * (Math.exp(-from / reach) - Math.exp(-to / reach))) / (to - from);
+}
+
 export function glassPixels(
     width: number,
     height: number,
@@ -75,20 +82,25 @@ export function glassPixels(
     bezel: number,
     magnitudes: Float32Array,
     lightDeg: number,
+    scale = 1,
 ): { displacement: Uint8ClampedArray; specular: Uint8ClampedArray } {
-    const displacement = new Uint8ClampedArray(width * height * 4);
-    const specular = new Uint8ClampedArray(width * height * 4);
+    const [mapWidth, mapHeight] = scale === 1 ? [width, height] : mapSize(width, height, scale);
+    const stepX = width / mapWidth;
+    const stepY = height / mapHeight;
+    const step = Math.max(stepX, stepY);
+    const displacement = new Uint8ClampedArray(mapWidth * mapHeight * 4);
+    const specular = new Uint8ClampedArray(mapWidth * mapHeight * 4);
     const lightX = Math.cos((lightDeg * Math.PI) / 180);
     const lightY = Math.sin((lightDeg * Math.PI) / 180);
     const halfW = width / 2;
     const halfH = height / 2;
     const last = magnitudes.length - 1;
     const normalReach = Math.max(bezel, RIM_REACH);
-    for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-            const i = (y * width + x) * 4;
-            const cx = x + 0.5 - halfW;
-            const cy = y + 0.5 - halfH;
+    for (let y = 0; y < mapHeight; y++) {
+        for (let x = 0; x < mapWidth; x++) {
+            const i = (y * mapWidth + x) * 4;
+            const cx = (x + 0.5) * stepX - halfW;
+            const cy = (y + 0.5) * stepY - halfH;
             const qx = Math.abs(cx) - (halfW - radius);
             const qy = Math.abs(cy) - (halfH - radius);
             const outside = Math.hypot(Math.max(qx, 0), Math.max(qy, 0));
@@ -119,13 +131,12 @@ export function glassPixels(
             displacement[i + 1] = 128 + my * 127;
             displacement[i + 2] = 128;
             displacement[i + 3] = 255;
-            if (depth >= -0.5 && depth < RIM_REACH) {
+            if (depth >= -0.5 * step && depth < RIM_REACH) {
                 const facing = nx * lightX + ny * lightY;
                 const lit = facing >= 0 ? facing : -BACKLIGHT * facing;
-                const cover = Math.min(1, depth + 0.5);
-                const inset = Math.max(depth, 0);
-                const rim = Math.exp(-inset / RIM_FALLOFF) * (0.28 + 0.72 * Math.pow(lit, 1.6));
-                const glow = Math.exp(-inset / GLOW_FALLOFF) * 0.4 * Math.pow(lit, 3);
+                const cover = Math.min(1, depth / step + 0.5);
+                const rim = falloff(depth, step, RIM_FALLOFF) * (0.28 + 0.72 * Math.pow(lit, 1.6));
+                const glow = falloff(depth, step, GLOW_FALLOFF) * 0.4 * Math.pow(lit, 3);
                 specular[i] = 255;
                 specular[i + 1] = 255;
                 specular[i + 2] = 255;
@@ -147,4 +158,19 @@ export function filterKey(
 
 export function displacementScale(max: number, refraction: number): number {
     return max * 2 * refraction;
+}
+
+export const MAP_SCALE = 0.5;
+const FULL_SIZE_AREA = 20000;
+
+export function mapScale(width: number, height: number): number {
+    return width * height < FULL_SIZE_AREA ? 1 : MAP_SCALE;
+}
+
+export function mapSize(
+    width: number,
+    height: number,
+    scale = mapScale(width, height),
+): [number, number] {
+    return [Math.max(1, Math.round(width * scale)), Math.max(1, Math.round(height * scale))];
 }

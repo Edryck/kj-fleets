@@ -135,7 +135,7 @@ describe("Drivers team", () => {
         const row = (await screen.findByText("Marcos Vieira")).closest("tr")!;
         expect(within(row).getByText("MV")).toBeInTheDocument();
         const render = within(row).getByAltText("Van BRA2E19");
-        expect(render).toHaveAttribute("src", "/renders/van-side.webp");
+        expect(render).toHaveAttribute("src", "/renders/sprinter-side.webp");
         expect(within(row).getByText("Disponível")).toBeInTheDocument();
         expect(within(row).getByText("há 3 min")).toBeInTheDocument();
     });

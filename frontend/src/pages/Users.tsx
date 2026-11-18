@@ -257,6 +257,7 @@ function UserPanel({
         >
             <PersonHead
                 name={user.username}
+                role={user.role}
                 mono
                 meta={
                     <>
@@ -373,7 +374,7 @@ export default function Users() {
                 const note = noteFor(u);
                 return (
                     <div className="team-person">
-                        <Avatar name={u.username} size="sm" />
+                        <Avatar name={u.username} role={u.role} size="sm" />
                         <span className="team-person-text">
                             <b className="data">{u.username}</b>
                             {note && <small>{note}</small>}

@@ -5,6 +5,9 @@ import {
     displacementScale,
     filterKey,
     glassPixels,
+    mapScale,
+    mapSize,
+    MAP_SCALE,
     refractionProfile,
     squircle,
 } from "./liquidGlass";
@@ -72,5 +75,62 @@ describe("liquid glass math", () => {
     it("builds cache keys and filter scale", () => {
         expect(filterKey("regular", 340, 120, 22.4)).toBe("regular:340x120:22");
         expect(displacementScale(10, 1.15)).toBeCloseTo(23);
+    });
+
+    it("stores panel maps at half the element size and keeps buttons and chips at full size", () => {
+        expect(MAP_SCALE).toBe(0.5);
+        expect(mapScale(400, 240)).toBe(0.5);
+        expect(mapSize(400, 240)).toEqual([200, 120]);
+        expect(mapSize(1131, 77)).toEqual([566, 39]);
+        expect(mapScale(46, 46)).toBe(1);
+        expect(mapSize(46, 46)).toEqual([46, 46]);
+        expect(mapSize(167, 46)).toEqual([167, 46]);
+        expect(mapSize(1, 1)).toEqual([1, 1]);
+    });
+
+    it("generates half-size panel maps that match the full map reduced 2x2", () => {
+        const { magnitudes } = refractionProfile(26, 46);
+        const w = 420,
+            h = 320;
+        const full = glassPixels(w, h, 26, 26, magnitudes, -125);
+        const half = glassPixels(w, h, 26, 26, magnitudes, -125, MAP_SCALE);
+        const [mw, mh] = mapSize(w, h);
+        expect(half.displacement).toHaveLength(mw * mh * 4);
+        expect(half.specular).toHaveLength(mw * mh * 4);
+        const reduced = (data: Uint8ClampedArray, x: number, y: number, c: number) => {
+            let sum = 0;
+            for (const [dx, dy] of [
+                [0, 0],
+                [1, 0],
+                [0, 1],
+                [1, 1],
+            ])
+                sum += data[((2 * y + dy) * w + 2 * x + dx) * 4 + c];
+            return sum / 4;
+        };
+        const displacementDiff: number[] = [];
+        const specularDiff: number[] = [];
+        for (let y = 0; y < mh; y++) {
+            for (let x = 0; x < mw; x++) {
+                const i = (y * mw + x) * 4;
+                displacementDiff.push(
+                    Math.max(
+                        ...[0, 1].map((c) =>
+                            Math.abs(
+                                half.displacement[i + c] - reduced(full.displacement, x, y, c),
+                            ),
+                        ),
+                    ),
+                );
+                specularDiff.push(Math.abs(half.specular[i + 3] - reduced(full.specular, x, y, 3)));
+            }
+        }
+        const mean = (values: number[]) => values.reduce((a, b) => a + b, 0) / values.length;
+        const p99 = (values: number[]) =>
+            [...values].sort((a, b) => a - b)[Math.floor(values.length * 0.99)];
+        expect(mean(displacementDiff)).toBeLessThan(1);
+        expect(p99(displacementDiff)).toBeLessThanOrEqual(8);
+        expect(mean(specularDiff)).toBeLessThan(1);
+        expect(p99(specularDiff)).toBeLessThanOrEqual(8);
     });
 });

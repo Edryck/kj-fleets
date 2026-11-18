@@ -103,8 +103,8 @@
 }
 
 .alert-filters .chip[aria-pressed="true"] {
-    border-color: var(--color-primary);
-    background: var(--color-primary-soft);
+    border-color: var(--color-route);
+    background: var(--color-accent-soft);
 }
 
 .alert-groups {
@@ -284,10 +284,10 @@
 .km-track .is-planned {
     background: linear-gradient(
         90deg,
-        color-mix(in srgb, var(--color-primary) 55%, transparent),
-        var(--color-primary)
+        color-mix(in srgb, var(--color-route) 55%, transparent),
+        var(--color-route)
     );
-    box-shadow: 0 0 14px color-mix(in srgb, var(--color-primary) 40%, transparent);
+    box-shadow: 0 0 14px color-mix(in srgb, var(--color-route) 40%, transparent);
 }
 
 .alg-bars {
@@ -339,6 +339,15 @@
     align-items: center;
     gap: 18px;
     margin-bottom: 22px;
+}
+
+.account-figure {
+    margin: -14px 0 -22px auto;
+}
+
+.person-figure.account-figure img {
+    width: auto;
+    height: 132px;
 }
 
 .avatar.avatar-lg {
@@ -513,6 +522,10 @@
     .insight-card,
     .account-card {
         padding: 16px;
+    }
+
+    .account-figure {
+        display: none;
     }
 
     .alert-group {

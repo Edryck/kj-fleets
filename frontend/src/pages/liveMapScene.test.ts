@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Driver, OrderRoute } from "../api/types";
 import { ZERO } from "../map/camera";
-import { liveMapScene } from "./liveMapScene";
+import { liveMapScene, livePadding } from "./liveMapScene";
 
 const driver = (id: string, extra: Partial<Driver> = {}): Driver => ({
     publicId: id,
@@ -166,5 +166,33 @@ describe("liveMapScene", () => {
             padding: ZERO,
         });
         expect(scene.camera).toMatchObject({ fit: "markers", pitch: 0, terrain: 0 });
+    });
+});
+
+describe("livePadding", () => {
+    it("keeps the wide layout padding beside the side column", () => {
+        expect(livePadding("full", "half", 900)).toEqual({
+            top: 170,
+            bottom: 170,
+            left: 150,
+            right: 400,
+        });
+        expect(livePadding("compact", "half", 820)).toEqual({
+            top: 220,
+            bottom: 160,
+            left: 120,
+            right: 400,
+        });
+    });
+
+    it("frames the map above the sheet on tablets and phones", () => {
+        expect(livePadding("tablet", "half", 1000)).toMatchObject({ bottom: 520, right: 80 });
+        expect(livePadding("phone", "half", 844)).toMatchObject({
+            top: 300,
+            bottom: 435,
+            left: 40,
+        });
+        expect(livePadding("phone", "collapsed", 844).bottom).toBe(130);
+        expect(livePadding("phone", "full", 844).bottom).toBe(130);
     });
 });

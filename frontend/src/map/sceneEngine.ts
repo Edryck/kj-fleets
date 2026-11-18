@@ -3,6 +3,7 @@ import type { MapLeg } from "../components/RouteLegs";
 import { ZERO, type CameraMap, type Padding, type SceneCamera } from "./camera";
 import type { SceneArc } from "./mapLayers";
 import type { MarkerLayer, SceneMarker } from "./markers";
+import { adaptCamera, type Viewport } from "./responsive";
 import {
     getFollowState,
     setFollowState,
@@ -44,10 +45,12 @@ export interface EngineDeps {
         ): void;
     };
     reduce: () => boolean;
+    viewport?: () => Viewport;
 }
 
 export interface SceneEngine {
     apply(entry: SceneEntry | null): void;
+    relayout(): void;
     reapplyAfterStyle(): void;
     fitAll(): void;
     destroy(): void;
@@ -82,7 +85,16 @@ function cameraKey(camera: SceneCamera | undefined): string {
 
 const GESTURES = ["dragstart", "wheel", "pitchstart", "rotatestart"] as const;
 
+function adaptEntry(entry: SceneEntry, viewport: Viewport): SceneEntry {
+    const camera = entry.scene.camera;
+    if (!camera) return entry;
+    return { ...entry, scene: { ...entry.scene, camera: adaptCamera(camera, viewport) } };
+}
+
 export function createSceneEngine(map: MapLibreMap, deps: EngineDeps): SceneEngine {
+    const viewportNow = () => deps.viewport?.() ?? "full";
+    let viewport = viewportNow();
+    let raw: SceneEntry | null = null;
     let current: SceneEntry | null = null;
     let styleReady = false;
     let ownerStops: (() => void)[] = [];
@@ -255,6 +267,7 @@ export function createSceneEngine(map: MapLibreMap, deps: EngineDeps): SceneEngi
     const teardown = () => {
         stopOwner();
         current = null;
+        raw = null;
         legsKey = "";
         arcsKey = "";
         camKey = "";
@@ -279,14 +292,25 @@ export function createSceneEngine(map: MapLibreMap, deps: EngineDeps): SceneEngi
                 arcsKey = "";
                 camKey = "";
             }
-            current = entry;
-            const s = entry.scene;
+            raw = entry;
+            viewport = viewportNow();
+            current = adaptEntry(entry, viewport);
+            const s = current.scene;
             deps.markers.apply(s.markers, Boolean(s.onMarkerClick));
             applyLegs(s);
             applyArcs(s, isNewOwner);
             applyCamera(s, isNewOwner);
             applyFollow(s);
             applyPick(s);
+        },
+        relayout() {
+            const next = viewportNow();
+            if (next === viewport) return;
+            viewport = next;
+            if (!raw) return;
+            current = adaptEntry(raw, viewport);
+            camKey = "";
+            applyCamera(current.scene, false);
         },
         reapplyAfterStyle() {
             styleReady = true;
@@ -311,6 +335,7 @@ export function createSceneEngine(map: MapLibreMap, deps: EngineDeps): SceneEngi
             GESTURES.forEach((type) => map.off(type, onGesture));
             deps.markers.clear();
             current = null;
+            raw = null;
         },
     };
 }

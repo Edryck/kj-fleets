@@ -295,3 +295,43 @@ describe("progressive legs", () => {
         expect(deps.motion.animateLegs).toHaveBeenLastCalledWith(expect.anything(), [leg(2)]);
     });
 });
+
+describe("viewport", () => {
+    const dash = {
+        markers: [{ id: "m1", kind: "order" as const, lat: -24.9, lng: -54.2 }],
+        camera: { fit: "markers" as const, pitch: 73, terrain: 2.4, intro: "spin" as const },
+    };
+
+    it("flies with the camera adapted to the current viewport", () => {
+        const deps = { ...makeDeps(), viewport: () => "phone" as const };
+        const engine = createSceneEngine(fakeMap(), deps);
+        engine.apply({ owner: Symbol("dash"), scene: dash });
+        expect(deps.camera.flyToScene).toHaveBeenCalledWith(
+            expect.anything(),
+            [[-24.9, -54.2]],
+            expect.objectContaining({ pitch: 45, terrain: 0, intro: null }),
+            false,
+        );
+        engine.reapplyAfterStyle();
+        expect(deps.camera.applyTerrain).toHaveBeenLastCalledWith(expect.anything(), 0);
+    });
+
+    it("re-applies the adapted camera only when the viewport band changes", () => {
+        let viewport: "full" | "tablet" = "full";
+        const deps = { ...makeDeps(), viewport: () => viewport };
+        const engine = createSceneEngine(fakeMap(), deps);
+        engine.apply({ owner: Symbol("dash"), scene: dash });
+        expect(deps.camera.flyToScene).toHaveBeenCalledTimes(1);
+        engine.relayout();
+        expect(deps.camera.flyToScene).toHaveBeenCalledTimes(1);
+        viewport = "tablet";
+        engine.relayout();
+        expect(deps.camera.flyToScene).toHaveBeenCalledTimes(2);
+        expect(deps.camera.flyToScene).toHaveBeenLastCalledWith(
+            expect.anything(),
+            expect.anything(),
+            expect.objectContaining({ pitch: 60 }),
+            false,
+        );
+    });
+});

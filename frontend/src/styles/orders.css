@@ -42,8 +42,8 @@
     display: grid;
     gap: 12px;
     padding: 16px;
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
+    background: var(--color-solid-raised);
+    border: 1px solid var(--color-fill-hover);
     border-radius: var(--radius-card);
 }
 .filters-row {
@@ -76,9 +76,9 @@
 .chip {
     min-height: 32px;
     padding: 0 12px;
-    border: 1px solid var(--color-border);
+    border: 1px solid var(--color-fill-hover);
     border-radius: 999px;
-    background: var(--color-surface-muted);
+    background: var(--color-fill);
     color: var(--color-text-muted);
     font-size: 0.8125rem;
     cursor: pointer;
@@ -87,15 +87,15 @@
     border-color: var(--color-text-subtle);
 }
 .chip[aria-pressed="true"] {
-    background: var(--color-primary-soft);
-    border-color: var(--color-primary);
+    background: var(--color-accent-soft);
+    border-color: var(--color-route);
     color: var(--color-text);
 }
 .check {
     width: 18px;
     min-height: 18px;
     height: 18px;
-    accent-color: var(--color-primary);
+    accent-color: var(--color-route);
 }
 .filters input[type="date"] {
     width: auto;
@@ -105,7 +105,7 @@
     text-decoration: none;
 }
 .table-link:hover {
-    color: var(--color-primary);
+    color: var(--color-link);
 }
 .route-cell {
     display: grid;
@@ -195,7 +195,7 @@
 }
 
 .big-status.is-live .big-status-dot {
-    animation: live-breathe 2.4s ease-in-out infinite;
+    animation: live-breathe 2.4s steps(4, jump-none) infinite;
 }
 
 .op-body {
@@ -715,10 +715,10 @@
     display: flex;
     justify-content: space-between;
     padding: 8px 0;
-    border-top: 1px solid var(--color-border);
+    border-top: 1px solid var(--color-fill-hover);
 }
 .dl a {
-    color: var(--color-primary);
+    color: var(--color-link);
 }
 .dl-gap {
     margin-top: 8px;
@@ -740,15 +740,15 @@
     min-height: 36px;
     align-items: center;
     padding: 0 12px;
-    border: 1px solid var(--color-border);
+    border: 1px solid var(--color-fill-hover);
     border-radius: var(--radius-control);
-    background: var(--color-surface-muted);
+    background: var(--color-fill);
     color: var(--color-text);
     cursor: pointer;
 }
 .nearest button[aria-pressed="true"] {
-    border-color: var(--color-primary);
-    background: var(--color-primary-soft);
+    border-color: var(--color-route);
+    background: var(--color-accent-soft);
 }
 
 /* Linha do tempo */
@@ -756,7 +756,7 @@
     list-style: none;
     margin: 0;
     padding: 0 0 0 18px;
-    border-left: 2px solid var(--color-border);
+    border-left: 2px solid var(--color-fill-hover);
     display: grid;
     gap: 16px;
 }
@@ -771,8 +771,8 @@
     width: 12px;
     height: 12px;
     border-radius: 50%;
-    background: var(--color-primary);
-    border: 2px solid var(--color-surface);
+    background: var(--color-route);
+    border: 2px solid var(--color-solid-raised);
 }
 .timeline li.tl-bad::before {
     background: var(--color-danger);
@@ -788,7 +788,7 @@
 .map-view {
     position: relative;
     min-height: 260px;
-    border: 1px solid var(--color-border);
+    border: 1px solid var(--color-fill-hover);
     border-radius: var(--radius-control);
     overflow: hidden;
 }
@@ -800,7 +800,7 @@
     cursor: crosshair;
 }
 .map-view.is-picking {
-    border-color: var(--color-primary);
+    border-color: var(--color-route);
 }
 .map-hint,
 .map-legend {
@@ -808,15 +808,15 @@
     z-index: 1;
     padding: 4px 10px;
     border-radius: var(--radius-control);
-    background: var(--color-surface-raised);
+    background: var(--color-solid-raised);
     color: var(--color-text);
-    border: 1px solid var(--color-border);
+    border: 1px solid var(--color-fill-hover);
     font-size: 0.75rem;
 }
 .map-hint {
     bottom: 28px;
     left: 8px;
-    border-color: var(--color-primary);
+    border-color: var(--color-route);
 }
 .map-legend {
     top: 8px;
@@ -836,7 +836,7 @@
 }
 .legend-swatch {
     width: 22px;
-    border-top: 3px solid var(--color-primary);
+    border-top: 3px solid var(--color-route);
 }
 .legend-estimated,
 .legend-straight {
@@ -891,7 +891,7 @@
     gap: 16px;
     margin-top: 20px;
     padding-top: 20px;
-    border-top: 1px solid var(--color-border);
+    border-top: 1px solid var(--color-fill-hover);
 }
 .plan-head {
     display: flex;
@@ -900,7 +900,7 @@
     gap: 12px;
 }
 .plan-total {
-    font-family: var(--font-heading);
+    font-family: var(--font-display);
     font-size: 1.5rem;
 }
 .plan-actions {
@@ -927,7 +927,7 @@
 .compare-track {
     height: 10px;
     border-radius: 999px;
-    background: var(--color-surface-muted);
+    background: var(--color-fill);
     overflow: hidden;
 }
 .compare-bar {
@@ -936,7 +936,7 @@
     border-radius: 999px;
 }
 .compare-hungarian {
-    background: var(--color-primary);
+    background: var(--color-route);
 }
 .compare-greedy {
     background: var(--color-text-subtle);
@@ -962,10 +962,10 @@
     align-items: center;
     gap: 12px;
     padding: 8px 0;
-    border-top: 1px solid var(--color-border);
+    border-top: 1px solid var(--color-fill-hover);
 }
 .plain-list a {
-    color: var(--color-primary);
+    color: var(--color-link);
     text-decoration: none;
 }
 .plain-list a:hover {

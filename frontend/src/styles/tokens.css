@@ -71,7 +71,8 @@
     --color-bg: #0c1511;
     --color-text: #eef4ec;
     --color-text-muted: #9fb2a5;
-    --color-text-subtle: #6e8476;
+    --color-text-subtle: #82978a;
+    --color-link: #b7f52a;
     --color-accent-soft: rgba(183, 245, 42, 0.14);
     --color-active-bg: #b7f52a;
     --color-active-ink: #13200a;
@@ -117,17 +118,18 @@
     --color-bg: #e8ede4;
     --color-text: #16211a;
     --color-text-muted: #56665b;
-    --color-text-subtle: #7b8a80;
+    --color-text-subtle: #5d6c62;
+    --color-link: #3f6b08;
     --color-accent-soft: rgba(120, 169, 28, 0.16);
     --color-active-bg: #16211a;
     --color-active-ink: #f4f8f1;
     --color-route: #5f9410;
     --color-route-casing: #ffffff;
-    --color-success: #17885a;
-    --color-warning: #9a6400;
-    --color-danger: #c43d3d;
-    --color-info: #2a7fb0;
-    --color-offline: #6b7b70;
+    --color-success: #126e48;
+    --color-warning: #875800;
+    --color-danger: #b33535;
+    --color-info: #226a94;
+    --color-offline: #5c6b61;
     --color-fill: rgba(22, 33, 26, 0.05);
     --color-fill-hover: rgba(22, 33, 26, 0.09);
     --color-solid-raised: #fbfcf9;
@@ -156,25 +158,4 @@
     --glass-light-hover: rgba(255, 255, 255, 0.62);
     --glass-shadow: 0 16px 36px rgba(26, 44, 32, 0.14), 0 2px 6px rgba(26, 44, 32, 0.08);
     --glass-bright: 1.06;
-}
-
-:root {
-    --font-heading: var(--font-display);
-    --color-background: var(--color-bg);
-    --color-surface: var(--color-solid-raised);
-    --color-surface-raised: var(--color-solid-raised);
-    --color-surface-muted: var(--color-fill);
-    --color-border: var(--color-fill-hover);
-    --color-primary: var(--color-accent);
-    --color-primary-hover: var(--color-accent);
-    --color-primary-soft: var(--color-accent-soft);
-    --color-on-primary: var(--color-accent-ink);
-    --color-brand-graphite: var(--color-bg);
-    --color-brand-white: var(--color-text);
-    --color-brand-gray: var(--color-text-subtle);
-}
-
-[data-theme="light"] {
-    --color-primary: var(--color-route);
-    --color-primary-hover: var(--color-route);
 }

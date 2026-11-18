@@ -789,3 +789,18 @@
         grid-template-columns: 1fr;
     }
 }
+
+@media (max-width: 1023px) {
+    .hero-scrim {
+        background: linear-gradient(
+            180deg,
+            color-mix(in srgb, var(--color-bg) 40%, transparent) 0,
+            color-mix(in srgb, var(--color-bg) 78%, transparent) 28%,
+            color-mix(in srgb, var(--color-bg) 84%, transparent) 100%
+        );
+    }
+
+    .shell:has(.dash-aerial) .map-stage [data-kind="hud"] {
+        display: none;
+    }
+}

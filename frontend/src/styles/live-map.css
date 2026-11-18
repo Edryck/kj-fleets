@@ -218,6 +218,13 @@
     pointer-events: none;
 }
 
+.live-card-shot .vehicle-shot > img {
+    width: auto;
+    max-width: 100%;
+    height: auto;
+    max-height: 204px;
+}
+
 .live-card-shot::before {
     content: "";
     position: absolute;
@@ -226,12 +233,14 @@
     background: var(--color-spot);
 }
 
-.live-card-shot img {
+.live-card-shot .vehicle-shot {
     position: absolute;
-    left: 0;
+    right: 0;
     bottom: 0;
-    width: 100%;
-    height: auto;
+    left: 0;
+    width: fit-content;
+    max-width: calc(100% - 48px);
+    margin: 0 auto;
     filter: drop-shadow(0 18px 22px rgba(0, 0, 0, 0.35));
     animation-delay: 150ms;
 }
@@ -249,10 +258,15 @@
         inset: 18px 8px 0 30%;
     }
 
-    .live-card-shot img {
+    .live-card-shot .vehicle-shot {
+        right: 24px;
         left: auto;
-        right: 0;
-        width: 72%;
+        max-width: 64%;
+        margin: 0;
+    }
+
+    .live-card-shot .vehicle-shot > img {
+        max-height: 136px;
     }
 }
 
@@ -810,4 +824,114 @@
     .live-zoom {
         display: none;
     }
+}
+
+@media (min-width: 768px) and (max-width: 1279px) {
+    .stage:has(.live-map) .title-block {
+        padding-top: 22px;
+    }
+
+    .live-command-wrap {
+        position: static;
+        margin: 0 calc(320px + var(--gutter) * 2) 0 0;
+        justify-content: flex-start;
+    }
+
+    .live-command {
+        flex-wrap: wrap;
+        border-radius: 26px;
+    }
+
+    .live-bottom .is-secondary {
+        display: none;
+    }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+    .live-command-wrap {
+        margin-right: 0;
+    }
+
+    .live-bottom {
+        display: none;
+    }
+
+    .live-zoom {
+        left: auto;
+        right: var(--gutter);
+        bottom: calc(48dvh + 14px);
+        transition: bottom 0.45s var(--ease-spring);
+    }
+
+    .live-map:has(.live-sheet[data-snap="collapsed"]) .live-zoom {
+        bottom: 106px;
+    }
+
+    .live-map:has(.live-sheet[data-snap="full"]) .live-zoom {
+        display: none;
+    }
+}
+
+@media (max-width: 767px) {
+    .live-map:has(.live-sheet) .live-bottom {
+        display: none;
+    }
+
+    .live-zoom {
+        position: fixed;
+        left: auto;
+        right: 12px;
+        bottom: calc(48dvh + 12px);
+        transition: bottom 0.45s var(--ease-spring);
+    }
+
+    .live-zoom .round {
+        width: 44px;
+        height: 44px;
+    }
+
+    .live-map:has(.live-sheet[data-snap="collapsed"]) .live-zoom {
+        bottom: 104px;
+    }
+
+    .live-map:has(.live-sheet[data-snap="full"]) .live-zoom {
+        display: none;
+    }
+
+    .live-row {
+        min-height: 52px;
+    }
+}
+
+.live-sheet .live-panel.is-flat {
+    padding: 0;
+    border-radius: 0;
+}
+
+.live-sheet .live-card.is-flat + .live-list-panel.is-flat {
+    padding-top: 14px;
+    border-top: 1px solid var(--color-fill);
+}
+
+.live-sheet .live-list {
+    max-height: none;
+}
+
+.live-sheet .live-card.has-shot {
+    margin-top: 0;
+}
+
+.live-sheet .live-card-shot {
+    height: 104px;
+    margin: 0;
+}
+
+.live-sheet .live-card-shot::before {
+    inset: 30px 25% 0;
+}
+
+.live-sheet .live-card-shot .vehicle-shot {
+    right: 0;
+    width: 250px;
+    margin: 0 auto;
 }

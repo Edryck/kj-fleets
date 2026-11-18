@@ -1,6 +1,7 @@
 import { X } from "lucide-react";
-import { useEffect, useId, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import Glass from "../glass/Glass";
+import { SheetHandle, type SheetSnap } from "./BottomSheet";
 
 export function SidePanelLayout({
     open,
@@ -36,6 +37,7 @@ export function SidePanel({
 }) {
     const panelId = useId();
     const titleId = useId();
+    const [snap, setSnap] = useState<SheetSnap>("half");
 
     useEffect(() => {
         const previous = document.activeElement as HTMLElement | null;
@@ -62,7 +64,9 @@ export function SidePanel({
             aria-modal="false"
             aria-labelledby={titleId}
             tabIndex={-1}
+            data-snap={snap}
         >
+            <SheetHandle snap={snap} onSnapChange={setSnap} />
             <header className="side-panel-head">
                 <h2 id={titleId}>{title}</h2>
                 <button

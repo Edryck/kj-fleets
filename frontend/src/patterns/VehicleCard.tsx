@@ -3,7 +3,8 @@ import { Link } from "react-router-dom";
 import StatusBadge from "../components/StatusBadge";
 import { Skeleton } from "../components/blocks";
 import Glass from "../glass/Glass";
-import { vehicleRender } from "../vehicles/vehicleRender";
+import { vehicleName, type VehicleLike } from "../vehicles/catalog";
+import VehicleShot from "../vehicles/VehicleShot";
 
 const initials = (name: string) =>
     name
@@ -15,7 +16,7 @@ const initials = (name: string) =>
 
 export default function VehicleCard({
     plate,
-    type,
+    vehicle,
     status,
     lastSignal,
     driver,
@@ -23,7 +24,7 @@ export default function VehicleCard({
     loading,
 }: {
     plate: string | null;
-    type?: string | null;
+    vehicle?: VehicleLike | null;
     status?: string | null;
     lastSignal?: string | null;
     driver?: { name: string; status: string } | null;
@@ -48,35 +49,35 @@ export default function VehicleCard({
             </Glass>
         );
     }
-    const trimmedType = type?.trim() ?? "";
-    const render = vehicleRender(trimmedType, "34");
+    const trimmedType = vehicle?.type?.trim() ?? "";
+    const name = vehicleName(vehicle ?? {});
+    const named = Boolean(vehicle?.brand?.trim() || vehicle?.model?.trim());
+    const kind = named && trimmedType ? `${name} · ${trimmedType}` : named ? name : trimmedType;
     return (
         <Glass className="vehicle-card">
             <div className="vehicle-card-shot">
-                {render ? (
-                    <img
-                        className="motion-drive"
-                        src={render.src}
-                        width={render.width}
-                        height={render.height}
-                        loading="lazy"
-                        decoding="async"
-                        alt={`${trimmedType} ${plate}`}
-                    />
-                ) : (
-                    <span className="vehicle-card-fallback">
-                        <Truck size={28} aria-hidden="true" />
-                        {trimmedType ? `Sem imagem para “${trimmedType}”` : "Sem imagem do veículo"}
-                    </span>
-                )}
+                <VehicleShot
+                    vehicle={vehicle}
+                    view="34"
+                    className="motion-drive"
+                    alt={`${name} ${plate}`}
+                    fallback={
+                        <span className="vehicle-card-fallback">
+                            <Truck size={28} aria-hidden="true" />
+                            {trimmedType
+                                ? `Sem imagem para “${trimmedType}”`
+                                : "Sem imagem do veículo"}
+                        </span>
+                    }
+                />
             </div>
             <div className="vehicle-card-meta">
                 <span className="vehicle-card-plate">{plate}</span>
                 {status && <StatusBadge kind="vehicle" value={status} />}
             </div>
-            {(trimmedType || lastSignal) && (
+            {(kind || lastSignal) && (
                 <div className="vehicle-card-meta is-secondary">
-                    <span>{trimmedType}</span>
+                    <span>{kind}</span>
                     {lastSignal && <span>{lastSignal}</span>}
                 </div>
             )}

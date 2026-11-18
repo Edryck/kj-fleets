@@ -4,7 +4,9 @@ import { stopMarkers } from "../components/MapView";
 import { legsFromStops } from "../components/RouteLegs";
 import type { Padding } from "../map/camera";
 import type { SceneMarker } from "../map/markers";
+import type { Viewport } from "../map/responsive";
 import type { MapScene } from "../map/sceneStore";
+import type { SheetSnap } from "../patterns/BottomSheet";
 import { initials } from "../patterns/initials";
 
 export { initials };
@@ -96,4 +98,14 @@ export function liveMapScene({
         legs: legsFromStops(stops, false),
         camera: { fit: stops.length > 1 ? "legs" : "markers", padding, pitch: 0, terrain: 0 },
     };
+}
+
+export function livePadding(viewport: Viewport, snap: SheetSnap, height: number): Padding {
+    if (viewport === "full") return { top: 170, bottom: 170, left: 150, right: 400 };
+    if (viewport === "compact") return { top: 220, bottom: 160, left: 120, right: 400 };
+    const phone = viewport === "phone";
+    const bottom = snap === "half" ? Math.round(height * 0.48) + (phone ? 30 : 40) : 130;
+    return phone
+        ? { top: 300, bottom, left: 40, right: 40 }
+        : { top: 230, bottom, left: 60, right: 80 };
 }

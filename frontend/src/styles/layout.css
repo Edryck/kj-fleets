@@ -356,7 +356,7 @@
     height: 7px;
     border-radius: 50%;
     background: currentColor;
-    animation: live-breathe 2.4s ease-in-out infinite;
+    animation: live-breathe 2.4s steps(4, jump-none) infinite;
 }
 
 .title-block h1 {
@@ -651,7 +651,7 @@
 }
 
 .auth-links a {
-    color: var(--color-primary);
+    color: var(--color-link);
     font-weight: 600;
     text-decoration: none;
 }

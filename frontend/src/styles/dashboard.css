@@ -23,7 +23,7 @@
     grid-column: 1 / -1;
     display: flex;
     gap: 4px;
-    border-bottom: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--color-fill-hover);
 }
 
 .dash-subnav a {
@@ -41,7 +41,7 @@
 
 .dash-subnav a.active {
     color: var(--color-text);
-    border-bottom-color: var(--color-primary);
+    border-bottom-color: var(--color-route);
 }
 
 .notice-info {
@@ -50,34 +50,6 @@
 }
 
 /* KPIs */
-
-.kpi-row {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 16px;
-}
-
-.kpi-link {
-    display: block;
-    color: inherit;
-    text-decoration: none;
-    transition: border-color var(--motion-fast);
-}
-
-.kpi-link:hover {
-    border-color: var(--color-primary);
-}
-
-.kpi-hint {
-    margin-top: 6px;
-    font-size: 0.75rem;
-    color: var(--color-text-subtle);
-    min-height: 1.1rem;
-}
-
-.kpi-value .caption {
-    font-weight: 400;
-}
 
 .delta {
     display: inline-flex;
@@ -119,7 +91,7 @@
 
 .metrics dd {
     margin: 4px 0 0;
-    font-family: var(--font-heading);
+    font-family: var(--font-display);
     font-size: 1.25rem;
     font-weight: 700;
 }
@@ -185,7 +157,7 @@ a.chip {
     min-width: 22px;
     padding: 0 6px;
     border-radius: 999px;
-    background: var(--color-surface);
+    background: var(--color-solid-raised);
     color: var(--color-text);
     font-family: var(--font-mono);
     font-size: 0.75rem;
@@ -213,19 +185,19 @@ ul.chips {
     border: 0;
     border-radius: 3px;
     overflow: hidden;
-    background: var(--color-surface-muted);
+    background: var(--color-fill);
 }
 
 .progress progress::-webkit-progress-bar {
-    background: var(--color-surface-muted);
+    background: var(--color-fill);
 }
 
 .progress progress::-webkit-progress-value {
-    background: var(--color-primary);
+    background: var(--color-route);
 }
 
 .progress progress::-moz-progress-bar {
-    background: var(--color-primary);
+    background: var(--color-route);
 }
 
 /* Sino */
@@ -247,7 +219,7 @@ ul.chips {
     padding: 0 5px;
     border-radius: 999px;
     background: var(--color-danger);
-    color: var(--color-brand-graphite);
+    color: var(--color-bg);
     font-size: 0.6875rem;
     font-weight: 700;
     line-height: 18px;
@@ -270,7 +242,7 @@ ul.chips {
     grid-template-columns: auto 1fr;
     gap: 4px 10px;
     padding: 10px 6px;
-    border-bottom: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--color-fill-hover);
 }
 
 .bell-message {
@@ -294,15 +266,11 @@ ul.chips {
 .popover .bell-all {
     justify-content: center;
     margin-top: 6px;
-    color: var(--color-primary);
+    color: var(--color-link);
     font-weight: 600;
 }
 
 @media (max-width: 1100px) {
-    .kpi-row {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
     .metrics {
         grid-template-columns: repeat(3, minmax(0, 1fr));
     }
@@ -326,22 +294,13 @@ ul.chips {
         overflow-x: auto;
     }
 
-    .kpi-row {
-        grid-template-columns: 1fr 1fr;
-        gap: 12px;
-    }
-
-    .kpi-value {
-        font-size: 1.5rem;
-    }
-
     .metrics {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 
 [data-theme="light"] .bell-badge {
-    color: var(--color-on-primary);
+    color: var(--color-accent-ink);
 }
 
 .bell-list .badge {
@@ -361,7 +320,7 @@ ul.chips {
         display: grid;
         gap: 4px;
         padding: 12px 0;
-        border-bottom: 1px solid var(--color-border);
+        border-bottom: 1px solid var(--color-fill-hover);
     }
 
     .alerts-table td {

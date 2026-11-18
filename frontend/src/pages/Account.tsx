@@ -10,6 +10,7 @@ import { toast } from "../components/Toasts";
 import Glass from "../glass/Glass";
 import { useTitleBlock } from "../layout/titleBlockContext";
 import Avatar from "../patterns/Avatar";
+import RoleFigure from "../people/RoleFigure";
 import { ROLE_LABEL } from "../routes";
 
 interface Values extends ChangePasswordRequest {
@@ -76,6 +77,7 @@ export default function Account() {
                         <div className="account-head">
                             <Avatar
                                 name={me.data.name ?? me.data.username}
+                                role={me.data.role}
                                 size="lg"
                                 className="avatar-lg"
                             />
@@ -85,6 +87,12 @@ export default function Account() {
                                     {ROLE_LABEL[me.data.role]}
                                 </span>
                             </div>
+                            <RoleFigure
+                                role={me.data.role}
+                                name={me.data.name ?? me.data.username}
+                                variant="full"
+                                className="account-figure"
+                            />
                         </div>
                         <h3 className="account-section">Seus dados</h3>
                         <dl className="account-rows">

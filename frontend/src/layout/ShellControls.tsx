@@ -3,16 +3,10 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { logout, useMe, useSession } from "../auth/session";
 import Glass from "../glass/Glass";
+import RoleFigure from "../people/RoleFigure";
 import { ROLE_LABEL } from "../routes";
 import { readTheme, toggleTheme, type Theme } from "../theme";
 import AlertsBell, { CustomerBell } from "./AlertsBell";
-
-function initials(name: string | undefined): string {
-    if (!name) return "…";
-    const parts = name.split(/[\s._-]+/).filter(Boolean);
-    const letters = parts.length > 1 ? parts[0][0] + parts[1][0] : name.slice(0, 2);
-    return letters.toUpperCase();
-}
 
 function UserMenu() {
     const session = useSession();
@@ -50,9 +44,11 @@ function UserMenu() {
                 aria-expanded={open}
                 onClick={() => setOpen((o) => !o)}
             >
-                <span className="user-avatar" aria-hidden="true">
-                    {initials(username)}
-                </span>
+                <RoleFigure
+                    role={session?.role}
+                    name={username ? username.replace(/[._-]+/g, " ") : "…"}
+                    className="user-avatar"
+                />
                 <span className="user-lines">
                     <span className="user-name">{username ?? "…"}</span>
                     <span className="user-role">{session ? ROLE_LABEL[session.role] : ""}</span>

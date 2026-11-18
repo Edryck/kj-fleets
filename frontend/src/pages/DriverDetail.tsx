@@ -304,10 +304,10 @@ export default function DriverDetail() {
             <div className="driver-profile">
                 <div className="dp-col">
                     <Glass as="section" className="dp-card dp-hero" style={rise(0)}>
-                        <Avatar name={d.name} size="lg" />
+                        <Avatar name={d.name} role="DRIVER" size="lg" />
                         <DriverStatus driver={d} />
                     </Glass>
-                    <VehicleCard plate={d.vehicle?.plate ?? null} type={d.vehicle?.type} />
+                    <VehicleCard plate={d.vehicle?.plate ?? null} vehicle={d.vehicle} />
                     <Glass as="section" className="dp-card" style={rise(2)}>
                         <h2>Dados</h2>
                         <div className="dp-rows">

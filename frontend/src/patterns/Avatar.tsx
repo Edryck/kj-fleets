@@ -1,17 +1,15 @@
-import { initials } from "./initials";
+import RoleFigure from "../people/RoleFigure";
 
 export default function Avatar({
     name,
+    role,
     size = "md",
     className,
 }: {
     name: string;
+    role?: string | null;
     size?: "sm" | "md" | "lg";
     className?: string;
 }) {
-    return (
-        <span className={`avatar is-${size}${className ? ` ${className}` : ""}`} aria-hidden="true">
-            {initials(name)}
-        </span>
-    );
+    return <RoleFigure role={role} name={name} size={size} className={className} />;
 }

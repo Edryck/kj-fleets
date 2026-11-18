@@ -181,13 +181,46 @@ describe("shared patterns", () => {
         expect(screen.getByText("30")).toBeInTheDocument();
     });
 
-    it("VehicleCard shows the render for known types and a fallback otherwise", () => {
-        const { rerender } = render(<VehicleCard plate="BRA2E19" type="Van" status="IN_USE" />);
-        expect(screen.getByAltText("Van BRA2E19")).toHaveAttribute("src", "/renders/van-34.webp");
-        rerender(<VehicleCard plate="QQE6A14" type="Moto" status="AVAILABLE" />);
-        expect(screen.getByText("Sem imagem para “Moto”")).toBeInTheDocument();
+    it("VehicleCard shows the model render, its name and a fallback otherwise", () => {
+        const { rerender, container } = render(
+            <VehicleCard plate="BRA2E19" vehicle={{ type: "Van" }} status="IN_USE" />,
+        );
+        expect(screen.getByAltText("Van BRA2E19")).toHaveAttribute(
+            "src",
+            "/renders/sprinter-34.webp",
+        );
+        rerender(
+            <VehicleCard
+                plate="QQE6A14"
+                vehicle={{ type: "Furgão", brand: "Fiat", model: "Fiorino", color: "Azul" }}
+                status="AVAILABLE"
+            />,
+        );
+        expect(screen.getByAltText("Fiat Fiorino QQE6A14")).toHaveAttribute(
+            "src",
+            "/renders/fiorino-34.webp",
+        );
+        expect(screen.getByText("Fiat Fiorino · Furgão")).toBeInTheDocument();
+        expect(container.querySelector(".vehicle-shot-paint")).not.toBeNull();
+        rerender(<VehicleCard plate="BIK0001" vehicle={{ type: "Bicicleta" }} />);
+        expect(screen.getByText("Sem imagem para “Bicicleta”")).toBeInTheDocument();
         rerender(<VehicleCard plate={null} />);
         expect(screen.getByText("Sem veículo atribuído")).toBeInTheDocument();
+    });
+
+    it("SidePanel opens half way as a sheet and its handle changes the height", async () => {
+        render(
+            <SidePanel title="Motorista" onClose={() => {}}>
+                x
+            </SidePanel>,
+        );
+        const panel = screen.getByRole("dialog", { name: "Motorista" });
+        expect(panel).toHaveAttribute("data-snap", "half");
+        await userEvent.click(screen.getByRole("button", { name: "Expandir painel" }));
+        expect(panel).toHaveAttribute("data-snap", "full");
+        expect(document.activeElement).toBe(
+            screen.getByRole("button", { name: "Recolher painel" }),
+        );
     });
 
     it("SidePanel closes with Escape and shifts the layout", async () => {

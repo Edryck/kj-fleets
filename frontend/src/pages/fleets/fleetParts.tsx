@@ -53,7 +53,7 @@ export function AvatarStack({ drivers }: { drivers: Driver[] }) {
     return (
         <div className="avatar-stack">
             {shown.map((d) => (
-                <Avatar key={d.publicId} name={d.name} size="sm" />
+                <Avatar key={d.publicId} name={d.name} role="DRIVER" size="sm" />
             ))}
             {rest > 0 && <span className="avatar is-sm avatar-more">+{rest}</span>}
         </div>
@@ -66,7 +66,7 @@ export function MemberList({ drivers }: { drivers: Driver[] }) {
         <ul className="member-list" aria-label="Membros da frota">
             {drivers.map((d) => (
                 <li key={d.publicId}>
-                    <Avatar name={d.name} size="sm" />
+                    <Avatar name={d.name} role="DRIVER" size="sm" />
                     <span className="member-text">
                         <Link to={`/drivers/${d.publicId}`}>{d.name}</Link>
                         <small className="data">{d.vehicle?.plate ?? "Sem veículo"}</small>

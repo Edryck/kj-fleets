@@ -13,11 +13,13 @@ import { HOME_CENTER } from "./camera";
 import { animateArcs, animateLegs, introSpin, startComets } from "./mapMotion";
 import { PALETTES } from "./mapStyle";
 import { createMarkerLayer } from "./markers";
+import { viewportFor } from "./responsive";
 import { createSceneEngine } from "./sceneEngine";
 import { getScene, subscribeMapCommand, subscribeScene } from "./sceneStore";
 
 export default function MapStage({ visible }: { visible: boolean }) {
     const container = useRef<HTMLDivElement>(null);
+    const stage = useRef<HTMLDivElement>(null);
     const entry = useSyncExternalStore(subscribeScene, getScene, getScene);
     const hint = visible ? entry?.scene.pick?.hint : undefined;
 
@@ -57,6 +59,7 @@ export default function MapStage({ visible }: { visible: boolean }) {
                     followTo,
                 },
                 reduce: prefersReducedMotion,
+                viewport: () => viewportFor(window.innerWidth),
             });
             const reapply = () => engine.reapplyAfterStyle();
             map.on("style.load", reapply);
@@ -68,7 +71,15 @@ export default function MapStage({ visible }: { visible: boolean }) {
                 else engine.fitAll();
             });
             const stopTheme = observeTheme((theme) => void switchStyle(map, theme, reapply));
+            let resizeTimer = 0;
+            const onResize = () => {
+                window.clearTimeout(resizeTimer);
+                resizeTimer = window.setTimeout(() => engine.relayout(), 200);
+            };
+            window.addEventListener("resize", onResize);
             cleanup = () => {
+                window.removeEventListener("resize", onResize);
+                window.clearTimeout(resizeTimer);
                 stopTheme();
                 stopCommands();
                 unsubscribe();
@@ -82,8 +93,16 @@ export default function MapStage({ visible }: { visible: boolean }) {
         };
     }, []);
 
+    useEffect(() => {
+        stage.current?.toggleAttribute("inert", !visible);
+    }, [visible]);
+
     return (
-        <div className={`map-stage${visible ? "" : " is-hidden"}`} aria-hidden={!visible}>
+        <div
+            ref={stage}
+            className={`map-stage${visible ? "" : " is-hidden"}`}
+            aria-hidden={!visible}
+        >
             <div ref={container} className="map-stage-canvas" />
             {hint && (
                 <div className="map-stage-hint" role="status">

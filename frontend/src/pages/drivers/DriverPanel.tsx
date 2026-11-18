@@ -25,7 +25,7 @@ export function lastSignal(driver: Driver): string {
 export function DriverHead({ driver }: { driver: Driver }) {
     return (
         <div className="dp-head">
-            <Avatar name={driver.name} size="lg" />
+            <Avatar name={driver.name} role="DRIVER" size="lg" />
             <div className="dp-who">
                 <span className="dp-name">{driver.name}</span>
                 <span className="dp-meta">
@@ -125,7 +125,7 @@ export default function DriverPanel({
             className="driver-panel has-hero"
         >
             <DriverHead driver={d} />
-            <VehicleCard plate={d.vehicle?.plate ?? null} type={d.vehicle?.type} />
+            <VehicleCard plate={d.vehicle?.plate ?? null} vehicle={d.vehicle} />
             <DriverPosition driver={d} />
             <div className="dp-rows">
                 <Row label="Usuário">{d.username}</Row>

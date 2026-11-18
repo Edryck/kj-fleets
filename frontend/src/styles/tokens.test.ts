@@ -31,9 +31,19 @@ describe("design tokens", () => {
         );
     });
 
-    it("keeps legacy aliases pointing at the new tokens", () => {
-        expect(css).toContain("--color-primary: var(--color-accent)");
-        expect(css).toContain("--color-on-primary: var(--color-accent-ink)");
-        expect(css).toContain("--color-background: var(--color-bg)");
+    it("has no legacy aliases left", () => {
+        for (const name of [
+            "--color-primary",
+            "--color-primary-hover",
+            "--color-primary-soft",
+            "--color-surface",
+            "--color-surface-raised",
+            "--color-surface-muted",
+            "--color-background",
+            "--color-border",
+            "--color-on-primary",
+        ]) {
+            expect(css).not.toContain(`${name}:`);
+        }
     });
 });

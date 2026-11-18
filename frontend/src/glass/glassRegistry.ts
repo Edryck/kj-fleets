@@ -4,6 +4,8 @@ import {
     displacementScale,
     filterKey,
     glassPixels,
+    mapScale,
+    mapSize,
     refractionProfile,
     type GlassVariant,
 } from "./liquidGlass";
@@ -87,7 +89,9 @@ export function glassFilter(
         bezel,
         profile.magnitudes,
         config.light,
+        mapScale(width, height),
     );
+    const [mapWidth, mapHeight] = mapSize(width, height);
     const id = `kj-glass-${++sequence}`;
     const filter = document.createElementNS(SVG_NS, "filter");
     filter.id = id;
@@ -101,8 +105,8 @@ export function glassFilter(
     filter.innerHTML = filterChain(
         width,
         height,
-        toDataUrl(pixels.displacement, width, height),
-        toDataUrl(pixels.specular, width, height),
+        toDataUrl(pixels.displacement, mapWidth, mapHeight),
+        toDataUrl(pixels.specular, mapWidth, mapHeight),
         displacementScale(profile.max, config.refraction),
         config.specSaturation,
         config.specOpacity,

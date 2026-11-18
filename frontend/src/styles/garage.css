@@ -61,17 +61,23 @@
 }
 
 .vcard-shot {
-    position: absolute;
-    right: -26px;
-    bottom: 4px;
-    width: min(calc(100% + 20px), 340px);
-    height: auto;
+    align-self: center;
+    max-width: 100%;
+    margin: auto 0 16px;
     filter: drop-shadow(0 14px 16px rgba(0, 0, 0, 0.32));
+    transform-origin: 50% 100%;
     transition: transform 0.9s var(--ease-spring);
 }
 
+.vcard .vcard-shot > img {
+    width: auto;
+    max-width: 100%;
+    height: auto;
+    max-height: 132px;
+}
+
 .vcard:hover .vcard-shot {
-    transform: translateX(-8px) scale(1.035);
+    transform: translateY(-3px) scale(1.03);
 }
 
 .vcard-none {
@@ -153,7 +159,13 @@
     display: grid;
     place-items: center;
     height: 270px;
-    margin: 0 -24px;
+}
+
+.vdetail-shot .vehicle-shot > img {
+    width: auto;
+    max-width: 100%;
+    height: auto;
+    max-height: 226px;
 }
 
 .vdetail-shot::before {
@@ -164,21 +176,20 @@
     background: var(--color-spot);
 }
 
-.vdetail-shot img {
+.vdetail-shot .vehicle-shot {
     position: relative;
-    width: 108%;
-    max-width: none;
-    height: auto;
+    width: auto;
+    max-width: 100%;
     margin-top: 30px;
     filter: drop-shadow(0 22px 26px rgba(0, 0, 0, 0.38));
     animation-delay: 0.1s;
 }
 
-.vdetail-shot.is-empty {
+.vdetail-shot:has(> .vcard-none) {
     height: 200px;
 }
 
-.vdetail-shot.is-empty .vcard-none {
+.vdetail-shot > .vcard-none {
     position: relative;
     inset: auto;
 }
@@ -206,6 +217,19 @@
     font-size: 0.8125rem;
 }
 
+.vdetail-color {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.vdetail-color i {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 1px var(--color-fill-hover);
+}
+
 @media (min-width: 768px) {
     .garage {
         height: 100%;
@@ -225,7 +249,10 @@
 @media (min-width: 1024px) and (max-width: 1279px) {
     .vdetail-shot {
         height: 210px;
-        margin: 0 -20px;
+    }
+
+    .vdetail-shot .vehicle-shot > img {
+        max-height: 170px;
     }
 
     .vdetail-plate {
@@ -252,7 +279,7 @@
         margin: 0;
     }
 
-    .vdetail-shot img {
+    .vdetail-shot .vehicle-shot {
         width: 100%;
         margin-top: 0;
     }

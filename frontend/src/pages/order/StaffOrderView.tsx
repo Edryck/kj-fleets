@@ -361,7 +361,7 @@ export default function StaffOrderView({
                 <div className="order-right">
                     <VehicleCard
                         plate={o.vehicle?.plate ?? null}
-                        type={vehicle.data?.type ?? d?.vehicle?.type}
+                        vehicle={vehicle.data ?? d?.vehicle}
                         status={vehicle.data?.status}
                         lastSignal={signalText(d)}
                         driver={d ? { name: d.name, status: d.status } : null}

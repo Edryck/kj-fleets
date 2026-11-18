@@ -433,7 +433,7 @@ function DriverHeatmap({
                                         style={
                                             value
                                                 ? {
-                                                      background: `color-mix(in srgb, var(--color-primary) ${Math.round((value / max) * 70)}%, transparent)`,
+                                                      background: `color-mix(in srgb, var(--color-route) ${Math.round((value / max) * 70)}%, transparent)`,
                                                   }
                                                 : undefined
                                         }

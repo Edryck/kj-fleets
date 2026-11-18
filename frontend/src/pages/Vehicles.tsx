@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Pencil, Plus, RotateCcw, Trash2, Truck } from "lucide-react";
-import { useCallback, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
 import { messageFor } from "../api/errors";
 import { ApiError, request } from "../api/http";
@@ -17,7 +17,16 @@ import { useTotal, useTotals } from "../hooks/useTotals";
 import { useTitleBlock } from "../layout/titleBlockContext";
 import { SidePanel, SidePanelLayout } from "../patterns/SidePanel";
 import { useTopic, type OrderEvent } from "../realtime/useTopic";
-import { vehicleRender } from "../vehicles/vehicleRender";
+import {
+    colorSwatch,
+    findModel,
+    fold,
+    VEHICLE_COLORS,
+    VEHICLE_MODELS,
+    VEHICLE_TYPES,
+    vehicleName,
+} from "../vehicles/catalog";
+import VehicleShot from "../vehicles/VehicleShot";
 import VehicleGarageCard from "./vehicles/VehicleGarageCard";
 
 const STATUSES: [string, string][] = [
@@ -34,6 +43,51 @@ interface FormValues {
     plate: string;
     type: string;
     status: VehicleStatus;
+    brand: string;
+    model: string;
+    year: string;
+    color: string;
+    capacityKg: string;
+    volumeM3: string;
+    odometerKm: string;
+}
+
+const MISSING = "Não informado";
+const numberFormat = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
+const nextYear = () => new Date().getFullYear() + 1;
+const asText = (value: string) => value.trim() || null;
+const asInteger = (value: string) => {
+    const clean = value.trim().replace(/\./g, "");
+    return clean === "" ? null : Number(clean);
+};
+const asDecimal = (value: string) => {
+    const clean = value.trim().replace(",", ".");
+    return clean === "" ? null : Number(clean);
+};
+const fromNumber = (value: number | null | undefined) =>
+    value == null ? "" : String(value).replace(".", ",");
+
+function inRange(
+    parse: (value: string) => number | null,
+    min: number,
+    max: number,
+    message: string,
+    integer = true,
+) {
+    return (value: string) => {
+        const number = parse(value);
+        if (number == null) return true;
+        const valid =
+            Number.isFinite(number) &&
+            (!integer || Number.isInteger(number)) &&
+            number >= min &&
+            number <= max;
+        return valid || message;
+    };
+}
+
+function withUnit(value: number | null | undefined, unit: string) {
+    return value == null ? MISSING : `${numberFormat.format(value)} ${unit}`;
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -58,10 +112,31 @@ function VehicleForm({
             plate: vehicle?.plate ?? "",
             type: vehicle?.type ?? "",
             status: vehicle?.status === "IN_USE" ? "AVAILABLE" : (vehicle?.status ?? "AVAILABLE"),
+            brand: vehicle?.brand ?? "",
+            model: vehicle?.model ?? "",
+            year: vehicle?.year == null ? "" : String(vehicle.year),
+            color: vehicle?.color ?? "",
+            capacityKg: vehicle?.capacityKg == null ? "" : String(vehicle.capacityKg),
+            volumeM3: fromNumber(vehicle?.volumeM3),
+            odometerKm: vehicle?.odometerKm == null ? "" : String(vehicle.odometerKm),
         },
     });
-    const { register, handleSubmit, setError, formState } = form;
+    const { register, handleSubmit, setError, setValue, watch, formState } = form;
     const inUse = vehicle?.status === "IN_USE";
+    const [type, brand, model] = watch(["type", "brand", "model"]);
+    const legacyType =
+        vehicle?.type && !(VEHICLE_TYPES as readonly string[]).includes(vehicle.type);
+    const legacyColor =
+        vehicle?.color && !VEHICLE_COLORS.some((c) => fold(c.name) === fold(vehicle.color));
+    const forType = VEHICLE_MODELS.filter((m) => !type || m.type === type);
+    const brands = [...new Set(forType.map((m) => m.brand))];
+    const models = forType.filter((m) => !brand.trim() || fold(m.brand) === fold(brand));
+    const year = nextYear();
+
+    useEffect(() => {
+        const match = findModel(brand, model);
+        if (match && match.type !== type) setValue("type", match.type, { shouldDirty: true });
+    }, [brand, model, type, setValue]);
 
     const save = useMutation({
         mutationFn: (body: object) =>
@@ -113,6 +188,13 @@ function VehicleForm({
                         plate: v.plate.trim(),
                         type: v.type.trim(),
                         status: inUse ? undefined : v.status,
+                        brand: asText(v.brand),
+                        model: asText(v.model),
+                        year: asInteger(v.year),
+                        color: asText(v.color),
+                        capacityKg: asInteger(v.capacityKg),
+                        volumeM3: asDecimal(v.volumeM3),
+                        odometerKm: asInteger(v.odometerKm),
                     }),
                 )}
             >
@@ -137,17 +219,147 @@ function VehicleForm({
                 </div>
                 <div className="field">
                     <label htmlFor="vehicle-type">Tipo</label>
-                    <input
+                    <select
                         id="vehicle-type"
                         aria-invalid={!!formState.errors.type}
                         {...register("type", {
-                            validate: (v) => v.trim() !== "" || "Informe o tipo",
+                            validate: (v) => v.trim() !== "" || "Escolha o tipo",
+                        })}
+                    >
+                        <option value="" disabled>
+                            Escolha o tipo
+                        </option>
+                        {VEHICLE_TYPES.map((t) => (
+                            <option key={t} value={t}>
+                                {t}
+                            </option>
+                        ))}
+                        {legacyType && <option value={vehicle.type}>{vehicle.type}</option>}
+                    </select>
+                    {formState.errors.type && (
+                        <p className="field-error">{formState.errors.type.message}</p>
+                    )}
+                </div>
+                <div className="field-row">
+                    <div className="field">
+                        <label htmlFor="vehicle-brand">Marca</label>
+                        <input
+                            id="vehicle-brand"
+                            list="vehicle-brands"
+                            maxLength={40}
+                            autoComplete="off"
+                            {...register("brand")}
+                        />
+                        <datalist id="vehicle-brands">
+                            {brands.map((b) => (
+                                <option key={b} value={b} />
+                            ))}
+                        </datalist>
+                    </div>
+                    <div className="field">
+                        <label htmlFor="vehicle-model">Modelo</label>
+                        <input
+                            id="vehicle-model"
+                            list="vehicle-models"
+                            maxLength={60}
+                            autoComplete="off"
+                            {...register("model")}
+                        />
+                        <datalist id="vehicle-models">
+                            {models.map((m) => (
+                                <option key={m.key} value={m.model} />
+                            ))}
+                        </datalist>
+                    </div>
+                </div>
+                <p className="field-help vehicle-form-help">
+                    Um modelo conhecido escolhe o tipo e o desenho 3D sozinho.
+                </p>
+                <div className="field-row">
+                    <div className="field">
+                        <label htmlFor="vehicle-year">Ano</label>
+                        <input
+                            id="vehicle-year"
+                            className="data"
+                            inputMode="numeric"
+                            aria-invalid={!!formState.errors.year}
+                            {...register("year", {
+                                validate: inRange(
+                                    asInteger,
+                                    1980,
+                                    year,
+                                    `Use um ano entre 1980 e ${year}`,
+                                ),
+                            })}
+                        />
+                        {formState.errors.year && (
+                            <p className="field-error">{formState.errors.year.message}</p>
+                        )}
+                    </div>
+                    <div className="field">
+                        <label htmlFor="vehicle-color">Cor</label>
+                        <select id="vehicle-color" {...register("color")}>
+                            <option value="">Não informada</option>
+                            {VEHICLE_COLORS.map((c) => (
+                                <option key={c.name} value={c.name}>
+                                    {c.name}
+                                </option>
+                            ))}
+                            {legacyColor && <option value={vehicle.color!}>{vehicle.color}</option>}
+                        </select>
+                    </div>
+                </div>
+                <div className="field-row">
+                    <div className="field">
+                        <label htmlFor="vehicle-capacity">Capacidade (kg)</label>
+                        <input
+                            id="vehicle-capacity"
+                            className="data"
+                            inputMode="numeric"
+                            aria-invalid={!!formState.errors.capacityKg}
+                            {...register("capacityKg", {
+                                validate: inRange(asInteger, 1, 60000, "Use de 1 a 60.000 kg"),
+                            })}
+                        />
+                        {formState.errors.capacityKg && (
+                            <p className="field-error">{formState.errors.capacityKg.message}</p>
+                        )}
+                    </div>
+                    <div className="field">
+                        <label htmlFor="vehicle-volume">Volume (m³)</label>
+                        <input
+                            id="vehicle-volume"
+                            className="data"
+                            inputMode="decimal"
+                            aria-invalid={!!formState.errors.volumeM3}
+                            {...register("volumeM3", {
+                                validate: inRange(
+                                    asDecimal,
+                                    0.1,
+                                    150,
+                                    "Use de 0,1 a 150 m³",
+                                    false,
+                                ),
+                            })}
+                        />
+                        {formState.errors.volumeM3 && (
+                            <p className="field-error">{formState.errors.volumeM3.message}</p>
+                        )}
+                    </div>
+                </div>
+                <div className="field">
+                    <label htmlFor="vehicle-odometer">Hodômetro (km)</label>
+                    <input
+                        id="vehicle-odometer"
+                        className="data"
+                        inputMode="numeric"
+                        aria-invalid={!!formState.errors.odometerKm}
+                        {...register("odometerKm", {
+                            validate: inRange(asInteger, 0, 5000000, "Use de 0 a 5.000.000 km"),
                         })}
                     />
-                    {formState.errors.type ? (
-                        <p className="field-error">{formState.errors.type.message}</p>
-                    ) : (
-                        <p className="field-help">Texto livre, por exemplo Van ou Moto.</p>
+                    {formState.errors.odometerKm && (
+                        <p className="field-error">{formState.errors.odometerKm.message}</p>
                     )}
                 </div>
                 <div className="field">
@@ -199,7 +411,8 @@ function VehicleDetail({
     onClose: () => void;
 }) {
     const type = vehicle.type.trim();
-    const render = vehicleRender(type, "34");
+    const name = vehicleName(vehicle);
+    const named = Boolean(vehicle.brand?.trim() || vehicle.model?.trim());
     const actions = canWrite ? (
         vehicle.active ? (
             <>
@@ -231,31 +444,48 @@ function VehicleDetail({
             footer={actions}
             className="vdetail has-hero"
         >
-            <div className={`vdetail-shot${render ? "" : " is-empty"}`}>
-                {render ? (
-                    <img
-                        key={vehicle.publicId}
-                        className="motion-drive"
-                        src={render.src}
-                        width={render.width}
-                        height={render.height}
-                        alt={`${type} ${vehicle.plate}`}
-                    />
-                ) : (
-                    <span className="vcard-none">
-                        <Truck size={30} aria-hidden="true" />
-                        <span>Sem imagem para “{type}”</span>
-                    </span>
-                )}
+            <div className="vdetail-shot">
+                <VehicleShot
+                    key={vehicle.publicId}
+                    vehicle={vehicle}
+                    view="34"
+                    className="motion-drive"
+                    alt={`${name} ${vehicle.plate}`}
+                    eager
+                    fallback={
+                        <span className="vcard-none">
+                            <Truck size={30} aria-hidden="true" />
+                            <span>Sem imagem para “{type}”</span>
+                        </span>
+                    }
+                />
             </div>
             <div className="vdetail-head">
                 <span className="vdetail-plate">{vehicle.plate}</span>
                 <span className="vdetail-meta">
-                    <span>{type || "Sem tipo"}</span>
+                    <span>{named ? `${name} · ${type || "Sem tipo"}` : type || "Sem tipo"}</span>
                     <StatusBadge kind="vehicle" value={vehicle.status} />
                 </span>
             </div>
             <div className="vdetail-rows">
+                <Row label="Marca e modelo">{named ? name : MISSING}</Row>
+                <Row label="Ano">{vehicle.year ?? MISSING}</Row>
+                <Row label="Cor">
+                    {vehicle.color ? (
+                        <span className="vdetail-color">
+                            <i
+                                aria-hidden="true"
+                                style={{ background: colorSwatch(vehicle.color) ?? "transparent" }}
+                            />
+                            {vehicle.color}
+                        </span>
+                    ) : (
+                        MISSING
+                    )}
+                </Row>
+                <Row label="Capacidade">{withUnit(vehicle.capacityKg, "kg")}</Row>
+                <Row label="Volume">{withUnit(vehicle.volumeM3, "m³")}</Row>
+                <Row label="Hodômetro">{withUnit(vehicle.odometerKm, "km")}</Row>
                 <Row label="Motorista atual">{vehicle.driverName ?? "Nenhum"}</Row>
                 <Row label="Status">{STATUS_LABEL[vehicle.status] ?? vehicle.status}</Row>
                 <Row label="Cadastro">{vehicle.active ? "Ativo" : "Inativo"}</Row>
@@ -453,7 +683,7 @@ export default function Vehicles() {
             <div className="garage">
                 <CatalogFilters
                     searchLabel="Buscar veículos"
-                    placeholder="Buscar por placa ou tipo"
+                    placeholder="Buscar por placa, tipo ou modelo"
                     onQuery={changeQuery}
                     statuses={STATUSES}
                     status={status}

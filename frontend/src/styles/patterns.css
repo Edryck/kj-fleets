@@ -349,6 +349,13 @@
     margin: -64px -26px -10px;
 }
 
+.vehicle-card-shot .vehicle-shot > img {
+    width: auto;
+    max-width: 100%;
+    height: auto;
+    max-height: 196px;
+}
+
 .vehicle-card-shot::before {
     content: "";
     position: absolute;
@@ -357,10 +364,10 @@
     background: var(--color-spot);
 }
 
-.vehicle-card-shot img {
+.vehicle-card-shot .vehicle-shot {
     position: relative;
-    width: 100%;
-    height: auto;
+    width: auto;
+    max-width: calc(100% - 52px);
     filter: drop-shadow(0 18px 22px rgba(0, 0, 0, 0.35));
     animation-delay: 150ms;
 }
@@ -663,4 +670,215 @@
     font-size: 1.25rem;
     font-weight: 500;
     letter-spacing: 0;
+}
+
+.sheet-handle {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 28px;
+    margin: -6px 0 2px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: grab;
+    touch-action: none;
+}
+
+.sheet-handle span {
+    width: 44px;
+    height: 5px;
+    border-radius: 3px;
+    background: var(--color-text-subtle);
+    opacity: 0.55;
+}
+
+.sheet-handle:active {
+    cursor: grabbing;
+}
+
+.sheet-handle:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: -2px;
+    border-radius: 12px;
+}
+
+.bottom-sheet {
+    position: fixed;
+    z-index: 4;
+    left: var(--stage-left);
+    right: var(--gutter);
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    height: 48dvh;
+    padding: 10px 16px max(12px, env(safe-area-inset-bottom));
+    border-radius: 28px 28px 0 0;
+    transition: height 0.45s var(--ease-spring);
+}
+
+.bottom-sheet[data-snap="collapsed"] {
+    height: 92px;
+}
+
+.bottom-sheet[data-snap="full"] {
+    height: calc(100dvh - 96px);
+}
+
+.sheet-tabs {
+    display: flex;
+    flex: none;
+    gap: 4px;
+    margin-bottom: 12px;
+    padding: 4px;
+    border-radius: var(--radius-pill);
+    background: var(--color-fill);
+}
+
+.sheet-tabs button {
+    flex: 1;
+    min-height: 44px;
+    border: 0;
+    border-radius: var(--radius-pill);
+    background: transparent;
+    color: var(--color-text-muted);
+    font: 600 0.875rem/1 var(--font-ui);
+}
+
+.sheet-tabs button[aria-selected="true"] {
+    background: var(--color-fill-hover);
+    color: var(--color-text);
+}
+
+.sheet-tabs button:disabled {
+    opacity: 0.4;
+}
+
+.sheet-body {
+    display: grid;
+    flex: 1;
+    align-content: start;
+    gap: 14px;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+}
+
+.bottom-sheet[data-snap="collapsed"] .sheet-body {
+    overflow: hidden;
+}
+
+@media (max-width: 767px) {
+    .bottom-sheet {
+        left: 8px;
+        right: 8px;
+        padding-inline: 14px;
+    }
+
+    .bottom-sheet[data-snap="full"] {
+        height: calc(100dvh - 72px);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .bottom-sheet {
+        transition: none;
+    }
+}
+
+.side-panel > .sheet-handle {
+    display: none;
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+    .side-panel > .sheet-handle {
+        display: flex;
+    }
+
+    .side-panel {
+        gap: 12px;
+        padding-top: 10px;
+        border-radius: 28px 28px 0 0;
+        bottom: 0;
+        transition: height 0.45s var(--ease-spring);
+    }
+
+    .side-layout:has(> .side-panel[data-snap="collapsed"]) {
+        --sheet-h: 92px;
+    }
+
+    .side-layout:has(> .side-panel[data-snap="full"]) {
+        --sheet-h: calc(100% - 12px);
+    }
+
+    .side-panel[data-snap="collapsed"] .side-panel-body,
+    .side-panel[data-snap="collapsed"] .side-panel-foot {
+        display: none;
+    }
+
+    .app-rail-toggle {
+        display: none;
+    }
+}
+
+:where(.vehicle-shot) {
+    position: relative;
+    display: block;
+}
+
+.vehicle-shot {
+    isolation: isolate;
+}
+
+.vehicle-shot > img {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+.vehicle-shot-paint {
+    position: absolute;
+    inset: 0;
+    background: var(--paint);
+    mix-blend-mode: multiply;
+    mask-size: 100% 100%;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: 100% 100%;
+    -webkit-mask-repeat: no-repeat;
+    pointer-events: none;
+}
+
+.avatar.has-figure {
+    position: relative;
+    overflow: hidden;
+    color: transparent;
+    background:
+        radial-gradient(
+            circle at 50% 28%,
+            color-mix(in srgb, var(--color-accent) 26%, transparent),
+            transparent 70%
+        ),
+        var(--color-accent-soft);
+}
+
+.avatar.has-figure img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.person-figure {
+    display: block;
+    pointer-events: none;
+}
+
+.person-figure img {
+    display: block;
+    width: 100%;
+    height: auto;
 }

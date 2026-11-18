@@ -41,7 +41,11 @@ function CustomerPanel({ summary, onClose }: { summary: Customer; onClose: () =>
                 </Link>
             }
         >
-            <PersonHead name={c?.name ?? summary.name} note="Cadastro feito pelo próprio cliente" />
+            <PersonHead
+                name={c?.name ?? summary.name}
+                role="CUSTOMER"
+                note="Cadastro feito pelo próprio cliente"
+            />
             {customer.isError ? (
                 <ErrorState
                     message={messageFor(
@@ -97,7 +101,7 @@ export default function Customers() {
             header: "Cliente",
             render: (c) => (
                 <div className="team-person">
-                    <Avatar name={c.name} size="sm" />
+                    <Avatar name={c.name} role="CUSTOMER" size="sm" />
                     <span className="team-person-text">
                         <b>{c.name}</b>
                     </span>
