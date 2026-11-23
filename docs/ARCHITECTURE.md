@@ -81,7 +81,7 @@ Nomes e campos abaixo são a proposta do projeto. Os campos reais do Fleetbase *
 | AppUser (`users`) | username, passwordHash, role (ADMIN, DISPATCHER, FLEET_MANAGER, CUSTOMER, DRIVER), active | 0..1 Driver, 0..1 Customer |
 | Customer | name, phone, email | 1:1 AppUser, N Order |
 | Driver | name, phone, licenseNumber, status (AVAILABLE, BUSY, OFFLINE), lat, lng, lastSeenAt | 1:1 AppUser (role DRIVER), 0..1 Vehicle, N:N Fleet |
-| Vehicle | plate, type, status | 0..1 Driver |
+| Vehicle | plate, type, status, brand, model, modelYear (`year` na API), color, capacityKg, volumeM3, odometerKm | 0..1 Driver |
 | Fleet | name | N:N Driver |
 | Order (`orders`) | publicId, status, trackingNumber, dispatchedAt, finishedAt, podRequired, podValue, podAt, reason, notes, meta | 1 Payload, 0..1 Customer, 0..1 Driver, 0..1 Vehicle, 0..1 Route, N TrackingStatus |
 | Payload | — | pickup (Place), dropoff (Place), N waypoints (Place, na ordem de cadastro), N entities (itens) |
@@ -106,6 +106,7 @@ Criar um motorista (`POST /drivers`) cria também o `AppUser` com role DRIVER (u
 - **Motorista nasce `OFFLINE`.** `BUSY` é definido pelas rotas, não à mão: `PUT` com `BUSY` responde 400. Motorista `BUSY` não muda de status nem pode ser removido (409 `RESOURCE_IN_USE`).
 - **Vínculo motorista-veículo:** `vehicleId` é opcional. Veículo inativo, em `MAINTENANCE` ou já vinculado a outro motorista responde 409 `RESOURCE_IN_USE`. Excluir motorista o tira das frotas; excluir veículo solta o vínculo do motorista.
 - **Status do veículo:** `MAINTENANCE` é manual. `IN_USE` não pode ser definido à mão (400), e veículo `IN_USE` não muda de status nem pode ser removido (409 `RESOURCE_IN_USE`). A troca automática para `IN_USE` no despacho e para `AVAILABLE` no fim do pedido é feita pelo próprio pedido (ver [Fluxo e regras do pedido](#fluxo-e-regras-do-pedido)).
+- **Identidade do veículo:** `brand` (até 40 caracteres), `model` (até 60), `year` (de 1980 até o ano atual + 1), `color` (até 20), `capacityKg` (1 a 60.000), `volumeM3` (0,1 a 150) e `odometerKm` (0 a 5.000.000) são opcionais. Fora da faixa responde 400 `VALIDATION_ERROR`. Marca, modelo e cor perdem os espaços das bordas, e texto vazio vira nulo. O `PUT` substitui os sete campos: campo omitido vira nulo.
 - **Login:** `POST /auth/login` recusa motorista (role DRIVER) e usuário inativo com 401, com a mesma resposta de credencial inválida. Motorista só se autentica por Basic Auth em `/driver/**`.
 
 ## Fluxo e regras do pedido
@@ -249,7 +250,7 @@ Listagens paginadas por `limit` e `offset`: padrão 20, máximo 100 (acima disso
 - `POST /driver/location`: ping de posição
 
 **Cadastros (CRUD: `GET`, `GET /{id}`, `POST`, `PUT /{id}`, `DELETE /{id}`)**
-- `/drivers`, `/vehicles`, `/places`, `/fleets`. `GET /drivers` aceita `q` e `status` (`AVAILABLE`, `BUSY`, `OFFLINE`); `GET /vehicles` aceita `q` e `status` (`AVAILABLE`, `IN_USE`, `MAINTENANCE`); `GET /places` aceita `q`. Todos aceitam `includeInactive`. Status inválido responde 400. As respostas trazem `active`; o motorista traz `fleets` (`publicId` e `name`) e o veículo traz `driverName`
+- `/drivers`, `/vehicles`, `/places`, `/fleets`. `GET /drivers` aceita `q` e `status` (`AVAILABLE`, `BUSY`, `OFFLINE`); `GET /vehicles` aceita `q` (placa, tipo, marca, modelo ou "marca modelo") e `status` (`AVAILABLE`, `IN_USE`, `MAINTENANCE`); `GET /places` aceita `q`. Todos aceitam `includeInactive`. Status inválido responde 400. As respostas trazem `active`; o motorista traz `fleets` (`publicId` e `name`) e o veículo traz `driverName`, `brand`, `model`, `year`, `color`, `capacityKg`, `volumeM3` e `odometerKm`
 - `includeInactive=true`: em motorista e veículo só ADMIN e FLEET_MANAGER; em lugar só ADMIN e DISPATCHER. Outro papel responde 403
 - Reativação: `POST /drivers/{id}/reactivate`, `POST /vehicles/{id}/reactivate` e `POST /places/{id}/reactivate` (ver Regras dos cadastros)
 - `GET /drivers/nearest`: motoristas `AVAILABLE` por distância (`lat`, `lng`, `limit`). `limit` padrão 5, máximo 20 (acima disso vira 20), `< 1` responde 400

@@ -9,7 +9,7 @@ API REST em Java/Spring Boot para gestão de frotas e entregas: pedidos com flux
 - Pedidos com origem, destino e paradas, e fluxo `CREATED → DISPATCHED → DRIVER_ENROUTE → ARRIVED → IN_PROGRESS → COMPLETED` (mais `CANCELLED` e `FAILED`)
 - Atribuição de motorista e veículo, despacho, aceite ad hoc (o motorista pega o pedido da fila), cancelamento com motivo e prova de entrega
 - Histórico de rastreamento por pedido e rastreio público por código
-- Cadastro de motoristas, veículos, lugares e frotas
+- Cadastro de motoristas, veículos (com marca, modelo, ano, cor, capacidade, volume e hodômetro), lugares e frotas
 - **Roteirização:** ordem das paradas (vizinho mais próximo, 2-opt, Held-Karp exato, simulated annealing), despacho em lote (húngaro vs guloso) e distância pelas ruas do Sul do Brasil (GraphHopper, modo `road`)
 - **Dashboard:** métricas da operação por API
 - Eventos em tempo real por WebSocket (STOMP)

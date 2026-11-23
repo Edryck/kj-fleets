@@ -1215,7 +1215,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"plate\": \"ABC1D23\",\n  \"type\": \"VAN\"\n}",
+              "raw": "{\n  \"plate\": \"ABC1D23\",\n  \"type\": \"Furgão\",\n  \"brand\": \"Fiat\",\n  \"model\": \"Fiorino\",\n  \"year\": 2024,\n  \"color\": \"Branco\",\n  \"capacityKg\": 650,\n  \"volumeM3\": 3.3,\n  \"odometerKm\": 42000\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1667,10 +1667,10 @@
                 "{{vehicleId}}"
               ]
             },
-            "description": "`status` aceita AVAILABLE e MAINTENANCE. IN_USE é definido pelas rotas.",
+            "description": "`status` aceita AVAILABLE e MAINTENANCE. IN_USE é definido pelas rotas. Marca, modelo, ano, cor, capacidade, volume e hodômetro são opcionais, e campo omitido vira nulo.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"plate\": \"ABC1D23\",\n  \"type\": \"VAN\",\n  \"status\": \"AVAILABLE\"\n}",
+              "raw": "{\n  \"plate\": \"ABC1D23\",\n  \"type\": \"Furgão\",\n  \"status\": \"AVAILABLE\",\n  \"brand\": \"Fiat\",\n  \"model\": \"Fiorino\",\n  \"year\": 2024,\n  \"color\": \"Branco\",\n  \"capacityKg\": 650,\n  \"volumeM3\": 3.3,\n  \"odometerKm\": 43500\n}",
               "options": {
                 "raw": {
                   "language": "json"

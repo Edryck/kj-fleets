@@ -64,6 +64,13 @@ erDiagram
         string plate UK
         string type
         string status
+        string brand
+        string model
+        int model_year
+        string color
+        int capacity_kg
+        decimal volume_m3
+        int odometer_km
         boolean active
     }
     FLEETS {
