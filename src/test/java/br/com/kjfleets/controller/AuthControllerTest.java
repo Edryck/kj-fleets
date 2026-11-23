@@ -141,15 +141,14 @@ class AuthControllerTest extends IntegrationTest {
         inactive.setActive(false);
         userRepository.save(inactive);
 
-        mvc.perform(get("/users").param("limit", "100").header("Authorization", bearer(Role.ADMIN)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items[?(@.username=='" + inactiveName + "')].active").value(false));
+        var users = listAllUsers();
+        var listed = users.stream()
+                .filter(user -> inactiveName.equals(user.get("username").asString()))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(false, listed.get("active").asBoolean());
 
-        var items = json.readTree(mvc.perform(get("/users").param("limit", "100")
-                        .header("Authorization", bearer(Role.ADMIN)))
-                .andReturn().getResponse().getContentAsString()).get("items");
-        java.util.List<String> names = new java.util.ArrayList<>();
-        items.forEach(i -> names.add(i.get("username").asString()));
+        var names = users.stream().map(user -> user.get("username").asString()).toList();
         assertEquals(names.stream().sorted().toList(), names);
     }
 

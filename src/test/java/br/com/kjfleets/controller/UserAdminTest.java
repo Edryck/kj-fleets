@@ -15,9 +15,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import static org.hamcrest.Matchers.hasItem;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -54,11 +54,9 @@ class UserAdminTest extends IntegrationTest {
     @Test
     void listHasPublicId() throws Exception {
         AppUser user = staff(Role.DISPATCHER);
-        mvc.perform(get("/users?limit=200").header("Authorization", bearer(Role.ADMIN)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items[*].publicId").value(hasItem(user.getPublicId())))
-                .andExpect(jsonPath("$.items[0].password").doesNotExist())
-                .andExpect(jsonPath("$.items[0].passwordHash").doesNotExist());
+        var users = listAllUsers();
+        assertTrue(users.stream().anyMatch(item -> user.getPublicId().equals(item.get("publicId").asString())));
+        assertTrue(users.stream().noneMatch(item -> item.has("password") || item.has("passwordHash")));
     }
 
     @Test

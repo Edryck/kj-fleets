@@ -11,7 +11,14 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.postgresql.PostgreSQLContainer;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -50,5 +57,22 @@ public abstract class IntegrationTest {
 
     protected String bearer(Role role) {
         return "Bearer " + tokenFor(role);
+    }
+
+    protected List<JsonNode> listAllUsers() throws Exception {
+        String auth = bearer(Role.ADMIN);
+        List<JsonNode> users = new ArrayList<>();
+        int pageSize;
+        do {
+            JsonNode items = json.readTree(mvc.perform(get("/users")
+                            .param("limit", "100")
+                            .param("offset", String.valueOf(users.size()))
+                            .header("Authorization", auth))
+                    .andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString()).get("items");
+            items.forEach(users::add);
+            pageSize = items.size();
+        } while (pageSize == 100);
+        return users;
     }
 }
