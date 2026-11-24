@@ -18,11 +18,17 @@ sequenceDiagram
     end
 
     U->>A: POST /auth/login (username, senha)
-    A->>DB: busca usuário e confere BCrypt
-    alt credenciais inválidas, usuário inativo ou role DRIVER
-        A-->>U: 401 (mesma resposta para os três casos)
-    else ok
-        A-->>U: 200 com JWT e role
+    alt muitos erros do mesmo IP para esse username na janela
+        A-->>U: 429 TOO_MANY_ATTEMPTS
+    else dentro do limite
+        A->>DB: busca usuário e confere BCrypt
+        alt credenciais inválidas, usuário inativo ou role DRIVER
+            A->>A: conta um erro para IP + username
+            A-->>U: 401 (mesma resposta para os três casos)
+        else ok
+            A->>A: zera o contador
+            A-->>U: 200 com JWT e role
+        end
     end
 
 ```

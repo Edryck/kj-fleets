@@ -151,7 +151,8 @@
             },
             "auth": {
               "type": "noauth"
-            }
+            },
+            "description": "Depois de 5 senhas erradas do mesmo IP para o mesmo username em 5 minutos (AUTH_LOGIN_MAX_ATTEMPTS / AUTH_LOGIN_WINDOW_S), responde 429 TOO_MANY_ATTEMPTS até a janela passar."
           },
           "event": [
             {

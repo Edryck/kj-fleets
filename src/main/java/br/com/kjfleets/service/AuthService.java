@@ -18,6 +18,7 @@ import br.com.kjfleets.entity.Role;
 import br.com.kjfleets.repository.AppUserRepository;
 import br.com.kjfleets.repository.CustomerRepository;
 import br.com.kjfleets.security.JwtService;
+import br.com.kjfleets.security.LoginRateLimiter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.boot.context.event.ApplicationStartedEvent;
@@ -37,17 +38,19 @@ public class AuthService {
     private final CustomerRepository customers;
     private final PasswordEncoder encoder;
     private final JwtService jwt;
+    private final LoginRateLimiter limiter;
     private final String adminUsername;
     private final String adminPassword;
 
     public AuthService(AppUserRepository users, CustomerRepository customers, PasswordEncoder encoder,
-                       JwtService jwt,
+                       JwtService jwt, LoginRateLimiter limiter,
                        @Value("${kjfleets.admin-username}") String adminUsername,
                        @Value("${kjfleets.admin-password}") String adminPassword) {
         this.users = users;
         this.customers = customers;
         this.encoder = encoder;
         this.jwt = jwt;
+        this.limiter = limiter;
         this.adminUsername = adminUsername;
         this.adminPassword = adminPassword;
     }
@@ -101,14 +104,20 @@ public class AuthService {
         return RegisterResponse.from(customers.save(customer));
     }
 
-    public LoginResponse login(LoginRequest request) {
-        AppUser user = users.findByUsername(request.username().trim().toLowerCase()).orElse(null);
+    // chave por IP + usuário: um IP compartilhado não trava todo mundo, só a conta atacada
+    public LoginResponse login(LoginRequest request, String clientIp) {
+        String username = request.username().trim().toLowerCase();
+        String key = clientIp + "|" + username;
+        limiter.check(key);
+        AppUser user = users.findByUsername(username).orElse(null);
         // compara sempre contra um hash, senão o tempo de resposta revela se o usuário existe
         boolean passwordOk = !tooLong(request.password())
                 && encoder.matches(request.password(), user == null ? DUMMY_HASH : user.getPasswordHash());
         if (user == null || !passwordOk || !user.isActive() || user.getRole() == Role.DRIVER) {
+            limiter.recordFailure(key);
             throw new BusinessException("UNAUTHORIZED", HttpStatus.UNAUTHORIZED, "Usuário ou senha inválidos");
         }
+        limiter.reset(key);
         String token = jwt.generate(user);
         return new LoginResponse(token, user.getRole(), jwt.expiresAt(token));
     }

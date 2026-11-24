@@ -11,6 +11,7 @@ import br.com.kjfleets.dto.AuthDtos.UpdateUserRequest;
 import br.com.kjfleets.dto.AuthDtos.UserResponse;
 import br.com.kjfleets.dto.PageResponse;
 import br.com.kjfleets.service.AuthService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -39,8 +40,9 @@ public class AuthController {
     }
 
     @PostMapping("/auth/login")
-    LoginResponse login(@Valid @RequestBody LoginRequest request) {
-        return service.login(request);
+    LoginResponse login(@Valid @RequestBody LoginRequest request, HttpServletRequest http) {
+        // remoteAddr e não X-Forwarded-For: o cabeçalho é forjável e não há proxy confiável na frente
+        return service.login(request, http.getRemoteAddr());
     }
 
     @GetMapping("/me")

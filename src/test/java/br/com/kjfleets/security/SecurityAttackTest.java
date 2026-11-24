@@ -239,4 +239,28 @@ class SecurityAttackTest extends IntegrationTest {
         postJson("/auth/login", Map.of("username", username, "password", "password-123"), null)
                 .andExpect(status().isUnauthorized());
     }
+
+    @Test
+    void bruteForceGets429() throws Exception {
+        String username = "bf" + unique();
+        postJson("/auth/register", Map.of("username", username, "password", "password-123", "name", "Alvo"), null)
+                .andExpect(status().isCreated());
+        for (int i = 0; i < 5; i++) {
+            postJson("/auth/login", Map.of("username", username, "password", "chute-" + i), null)
+                    .andExpect(status().isUnauthorized());
+        }
+        postJson("/auth/login", Map.of("username", username, "password", "password-123"), null)
+                .andExpect(status().isTooManyRequests())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.code")
+                        .value("TOO_MANY_ATTEMPTS"));
+        // outro usuário do mesmo IP continua entrando
+        loginBearer(registerAndReturn(), "password-123");
+    }
+
+    private String registerAndReturn() throws Exception {
+        String username = "ok" + unique();
+        postJson("/auth/register", Map.of("username", username, "password", "password-123", "name", "Ok"), null)
+                .andExpect(status().isCreated());
+        return username;
+    }
 }

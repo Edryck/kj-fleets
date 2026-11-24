@@ -107,7 +107,7 @@ Criar um motorista (`POST /drivers`) cria também o `AppUser` com role DRIVER (u
 - **Vínculo motorista-veículo:** `vehicleId` é opcional. Veículo inativo, em `MAINTENANCE` ou já vinculado a outro motorista responde 409 `RESOURCE_IN_USE`. Excluir motorista o tira das frotas; excluir veículo solta o vínculo do motorista.
 - **Status do veículo:** `MAINTENANCE` é manual. `IN_USE` não pode ser definido à mão (400), e veículo `IN_USE` não muda de status nem pode ser removido (409 `RESOURCE_IN_USE`). A troca automática para `IN_USE` no despacho e para `AVAILABLE` no fim do pedido é feita pelo próprio pedido (ver [Fluxo e regras do pedido](#fluxo-e-regras-do-pedido)).
 - **Identidade do veículo:** `brand` (até 40 caracteres), `model` (até 60), `year` (de 1980 até o ano atual + 1), `color` (até 20), `capacityKg` (1 a 60.000), `volumeM3` (0,1 a 150) e `odometerKm` (0 a 5.000.000) são opcionais. Fora da faixa responde 400 `VALIDATION_ERROR`. Marca, modelo e cor perdem os espaços das bordas, e texto vazio vira nulo. O `PUT` substitui os sete campos: campo omitido vira nulo.
-- **Login:** `POST /auth/login` recusa motorista (role DRIVER) e usuário inativo com 401, com a mesma resposta de credencial inválida. Motorista só se autentica por Basic Auth em `/driver/**`.
+- **Login:** `POST /auth/login` recusa motorista (role DRIVER) e usuário inativo com 401, com a mesma resposta de credencial inválida. Motorista só se autentica por Basic Auth em `/driver/**`. Depois de `AUTH_LOGIN_MAX_ATTEMPTS` erros (padrão 5) do mesmo IP para o mesmo username dentro de `AUTH_LOGIN_WINDOW_S` (padrão 300 s), responde 429 `TOO_MANY_ATTEMPTS`, mesmo que a senha esteja certa. Um login certo zera o contador. A contagem fica em memória (some no restart) e usa o IP da conexão, não o `X-Forwarded-For`, porque esse cabeçalho pode ser forjado. O Basic Auth do motorista não tem esse limite.
 
 ## Fluxo e regras do pedido
 
@@ -203,7 +203,7 @@ Listagens paginadas por `limit` e `offset`: padrão 20, máximo 100 (acima disso
 
 **Auth e usuários**
 - `POST /auth/register`: cadastro público de CUSTOMER
-- `POST /auth/login`: devolve o JWT (recusa motorista e usuário inativo com 401)
+- `POST /auth/login`: devolve o JWT (recusa motorista e usuário inativo com 401; 429 `TOO_MANY_ATTEMPTS` depois de muitas senhas erradas)
 - `GET /me`: usuário logado. `publicId` é o do cliente (CUSTOMER) ou o do usuário (`usr_...`) para a equipe; `name`, `email` e `phone` vêm só para CUSTOMER
 - `PUT /me/password`: troca a senha (`currentPassword` e `newPassword`, com 8 a 72 caracteres e no máximo 72 bytes em UTF-8, limite do BCrypt). Responde 204; senha atual errada responde 400 `VALIDATION_ERROR`
 - `POST /users`: cria ADMIN, DISPATCHER ou FLEET_MANAGER (só ADMIN). Motorista nasce em `POST /drivers` e cliente em `POST /auth/register`

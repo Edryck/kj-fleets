@@ -49,6 +49,7 @@ Pré-requisitos: JDK 21, PostgreSQL (para rodar a aplicação) e Docker (para os
    | `DB_USER` / `DB_PASSWORD` | acesso ao banco |
    | `JWT_SECRET` | segredo para assinar os tokens; mínimo 32 bytes, senão a aplicação não sobe |
    | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | primeiro ADMIN, criado no startup se não houver usuários |
+   | `AUTH_LOGIN_MAX_ATTEMPTS` / `AUTH_LOGIN_WINDOW_S` | limite de logins errados por IP + usuário e a janela em segundos (padrão 5 em 300); passou disso, responde 429 |
    | `ROUTING_MODE` | `haversine` (padrão, sem mapa) ou `road` (distância e rota pelas ruas, precisa do arquivo OSM) |
    | `ROUTING_DETOUR_FACTOR` | fator sobre a distância em linha reta no modo `haversine` (padrão 1.3) |
    | `ROUTING_AVG_SPEED_KMH` | velocidade média para o ETA (padrão 40) |
