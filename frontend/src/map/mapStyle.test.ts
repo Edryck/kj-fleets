@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import base from "./__fixtures__/libertyMini.json";
+import southStates from "./southStates.json";
 import { DEM_URL, PALETTES, transformStyle } from "./mapStyle";
 import type { StyleSpecification } from "maplibre-gl";
 
@@ -73,5 +74,19 @@ describe("transformStyle", () => {
             expect(mask.paint["fill-color"]).toBe(PALETTES[theme].background);
             expect(mask.paint["fill-opacity"]).toBe(1);
         }
+    });
+    it("mask covers the whole world, so a tilted camera never shows the rest of the map at the horizon", () => {
+        const mask = southStates.features.find((f) => f.properties.kind === "mask")!;
+        const geometry = mask.geometry as { type: string; coordinates: unknown };
+        const polygons = (
+            geometry.type === "MultiPolygon" ? geometry.coordinates : [geometry.coordinates]
+        ) as number[][][][];
+        const outer = polygons.flatMap((polygon) => polygon[0]);
+        const lngs = outer.map((p) => p[0]);
+        const lats = outer.map((p) => p[1]);
+        expect(Math.min(...lngs)).toBeLessThanOrEqual(-180);
+        expect(Math.max(...lngs)).toBeGreaterThanOrEqual(180);
+        expect(Math.min(...lats)).toBeLessThanOrEqual(-85);
+        expect(Math.max(...lats)).toBeGreaterThanOrEqual(85);
     });
 });
