@@ -38,6 +38,7 @@ No modo `road`, o grafo viário vem do extrato da região Sul do Brasil da [Geof
 
 - **OpenFreeMap / OpenStreetMap:** o estilo vetorial `liberty` e os tiles do mapa do frontend vêm do [OpenFreeMap](https://openfreemap.org/). Dados © contribuidores do [OpenStreetMap](https://www.openstreetmap.org/copyright), sob a ODbL 1.0.
 - **Terrain Tiles da AWS (Mapzen):** o relevo 3D usa os tiles `terrarium` do [Terrain Tiles](https://registry.opendata.aws/terrain-tiles/), com a atribuição das fontes descrita em <https://github.com/tilezen/joerd/blob/master/docs/attribution.md>.
+- **IBGE, malha dos estados:** o contorno de PR, SC e RS da máscara dos mapas (`frontend/src/map/southStates.json`) vem da [API de malhas do IBGE](https://servicodados.ibge.gov.br/api/docs/malhas?versao=3) (qualidade intermediária), com união, folga de ~6 km e simplificação. Dados públicos do IBGE.
 - **Renders de veículos:** imagens próprias do caminhão e da van, geradas em Three.js com o estúdio em `docs/design/vehicle-studio.html`. Não vêm de banco de imagens.
 
 ## Design

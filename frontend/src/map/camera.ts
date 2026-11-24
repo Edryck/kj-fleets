@@ -12,6 +12,13 @@ export const ZERO: Padding = { top: 0, bottom: 0, left: 0, right: 0 };
 
 export const HOME_CENTER: [number, number] = [-54.18, -24.93];
 
+// a operação e o grafo de vias só cobrem PR, SC e RS (o resto fica sob a máscara do mapStyle).
+// O limite deixa ~4° de margem vazia em volta para dar para arrastar e ver as bordas dos estados
+export const SOUTH_BOUNDS: [[number, number], [number, number]] = [
+    [-62, -37.5],
+    [-43.5, -19],
+];
+
 export interface SceneCamera {
     fit: "markers" | "legs" | "points" | null;
     points?: [number, number][];

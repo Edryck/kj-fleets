@@ -9,7 +9,7 @@ import {
     observeTheme,
     switchStyle,
 } from "./maplibre";
-import { HOME_CENTER } from "./camera";
+import { HOME_CENTER, SOUTH_BOUNDS } from "./camera";
 import { animateArcs, animateLegs, introSpin, startComets } from "./mapMotion";
 import { PALETTES } from "./mapStyle";
 import { createMarkerLayer } from "./markers";
@@ -33,6 +33,7 @@ export default function MapStage({ visible }: { visible: boolean }) {
                 style,
                 center: HOME_CENTER,
                 zoom: 9,
+                maxBounds: SOUTH_BOUNDS,
                 maxPitch: 75,
                 attributionControl: { compact: true },
             });

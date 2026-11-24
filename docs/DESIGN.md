@@ -217,6 +217,8 @@ A transformação também acrescenta as fontes de relevo, a camada de sombreamen
 
 Com o terreno desligado, `setTerrain(null)` libera a GPU e o sombreamento continua. Antes de cada enquadramento, o motor para a câmera e zera o padding, senão o padding da câmera anterior soma-se ao novo.
 
+Todos os mapas mostram só PR, SC e RS. Uma máscara da cor do fundo do tema cobre tudo fora dos três estados, com uma linha discreta nas divisas (`south-mask` e `south-borders`, criadas em `transformStyle`). O contorno vem da malha intermediária do IBGE, com cerca de 6 km de folga para não cortar cidades do litoral nem da Lagoa dos Patos, e está em `frontend/src/map/southStates.json`. A câmera fica presa a `SOUTH_BOUNDS` (`frontend/src/map/camera.ts`), que deixa uns 4° de margem vazia em volta, para dar para arrastar até as bordas dos estados.
+
 O motor adapta a câmera à largura (`adaptCamera`, em `frontend/src/map/responsive.ts`). No tablet, a inclinação para em 60°. No celular, para em 45°, sem terreno e sem giro de entrada. Ao redimensionar a janela, a câmera é reaplicada depois de 200 ms.
 
 Na câmera de acompanhamento do detalhe do pedido, o veículo é seguido com zoom 15,4, virado para a rota à frente. Um gesto do usuário no mapa suspende o acompanhamento, e o botão "Seguir veículo" retoma.

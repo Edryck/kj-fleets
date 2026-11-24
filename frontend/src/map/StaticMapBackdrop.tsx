@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { SOUTH_BOUNDS } from "./camera";
 import {
     currentTheme,
     loadStyleOrFallback,
@@ -27,6 +28,7 @@ export default function StaticMapBackdrop() {
                     style,
                     center: CENTER,
                     zoom: 9.6,
+                    maxBounds: SOUTH_BOUNDS,
                     pitch: 0,
                     bearing: 0,
                     interactive: false,

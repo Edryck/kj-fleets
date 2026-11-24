@@ -61,4 +61,17 @@ describe("transformStyle", () => {
         );
         expect(JSON.stringify(style)).toBe(snapshot);
     });
+    it("hides everything outside PR, SC and RS with a mask on top of the base map", () => {
+        for (const theme of ["dark", "light"] as const) {
+            const style = transformStyle(base as never, theme);
+            const ids = style.layers.map((l) => l.id);
+            expect(style.sources["south-mask"]).toMatchObject({ type: "geojson" });
+            expect(ids.slice(-2)).toEqual(["south-mask", "south-borders"]);
+            const mask = style.layers.find((l) => l.id === "south-mask") as {
+                paint: Record<string, unknown>;
+            };
+            expect(mask.paint["fill-color"]).toBe(PALETTES[theme].background);
+            expect(mask.paint["fill-opacity"]).toBe(1);
+        }
+    });
 });

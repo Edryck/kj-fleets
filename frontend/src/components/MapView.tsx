@@ -1,6 +1,7 @@
 import { LngLatBounds } from "maplibre-gl";
 import { useEffect, useRef, useState } from "react";
 import type { RouteStop } from "../api/types";
+import { SOUTH_BOUNDS } from "../map/camera";
 import { ensureLayers, setLegData } from "../map/mapLayers";
 import {
     currentTheme,
@@ -109,6 +110,7 @@ export default function MapView({
                 style,
                 center: FALLBACK_CENTER,
                 zoom: 11,
+                maxBounds: SOUTH_BOUNDS,
                 attributionControl: { compact: true },
             });
             m.addControl(new NavigationControl({ showCompass: false }), "top-right");

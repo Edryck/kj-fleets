@@ -6,6 +6,8 @@ import {
     followBearing,
     followTo,
     headingOf,
+    HOME_CENTER,
+    SOUTH_BOUNDS,
     type CameraMap,
 } from "./camera";
 
@@ -102,6 +104,18 @@ describe("camera", () => {
             true,
         );
         expect(map.flyTo.mock.calls[0][0]).toMatchObject({ duration: 0 });
+    });
+
+    it("south bounds keep PR, SC and RS with an empty margin around them", () => {
+        // caixa dos três estados (malha do IBGE): oeste, sul, leste, norte
+        const [west, south, east, north] = [-57.65, -33.8, -47.96, -22.46];
+        expect(west - SOUTH_BOUNDS[0][0]).toBeGreaterThanOrEqual(3);
+        expect(south - SOUTH_BOUNDS[0][1]).toBeGreaterThanOrEqual(3);
+        expect(SOUTH_BOUNDS[1][0] - east).toBeGreaterThanOrEqual(3);
+        expect(SOUTH_BOUNDS[1][1] - north).toBeGreaterThanOrEqual(3);
+        // e não é o mundo inteiro
+        expect(SOUTH_BOUNDS[1][0] - SOUTH_BOUNDS[0][0]).toBeLessThan(25);
+        expect(HOME_CENTER[0]).toBeGreaterThan(west);
     });
 
     it("turns terrain on and off", () => {

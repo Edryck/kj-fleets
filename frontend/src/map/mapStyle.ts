@@ -1,6 +1,7 @@
 import type { LayerSpecification, SkySpecification, StyleSpecification } from "maplibre-gl";
 import type { Theme } from "../theme";
 import { PALETTES, type MapPalette } from "./palettes";
+import southStates from "./southStates.json";
 
 export { PALETTES, type MapPalette };
 
@@ -126,6 +127,26 @@ export function transformStyle(base: StyleSpecification, theme: Theme): StyleSpe
         source: "dem-shade",
         paint: { ...p.hillshade, "hillshade-illumination-direction": 315 },
     } as LayerSpecification);
+    // fora de PR, SC e RS fica só o fundo liso: a operação e o grafo de vias são só do Sul.
+    // A máscara (malha do IBGE com ~6 km de folga na costa) vem por cima de tudo do mapa base;
+    // as camadas kj- (rotas, arcos) entram depois e ficam acima dela
+    style.sources["south-mask"] = { type: "geojson", data: southStates as never };
+    style.layers.push(
+        {
+            id: "south-mask",
+            type: "fill",
+            source: "south-mask",
+            filter: ["==", ["get", "kind"], "mask"],
+            paint: { "fill-color": p.background, "fill-opacity": 1, "fill-antialias": false },
+        } as LayerSpecification,
+        {
+            id: "south-borders",
+            type: "line",
+            source: "south-mask",
+            filter: ["==", ["get", "kind"], "border"],
+            paint: { "line-color": p.boundary, "line-width": 1.2, "line-opacity": 0.9 },
+        } as LayerSpecification,
+    );
     style.sky = p.sky as SkySpecification;
     return style;
 }
