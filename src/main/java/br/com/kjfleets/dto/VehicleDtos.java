@@ -16,7 +16,7 @@ public final class VehicleDtos {
     private VehicleDtos() {
     }
 
-    public record VehicleRequest(@NotBlank String plate, @NotBlank String type, VehicleStatus status,
+    public record VehicleRequest(@NotBlank @Size(max = 20) String plate, @NotBlank @Size(max = 40) String type, VehicleStatus status,
                                  @Size(max = 40) String brand, @Size(max = 60) String model,
                                  @Min(1980) Integer year, @Size(max = 20) String color,
                                  @Min(1) @Max(60000) Integer capacityKg,

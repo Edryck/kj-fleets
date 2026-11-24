@@ -15,8 +15,9 @@ public final class AuthDtos {
     private AuthDtos() {
     }
 
-    public record RegisterRequest(@NotBlank String username, @Size(min = 8) @NotBlank String password,
-                                  @NotBlank String name, String phone, @Email String email) {
+    public record RegisterRequest(@NotBlank @Size(max = 50) String username, @Size(min = 8, max = 72) @NotBlank String password,
+                                  @NotBlank @Size(max = 120) String name, @Size(max = 30) String phone,
+                                  @Email @Size(max = 254) String email) {
     }
 
     public record RegisterResponse(String publicId, String username) {
@@ -26,13 +27,13 @@ public final class AuthDtos {
         }
     }
 
-    public record LoginRequest(@NotBlank String username, @NotBlank String password) {
+    public record LoginRequest(@NotBlank @Size(max = 255) String username, @NotBlank @Size(max = 255) String password) {
     }
 
     public record LoginResponse(String token, Role role, Instant expiresAt) {
     }
 
-    public record CreateUserRequest(@NotBlank String username, @Size(min = 8) @NotBlank String password,
+    public record CreateUserRequest(@NotBlank @Size(max = 50) String username, @Size(min = 8, max = 72) @NotBlank String password,
                                     @NotNull Role role) {
     }
 
@@ -43,7 +44,7 @@ public final class AuthDtos {
                              String phone) {
     }
 
-    public record ChangePasswordRequest(@NotBlank String currentPassword, @NotBlank @Size(min = 8) String newPassword) {
+    public record ChangePasswordRequest(@NotBlank @Size(max = 255) String currentPassword, @NotBlank @Size(min = 8, max = 72) String newPassword) {
     }
 
     public record UserResponse(String publicId, String username, Role role, boolean active) {

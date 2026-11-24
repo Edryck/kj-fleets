@@ -19,11 +19,13 @@ public final class DriverDtos {
     private DriverDtos() {
     }
 
-    public record CreateDriverRequest(@NotBlank String username, @NotBlank @Size(min = 8) String password,
-                                      @NotBlank String name, String phone, String licenseNumber, String vehicleId) {
+    public record CreateDriverRequest(@NotBlank @Size(max = 50) String username, @NotBlank @Size(min = 8, max = 72) String password,
+                                      @NotBlank @Size(max = 120) String name, @Size(max = 30) String phone,
+                                      @Size(max = 40) String licenseNumber, String vehicleId) {
     }
 
-    public record UpdateDriverRequest(@NotBlank String name, String phone, String licenseNumber, String vehicleId,
+    public record UpdateDriverRequest(@NotBlank @Size(max = 120) String name, @Size(max = 30) String phone, @Size(max = 40) String licenseNumber,
+                                      String vehicleId,
                                       DriverStatus status) {
     }
 

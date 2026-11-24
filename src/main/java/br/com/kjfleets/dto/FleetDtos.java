@@ -4,6 +4,7 @@ import br.com.kjfleets.dto.DriverDtos.DriverResponse;
 import br.com.kjfleets.entity.Driver;
 import br.com.kjfleets.entity.Fleet;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 import java.util.Comparator;
 import java.util.List;
@@ -13,7 +14,7 @@ public final class FleetDtos {
     private FleetDtos() {
     }
 
-    public record FleetRequest(@NotBlank String name, List<String> driverIds) {
+    public record FleetRequest(@NotBlank @Size(max = 120) String name, List<String> driverIds) {
     }
 
     public record FleetResponse(String publicId, String name, int driverCount) {

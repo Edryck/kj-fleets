@@ -205,7 +205,7 @@ Listagens paginadas por `limit` e `offset`: padrão 20, máximo 100 (acima disso
 - `POST /auth/register`: cadastro público de CUSTOMER
 - `POST /auth/login`: devolve o JWT (recusa motorista e usuário inativo com 401)
 - `GET /me`: usuário logado. `publicId` é o do cliente (CUSTOMER) ou o do usuário (`usr_...`) para a equipe; `name`, `email` e `phone` vêm só para CUSTOMER
-- `PUT /me/password`: troca a senha (`currentPassword` e `newPassword`, com 8 ou mais caracteres). Responde 204; senha atual errada responde 400 `VALIDATION_ERROR`
+- `PUT /me/password`: troca a senha (`currentPassword` e `newPassword`, com 8 a 72 caracteres e no máximo 72 bytes em UTF-8, limite do BCrypt). Responde 204; senha atual errada responde 400 `VALIDATION_ERROR`
 - `POST /users`: cria ADMIN, DISPATCHER ou FLEET_MANAGER (só ADMIN). Motorista nasce em `POST /drivers` e cliente em `POST /auth/register`
 - `GET /users`: lista todos os usuários, inclusive inativos (campo `active`), ordenados por username, com `publicId` (só ADMIN)
 - `PUT /users/{id}`: troca o papel (ADMIN, DISPATCHER ou FLEET_MANAGER). Só ADMIN
@@ -320,6 +320,7 @@ Mesmo formato em todas as respostas de erro: `{ "status", "code", "message", "ti
 
 - **JWT:** todos os perfis, menos o motorista. Tudo fora de `/auth/**`, `/track/**` e `/driver/**` exige JWT. Assinado em HS256, válido por 8 horas. `JWT_SECRET` precisa de pelo menos 32 bytes.
 - **Basic Auth:** só em `/driver/**`, com o username e a senha do motorista (BCrypt). O motorista é identificado pelo principal autenticado, nunca por id na URL.
+- **Limites de entrada:** toda senha tem no máximo 72 bytes em UTF-8 (acento e emoji ocupam mais de um byte). Acima disso, cadastro e troca respondem 400 e o login responde 401. Os campos de texto têm `@Size` compatível com as colunas (username 50, nome 120, telefone 30, e-mail 254, placa 20, endereço e motivo 255), então texto grande demais responde 400 em vez de estourar no banco.
 - O primeiro ADMIN é criado no startup a partir de `ADMIN_USERNAME` e `ADMIN_PASSWORD`, se ainda não existir nenhum usuário.
 - Segredo do JWT e credenciais do banco em variáveis de ambiente, nunca no repositório.
 

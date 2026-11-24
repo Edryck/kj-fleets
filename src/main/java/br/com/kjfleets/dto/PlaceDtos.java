@@ -7,6 +7,7 @@ import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import jakarta.validation.constraints.NotNull;
 
 public final class PlaceDtos {
@@ -14,14 +15,14 @@ public final class PlaceDtos {
     private PlaceDtos() {
     }
 
-    public record ContactDto(@NotBlank String name, String phone, @Email String email) {
+    public record ContactDto(@NotBlank @Size(max = 120) String name, @Size(max = 30) String phone, @Email @Size(max = 254) String email) {
 
         public static ContactDto from(Contact contact) {
             return new ContactDto(contact.getName(), contact.getPhone(), contact.getEmail());
         }
     }
 
-    public record PlaceRequest(@NotBlank String name, String address,
+    public record PlaceRequest(@NotBlank @Size(max = 120) String name, @Size(max = 255) String address,
                                @NotNull @DecimalMin("-90") @DecimalMax("90") Double lat,
                                @NotNull @DecimalMin("-180") @DecimalMax("180") Double lng,
                                @Valid ContactDto contact) {

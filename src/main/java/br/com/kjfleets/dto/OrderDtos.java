@@ -26,12 +26,12 @@ public final class OrderDtos {
     private OrderDtos() {
     }
 
-    public record PointRequest(String placeId, String name, String address,
+    public record PointRequest(String placeId, @Size(max = 120) String name, @Size(max = 255) String address,
                                @DecimalMin("-90") @DecimalMax("90") Double lat,
                                @DecimalMin("-180") @DecimalMax("180") Double lng) {
     }
 
-    public record ItemDto(@NotBlank String name, @Min(1) int quantity) {
+    public record ItemDto(@NotBlank @Size(max = 120) String name, @Min(1) int quantity) {
     }
 
     // pickup e dropoff sem @NotNull de propósito: ausência é 422. podRequired é Boolean porque o Jackson 3 recusa primitivo ausente
@@ -45,13 +45,13 @@ public final class OrderDtos {
     }
 
     public record ActivityRequest(@NotNull OrderStatus code, @DecimalMin("-90") @DecimalMax("90") Double lat,
-                                  @DecimalMin("-180") @DecimalMax("180") Double lng, String reason) {
+                                  @DecimalMin("-180") @DecimalMax("180") Double lng, @Size(max = 255) String reason) {
     }
 
     public record PodRequest(@NotBlank @Size(max = 255) String value) {
     }
 
-    public record CancelRequest(@NotBlank String reason) {
+    public record CancelRequest(@NotBlank @Size(max = 255) String reason) {
     }
 
     public record OrderFilter(List<OrderStatus> status, String driverId, String customerId, Boolean active,

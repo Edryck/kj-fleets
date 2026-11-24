@@ -1,5 +1,6 @@
 package br.com.kjfleets.service;
 
+import java.nio.charset.StandardCharsets;
 import br.com.kjfleets.config.BusinessException;
 import br.com.kjfleets.dto.AuthDtos.CreateUserRequest;
 import br.com.kjfleets.dto.AuthDtos.ChangePasswordRequest;
@@ -84,10 +85,10 @@ public class AuthService {
     @Transactional
     public void changePassword(String username, ChangePasswordRequest request) {
         AppUser user = users.findByUsername(username).orElseThrow();
-        if (!encoder.matches(request.currentPassword(), user.getPasswordHash())) {
+        if (tooLong(request.currentPassword()) || !encoder.matches(request.currentPassword(), user.getPasswordHash())) {
             throw new BusinessException("VALIDATION_ERROR", HttpStatus.BAD_REQUEST, "senha atual incorreta");
         }
-        user.setPasswordHash(encoder.encode(request.newPassword()));
+        user.setPasswordHash(encode(request.newPassword()));
     }
 
     @Transactional
@@ -103,7 +104,8 @@ public class AuthService {
     public LoginResponse login(LoginRequest request) {
         AppUser user = users.findByUsername(request.username().trim().toLowerCase()).orElse(null);
         // compara sempre contra um hash, senão o tempo de resposta revela se o usuário existe
-        boolean passwordOk = encoder.matches(request.password(), user == null ? DUMMY_HASH : user.getPasswordHash());
+        boolean passwordOk = !tooLong(request.password())
+                && encoder.matches(request.password(), user == null ? DUMMY_HASH : user.getPasswordHash());
         if (user == null || !passwordOk || !user.isActive() || user.getRole() == Role.DRIVER) {
             throw new BusinessException("UNAUTHORIZED", HttpStatus.UNAUTHORIZED, "Usuário ou senha inválidos");
         }
@@ -180,8 +182,21 @@ public class AuthService {
         }
         AppUser user = new AppUser();
         user.setUsername(normalized);
-        user.setPasswordHash(encoder.encode(rawPassword));
+        user.setPasswordHash(encode(rawPassword));
         user.setRole(role);
         return users.save(user);
+    }
+
+    // BCrypt só usa 72 bytes e o Spring lança exceção acima disso; emoji conta 4
+    private static boolean tooLong(String rawPassword) {
+        return rawPassword.getBytes(StandardCharsets.UTF_8).length > 72;
+    }
+
+    private String encode(String rawPassword) {
+        if (tooLong(rawPassword)) {
+            throw new BusinessException("VALIDATION_ERROR", HttpStatus.BAD_REQUEST,
+                    "password: no máximo 72 bytes (acentos e emoji ocupam mais de um)");
+        }
+        return encoder.encode(rawPassword);
     }
 }
