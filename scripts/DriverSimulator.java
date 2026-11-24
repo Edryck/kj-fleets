@@ -25,6 +25,7 @@ public class DriverSimulator {
               --drivers  credenciais Basic dos motoristas (obrigatório)
               --speed    velocidade em km/h (padrão 40)
               --tick     segundos entre pings (padrão 2)
+              --auto-accept  ao ficar livre, aceita o pedido da fila com coleta mais perto
               --help     mostra esta ajuda
             """;
 
@@ -42,12 +43,14 @@ public class DriverSimulator {
     private final double speedKmh;
     private final double tickSeconds;
     private final long tickMillis;
+    private final boolean autoAccept;
 
-    private DriverSimulator(String base, double speedKmh, double tickSeconds) {
+    private DriverSimulator(String base, double speedKmh, double tickSeconds, boolean autoAccept) {
         this.base = base;
         this.speedKmh = speedKmh;
         this.tickSeconds = tickSeconds;
         this.tickMillis = (long) (tickSeconds * 1000);
+        this.autoAccept = autoAccept;
     }
 
     public static void main(String[] args) {
@@ -62,7 +65,8 @@ public class DriverSimulator {
             System.err.print(USAGE);
             System.exit(1);
         }
-        var simulator = new DriverSimulator(options.getOrDefault("base", "http://localhost:8080"), speed, tick);
+        var simulator = new DriverSimulator(options.getOrDefault("base", "http://localhost:8080"), speed, tick,
+                options.containsKey("auto-accept"));
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
             for (var credentials : options.get("drivers").split(",")) {
                 var parts = credentials.split(":", 2);
@@ -84,6 +88,8 @@ public class DriverSimulator {
                     var orderId = oldestActiveOrderId(user, auth);
                     if (orderId != null) {
                         serveOrder(user, auth, orderId);
+                    } else if (autoAccept) {
+                        acceptNearest(user, auth);
                     }
                 } catch (RuntimeException e) {
                     // resposta inesperada não pode matar a thread do motorista (o executor engoliria o erro)
@@ -106,6 +112,46 @@ public class DriverSimulator {
                 .min(Comparator.comparing((Map<String, Object> order) -> Instant.parse((String) order.get("dispatchedAt"))))
                 .map(order -> (String) order.get("publicId"))
                 .orElse(null);
+    }
+
+    // A fila não filtra por lugar: olha algumas páginas aleatórias e fica com a coleta mais perto.
+    // Perder a corrida para outro motorista (409) só faz tentar de novo na próxima volta.
+    private void acceptNearest(String user, String auth) throws InterruptedException {
+        var me = json(call(user, auth, "GET", "/driver/me", null));
+        var first = json(call(user, auth, "GET", "/driver/orders?available=true&limit=1", null));
+        if (me == null || first == null) {
+            return;
+        }
+        long total = ((Number) first.get("total")).longValue();
+        if (total == 0) {
+            return;
+        }
+        Point here = me.get("lat") == null ? null
+                : new Point(((Number) me.get("lat")).doubleValue(), ((Number) me.get("lng")).doubleValue());
+        var random = java.util.concurrent.ThreadLocalRandom.current();
+        Map<String, Object> best = null;
+        double bestM = Double.MAX_VALUE;
+        for (int page = 0; page < 3; page++) {
+            long offset = total <= 100 ? 0 : random.nextLong(total - 100);
+            var items = json(call(user, auth, "GET", "/driver/orders?available=true&limit=100&offset=" + offset, null));
+            if (items == null) {
+                continue;
+            }
+            for (var order : (List<Map<String, Object>>) items.get("items")) {
+                double m = here == null ? 0 : distanceM(here, pointOf((Map<String, Object>) order.get("pickup")));
+                if (m < bestM) {
+                    bestM = m;
+                    best = order;
+                }
+            }
+            if (total <= 100) {
+                break;
+            }
+        }
+        if (best != null) {
+            post(user, auth, "/driver/orders/" + best.get("publicId") + "/accept", null,
+                    String.format(Locale.ROOT, "aceitou %s (coleta a %.1f km)", best.get("publicId"), bestM / 1000));
+        }
     }
 
     // Retoma de onde o pedido está: o estado vem da API a cada passagem, então um erro só para e tenta de novo.
@@ -265,7 +311,13 @@ public class DriverSimulator {
     private static Map<String, String> parseArgs(String[] args) {
         var values = new HashMap<String, String>();
         for (int i = 0; i < args.length; i += 2) {
-            if (!args[i].startsWith("--") || i + 1 >= args.length) {
+            // flag sem valor (ex.: --auto-accept) vira "true"
+            if (args[i].startsWith("--") && (i + 1 >= args.length || args[i + 1].startsWith("--"))) {
+                values.put(args[i].substring(2), "true");
+                i--;
+                continue;
+            }
+            if (!args[i].startsWith("--")) {
                 System.err.print(USAGE);
                 System.exit(1);
             }

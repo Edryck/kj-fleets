@@ -14,6 +14,7 @@ import jakarta.persistence.OneToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import org.hibernate.annotations.BatchSize;
+import org.hibernate.annotations.DynamicUpdate;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -23,6 +24,9 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 
+// o ping de posição não trava o motorista: gravando só as colunas alteradas ele não sobrescreve o status
+// que a entrega ou o despacho mudaram no meio (ver DriverLostUpdateTest)
+@DynamicUpdate
 @Entity
 @Table(name = "drivers", indexes = @Index(columnList = "status"))
 @Getter

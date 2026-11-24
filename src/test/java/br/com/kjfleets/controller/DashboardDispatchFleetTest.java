@@ -9,6 +9,8 @@ import jakarta.persistence.EntityManagerFactory;
 import org.hibernate.SessionFactory;
 import org.hibernate.stat.Statistics;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import tools.jackson.databind.JsonNode;
@@ -215,7 +217,23 @@ class DashboardDispatchFleetTest extends IntegrationTest {
                 .andExpect(status().isOk());
     }
 
+    @Autowired
+    @Qualifier("realtimeExecutor")
+    private ThreadPoolTaskExecutor realtimeExecutor;
+
+    // o contador do Hibernate é global: espera os eventos @Async dos pedidos recém-criados, senão as
+    // consultas deles entram na conta do painel
+    private void awaitRealtimeIdle() throws InterruptedException {
+        long deadline = System.currentTimeMillis() + 10_000;
+        while ((realtimeExecutor.getActiveCount() > 0
+                || !realtimeExecutor.getThreadPoolExecutor().getQueue().isEmpty())
+                && System.currentTimeMillis() < deadline) {
+            Thread.sleep(20);
+        }
+    }
+
     private long statementsForQueue(Statistics stats) throws Exception {
+        awaitRealtimeIdle();
         long before = stats.getPrepareStatementCount();
         call("/dashboard/dispatch/queue", Role.ADMIN);
         return stats.getPrepareStatementCount() - before;

@@ -218,6 +218,7 @@ java scripts/DriverSimulator.java --drivers motorista1:senha1,motorista2:senha2 
 | `--drivers` | obrigatório | `usuario:senha` de cada motorista, separados por vírgula |
 | `--speed` | 40 | velocidade em km/h |
 | `--tick` | 2 | segundos entre um ping e outro |
+| `--auto-accept` | desligado | ao ficar livre, o motorista olha 3 páginas aleatórias da fila (`GET /driver/orders?available=true`) e aceita o pedido com coleta mais perto dele (`POST /driver/orders/{id}/accept`); perder a corrida para outro motorista só faz tentar de novo |
 | `--help` | | mostra a ajuda |
 
 Use `--tick 5` ou mais com muitos motoristas: a API só repassa uma posição por motorista a cada `WS_LOCATION_MIN_INTERVAL_S` (padrão 5 s), então ping mais frequente só gasta CPU. Cada motorista roda numa thread virtual. Ele envia posições em linha reta até os pontos da rota, conclui a parada quando chega a 50 m do ponto e finaliza o pedido (com um POD de texto, se for exigido). Pedido sem rota gravada vai direto de coleta para entrega. Para ver o mapa se mover, abra uma conexão STOMP como equipe em paralelo. Ctrl+C encerra.
