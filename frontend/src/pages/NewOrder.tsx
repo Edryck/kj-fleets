@@ -478,9 +478,24 @@ export default function NewOrder() {
         </div>
     );
 
+    // o foco automático do react-hook-form não alcança erros sem input (ex.: lugar não escolhido)
+    const focusFirstError = () =>
+        requestAnimationFrame(() => {
+            const error = document.querySelector(".new-order .field-error");
+            const field = error
+                ?.closest(".field, fieldset")
+                ?.querySelector<HTMLElement>("input, select, textarea");
+            field?.focus();
+            field?.scrollIntoView({ block: "center" });
+        });
+
     return (
         <FormProvider {...form}>
-            <form onSubmit={handleSubmit(onSubmit)} noValidate className="new-order">
+            <form
+                onSubmit={handleSubmit(onSubmit, focusFirstError)}
+                noValidate
+                className="new-order"
+            >
                 <div className="no-sections">
                     {formState.errors.root && (
                         <p className="notice notice-danger" role="alert">

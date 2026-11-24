@@ -1,10 +1,10 @@
 import { Eye, EyeOff, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link, Navigate, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { ApiError } from "../api/http";
 import { messageFor } from "../api/errors";
-import { consumeExpiredNotice, login, useSession } from "../auth/session";
+import { dismissExpiredNotice, login, peekExpiredNotice, useSession } from "../auth/session";
 import Wordmark from "../components/Wordmark";
 import Glass from "../glass/Glass";
 import StaticMapBackdrop from "../map/StaticMapBackdrop";
@@ -24,7 +24,8 @@ export default function Login() {
     const location = useLocation();
     const [params] = useSearchParams();
     const [showPassword, setShowPassword] = useState(false);
-    const [expired] = useState(consumeExpiredNotice);
+    const [expired] = useState(peekExpiredNotice);
+    useEffect(dismissExpiredNotice, []);
     const registered = (location.state as { registered?: boolean } | null)?.registered;
     const next = safeNext(params.get("next"));
     const {

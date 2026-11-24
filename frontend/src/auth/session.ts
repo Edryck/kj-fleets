@@ -87,10 +87,13 @@ export function clearSession(reason: "logout" | "expired" = "logout"): void {
     notify();
 }
 
-export function consumeExpiredNotice(): boolean {
-    const value = expiredNotice;
+// ler e limpar separados: o StrictMode roda o inicializador do useState duas vezes
+export function peekExpiredNotice(): boolean {
+    return expiredNotice;
+}
+
+export function dismissExpiredNotice(): void {
     expiredNotice = false;
-    return value;
 }
 
 export function login(username: string, password: string): Promise<LoginResponse> {
