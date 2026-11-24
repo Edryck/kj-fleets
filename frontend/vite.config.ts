@@ -1,6 +1,6 @@
 import react from "@vitejs/plugin-react";
 import { loadEnv } from "vite";
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 
 // sem @types/node no projeto; só lemos uma variável de ambiente
 declare const process: { env: Record<string, string | undefined>; cwd: () => string };
@@ -45,6 +45,7 @@ export default defineConfig(({ mode }) => {
         test: {
             environment: "jsdom",
             setupFiles: ["./src/test/setup.ts"],
+            exclude: [...configDefaults.exclude, "e2e/**"],
             css: { include: [/\.css\?raw$/] },
         },
     };
