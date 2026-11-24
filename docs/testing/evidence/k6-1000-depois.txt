@@ -1,0 +1,38 @@
+  █ THRESHOLDS 
+
+    checks
+    ✓ 'rate>0.99' rate=100.00%
+
+    http_req_duration{scenario:browse}
+    ✓ 'p(95)<800' p(95)=439.34ms
+
+    http_req_failed
+    ✓ 'rate<0.01' rate=0.00%
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 350098  938.544863/s
+    checks_succeeded...: 100.00% 350098 out of 350098
+    checks_failed......: 0.00%   0 out of 350098
+
+    ✓ pedido criado (201)
+    ✓ me 200
+    ✓ lista 200
+    ✓ rastreio 200
+    ✓ login 200
+
+    HTTP
+    http_req_duration..............: avg=128.17ms min=1.53ms   med=47.34ms max=3.98s p(90)=322.27ms p(95)=447.25ms
+      { expected_response:true }...: avg=128.17ms min=1.53ms   med=47.34ms max=3.98s p(90)=322.27ms p(95)=447.25ms
+      { scenario:browse }..........: avg=123.7ms  min=1.53ms   med=41.38ms max=3.38s p(90)=316.74ms p(95)=439.34ms
+    http_req_failed................: 0.00%  0 out of 350198
+    http_reqs......................: 350198 938.812944/s
+
+    EXECUTION
+    iteration_duration.............: avg=2.3s     min=923.79ms med=2.26s   max=8.6s  p(90)=3.22s    p(95)=3.5s    
+    iterations.....................: 121602 325.991387/s
+    vus............................: 2      min=0           max=1250
+    vus_max........................: 1250   min=1250        max=1250
+
+    NETWORK

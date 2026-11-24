@@ -1,0 +1,37 @@
+  █ THRESHOLDS 
+    checks
+    ✓ 'rate>0.99' rate=99.11%
+    http_req_duration{scenario:browse}
+    ✗ 'p(95)<800' p(95)=29.41s
+    http_req_failed
+    ✓ 'rate<0.01' rate=0.88%
+  █ TOTAL RESULTS 
+    checks_total.......: 105388 283.171856/s
+    checks_succeeded...: 99.11% 104459 out of 105388
+    checks_failed......: 0.88%  929 out of 105388
+    ✗ pedido criado (201)
+      ↳  67% — ✓ 215 / ✗ 102
+    ✗ me 200
+      ↳  98% — ✓ 34602 / ✗ 401
+    ✗ lista 200
+      ↳  99% — ✓ 34717 / ✗ 272
+    ✗ rastreio 200
+      ↳  99% — ✓ 34725 / ✗ 154
+    ✓ login 200
+    HTTP
+    http_req_duration..............: avg=2.07s min=1.5ms med=3.89ms max=1m0s   p(90)=33.69ms p(95)=29.59s
+      { expected_response:true }...: avg=1.73s min=1.5ms med=3.86ms max=59.99s p(90)=21.71ms p(95)=6.12s 
+      { scenario:browse }..........: avg=1.99s min=1.5ms med=3.87ms max=1m0s   p(90)=24.72ms p(95)=29.41s
+    http_req_failed................: 0.88%  929 out of 105488
+    http_reqs......................: 105488 283.440551/s
+    EXECUTION
+    iteration_duration.............: avg=7.78s min=1s    med=2.13s  max=2m4s   p(90)=5.74s   p(95)=1m2s  
+    iterations.....................: 35312  94.881434/s
+    vus............................: 1      min=0             max=1250
+    vus_max........................: 1250   min=1250          max=1250
+    NETWORK
+    data_received..................: 67 MB  180 kB/s
+    data_sent......................: 22 MB  59 kB/s
+time="2026-11-24T17:27:10Z" level=error msg="thresholds on metrics 'http_req_duration{scenario:browse}' have been crossed"
+
+[exited with code 0]
