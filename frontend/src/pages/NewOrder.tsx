@@ -486,7 +486,7 @@ export default function NewOrder() {
                 ?.closest(".field, fieldset")
                 ?.querySelector<HTMLElement>("input, select, textarea");
             field?.focus();
-            field?.scrollIntoView({ block: "center" });
+            field?.scrollIntoView?.({ block: "center" });
         });
 
     return (

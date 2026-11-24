@@ -210,7 +210,7 @@ A transformação também acrescenta as fontes de relevo, a camada de sombreamen
 |---|---|---|---|
 | Dashboards | 2,4 | cerca de 73°, céu visível | Voo de chegada e giro de entrada de 22° em 12 s, desacelerando, depois parado. Qualquer gesto cancela |
 | Detalhe do pedido | 1,3 | 30° → 68° | Visão geral, desenho da rota e câmera de acompanhamento |
-| Mapa ao vivo | desligado | 0° | Operação |
+| Mapa ao vivo | desligado | 0° | Operação. Mapa plano (`flat`): sem relevo sombreado e sem prédios 3D, para ficar leve com muitos motoristas |
 | Despacho | desligado | 0° | Mesa de planejamento, com arcos e cometas finitos |
 | Simulador de rota | desligado | 0° | Plano, porque o clique precisa ser preciso |
 | Login | desligado | 0° | Estático |

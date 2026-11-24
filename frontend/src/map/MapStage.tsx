@@ -53,8 +53,8 @@ export default function MapStage({ visible }: { visible: boolean }) {
                 },
                 camera: {
                     flyToScene,
-                    applyTerrain: (m, exaggeration) => {
-                        if (map.getSource("dem")) applyTerrain(m, exaggeration);
+                    applyTerrain: (m, exaggeration, flat) => {
+                        if (map.getSource("dem")) applyTerrain(m, exaggeration, flat);
                     },
                     followTo,
                 },

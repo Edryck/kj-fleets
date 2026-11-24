@@ -20,6 +20,8 @@ function fakeMap() {
         flyTo: vi.fn<(options: unknown) => number>(() => calls.push("flyTo")),
         easeTo: vi.fn(),
         setTerrain: vi.fn(),
+        getLayer: vi.fn(() => ({})),
+        setLayoutProperty: vi.fn(),
     };
     return { map, calls };
 }
@@ -108,5 +110,16 @@ describe("camera", () => {
         applyTerrain(map as unknown as CameraMap, 0);
         expect(map.setTerrain).toHaveBeenNthCalledWith(1, { source: "dem", exaggeration: 2.4 });
         expect(map.setTerrain).toHaveBeenNthCalledWith(2, null);
+    });
+
+    it("flat hides relief and 3D buildings, and brings them back otherwise", () => {
+        const { map } = fakeMap();
+        applyTerrain(map as unknown as CameraMap, 0, true);
+        expect(map.setLayoutProperty).toHaveBeenCalledWith("relief", "visibility", "none");
+        expect(map.setLayoutProperty).toHaveBeenCalledWith("building-3d", "visibility", "none");
+        map.setLayoutProperty.mockClear();
+        applyTerrain(map as unknown as CameraMap, 0);
+        expect(map.setLayoutProperty).toHaveBeenCalledWith("relief", "visibility", "visible");
+        expect(map.setLayoutProperty).toHaveBeenCalledWith("building-3d", "visibility", "visible");
     });
 });

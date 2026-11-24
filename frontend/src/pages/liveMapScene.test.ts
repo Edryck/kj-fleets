@@ -20,6 +20,17 @@ const driver = (id: string, extra: Partial<Driver> = {}): Driver => ({
 });
 
 describe("liveMapScene", () => {
+    it("uses a flat map without relief to stay light", () => {
+        const scene = liveMapScene({
+            drivers: [driver("d1")],
+            staleIds: new Set(),
+            selectedId: null,
+            route: null,
+            padding: ZERO,
+        });
+        expect(scene.camera).toMatchObject({ pitch: 0, terrain: 0, flat: true });
+    });
+
     it("drops drivers without a position", () => {
         const scene = liveMapScene({
             drivers: [driver("d1"), driver("d2", { lat: null, lng: null })],

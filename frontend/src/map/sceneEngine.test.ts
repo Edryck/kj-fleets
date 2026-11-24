@@ -87,7 +87,18 @@ it("reapplies layers, current data and terrain after a style change", () => {
     engine.reapplyAfterStyle();
     expect(deps.layers.ensure).toHaveBeenCalled();
     expect(deps.layers.setLegs).toHaveBeenCalledWith(expect.anything(), legs);
-    expect(deps.camera.applyTerrain).toHaveBeenCalledWith(expect.anything(), 1.3);
+    expect(deps.camera.applyTerrain).toHaveBeenCalledWith(expect.anything(), 1.3, undefined);
+});
+
+it("passes the flat flag along with the terrain and reapplies it after a style change", () => {
+    const deps = makeDeps();
+    const engine = createSceneEngine(fakeMap(), deps);
+    engine.apply({
+        owner: Symbol("o"),
+        scene: { markers: [], legs: [], camera: { fit: null, terrain: 0, flat: true } },
+    });
+    engine.reapplyAfterStyle();
+    expect(deps.camera.applyTerrain).toHaveBeenCalledWith(expect.anything(), 0, true);
 });
 
 it("clears markers and data when the scene is removed", () => {
@@ -313,7 +324,7 @@ describe("viewport", () => {
             false,
         );
         engine.reapplyAfterStyle();
-        expect(deps.camera.applyTerrain).toHaveBeenLastCalledWith(expect.anything(), 0);
+        expect(deps.camera.applyTerrain).toHaveBeenLastCalledWith(expect.anything(), 0, undefined);
     });
 
     it("re-applies the adapted camera only when the viewport band changes", () => {

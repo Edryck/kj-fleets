@@ -36,7 +36,7 @@ export interface EngineDeps {
             camera: SceneCamera,
             reduce: boolean,
         ): void;
-        applyTerrain(map: CameraMap, exaggeration: number | undefined): void;
+        applyTerrain(map: CameraMap, exaggeration: number | undefined, flat?: boolean): void;
         followTo(
             map: CameraMap,
             position: [number, number],
@@ -83,7 +83,12 @@ function fitPoints(scene: MapScene): [number, number][] {
 
 function cameraKey(camera: SceneCamera | undefined): string {
     if (!camera) return "";
-    return JSON.stringify({ ...camera, follow: camera.follow?.markerId ?? null, terrain: null });
+    return JSON.stringify({
+        ...camera,
+        follow: camera.follow?.markerId ?? null,
+        terrain: null,
+        flat: null,
+    });
 }
 
 const GESTURES = ["dragstart", "wheel", "pitchstart", "rotatestart"] as const;
@@ -109,6 +114,7 @@ export function createSceneEngine(map: MapLibreMap, deps: EngineDeps): SceneEngi
     let arcsKey = "";
     let camKey = "";
     let terrain: number | undefined;
+    let flat: boolean | undefined;
     let legsAnimated = false;
     let arrived = false;
     let followKey = "";
@@ -172,9 +178,10 @@ export function createSceneEngine(map: MapLibreMap, deps: EngineDeps): SceneEngi
         followKey = "";
     };
 
-    const setTerrain = (next: number | undefined) => {
+    const setTerrain = (next: number | undefined, nextFlat: boolean | undefined) => {
         terrain = next;
-        if (styleReady) deps.camera.applyTerrain(map, next);
+        flat = nextFlat;
+        if (styleReady) deps.camera.applyTerrain(map, next, nextFlat);
     };
 
     const applyLegs = (s: MapScene) => {
@@ -217,7 +224,8 @@ export function createSceneEngine(map: MapLibreMap, deps: EngineDeps): SceneEngi
     };
 
     const applyCamera = (s: MapScene, isNewOwner: boolean) => {
-        if (isNewOwner || s.camera?.terrain !== terrain) setTerrain(s.camera?.terrain);
+        if (isNewOwner || s.camera?.terrain !== terrain || s.camera?.flat !== flat)
+            setTerrain(s.camera?.terrain, s.camera?.flat);
         const key = cameraKey(s.camera);
         if (!isNewOwner && key === camKey) return;
         camKey = key;
@@ -284,7 +292,7 @@ export function createSceneEngine(map: MapLibreMap, deps: EngineDeps): SceneEngi
         deps.layers.setLegs(map, []);
         deps.layers.setArcs(map, []);
         deps.layers.setComets(map, []);
-        setTerrain(undefined);
+        setTerrain(undefined, undefined);
         applyPick(undefined);
     };
 
@@ -327,7 +335,7 @@ export function createSceneEngine(map: MapLibreMap, deps: EngineDeps): SceneEngi
             const s = scene();
             deps.layers.setLegs(map, legsOf(s));
             deps.layers.setArcs(map, arcsOf(s));
-            deps.camera.applyTerrain(map, terrain);
+            deps.camera.applyTerrain(map, terrain, flat);
         },
         fitAll() {
             const s = scene();

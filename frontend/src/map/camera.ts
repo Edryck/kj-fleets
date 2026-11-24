@@ -20,6 +20,8 @@ export interface SceneCamera {
     bearing?: number;
     maxZoom?: number;
     terrain?: number;
+    // sem relevo sombreado nem prédios 3D: menos tiles e menos GPU (Mapa ao vivo)
+    flat?: boolean;
     intro?: "spin" | null;
     follow?: { markerId: string; zoom: number; pitch: number } | null;
     duration?: number;
@@ -27,7 +29,14 @@ export interface SceneCamera {
 
 export type CameraMap = Pick<
     MapLibreMap,
-    "stop" | "setPadding" | "cameraForBounds" | "flyTo" | "easeTo" | "setTerrain"
+    | "stop"
+    | "setPadding"
+    | "cameraForBounds"
+    | "flyTo"
+    | "easeTo"
+    | "setTerrain"
+    | "getLayer"
+    | "setLayoutProperty"
 >;
 
 export function headingOf(a: [number, number], b: [number, number]): number {
@@ -100,8 +109,12 @@ export function flyToScene(
     });
 }
 
-export function applyTerrain(map: CameraMap, exaggeration: number | undefined): void {
+export function applyTerrain(map: CameraMap, exaggeration: number | undefined, flat = false): void {
     map.setTerrain(exaggeration && exaggeration > 0 ? { source: "dem", exaggeration } : null);
+    // camada escondida não baixa tiles: é isso que deixa o mapa plano mais leve
+    for (const id of ["relief", "building-3d"]) {
+        if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", flat ? "none" : "visible");
+    }
 }
 
 export function followTo(

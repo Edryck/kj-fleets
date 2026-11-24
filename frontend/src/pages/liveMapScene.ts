@@ -96,7 +96,13 @@ export function liveMapScene({
     return {
         markers: [...driverMarkers, ...routeMarkers(stops)],
         legs: legsFromStops(stops, false),
-        camera: { fit: stops.length > 1 ? "legs" : "markers", padding, pitch: 0, terrain: 0 },
+        camera: {
+            fit: stops.length > 1 ? "legs" : "markers",
+            padding,
+            pitch: 0,
+            terrain: 0,
+            flat: true,
+        },
     };
 }
 
