@@ -319,7 +319,7 @@ Mesmo formato em todas as respostas de erro: `{ "status", "code", "message", "ti
 ## Auth
 
 - **JWT:** todos os perfis, menos o motorista. Tudo fora de `/auth/**`, `/track/**` e `/driver/**` exige JWT. Assinado em HS256, válido por 8 horas. `JWT_SECRET` precisa de pelo menos 32 bytes.
-- **Basic Auth:** só em `/driver/**`, com o username e a senha do motorista (BCrypt). O motorista é identificado pelo principal autenticado, nunca por id na URL.
+- **Basic Auth:** só em `/driver/**`, com o username e a senha do motorista (BCrypt). O motorista é identificado pelo principal autenticado, nunca por id na URL. Como o app manda posição a cada poucos segundos e o BCrypt custa ~100 ms de CPU, um acerto fica guardado por 5 minutos (`CachingPasswordEncoder`, chave = hash salvo + SHA-256 da senha, até 10.000 entradas). Trocar a senha muda o hash e invalida o cache; desativar vale na hora, porque o usuário é relido do banco em toda requisição. Senha errada nunca entra no cache.
 - **Limites de entrada:** toda senha tem no máximo 72 bytes em UTF-8 (acento e emoji ocupam mais de um byte). Acima disso, cadastro e troca respondem 400 e o login responde 401. Os campos de texto têm `@Size` compatível com as colunas (username 50, nome 120, telefone 30, e-mail 254, placa 20, endereço e motivo 255), então texto grande demais responde 400 em vez de estourar no banco.
 - O primeiro ADMIN é criado no startup a partir de `ADMIN_USERNAME` e `ADMIN_PASSWORD`, se ainda não existir nenhum usuário.
 - Segredo do JWT e credenciais do banco em variáveis de ambiente, nunca no repositório.
@@ -386,6 +386,8 @@ Posição no tópico do cliente, replay, webhooks, broker externo, WebSocket par
 ## Dashboard
 
 Somente leitura. Há dois tipos de consulta: **tópicos** (um número ou uma lista) e **painéis** (um agregado por perfil que reúne os tópicos certos). Tudo é agregado no banco (`GROUP BY`, `FILTER`, `LATERAL`, `date_trunc`); nada soma lista inteira em Java. Sem cache na v1: cada chamada refaz as consultas.
+
+**Cache:** cada resposta do dashboard fica guardada por `DASHBOARD_CACHE_S` segundos (padrão 10), separada por usuário e por parâmetros, porque com dezenas de milhares de pedidos cada painel leva perto de 1 s e a tela repete a consulta. O botão de atualizar pode devolver o mesmo resultado dentro dessa janela; o `generatedAt` mostra de quando ele é.
 
 ### Período e fuso
 

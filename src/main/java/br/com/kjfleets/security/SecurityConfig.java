@@ -5,6 +5,7 @@ import br.com.kjfleets.config.CorsProperties;
 import br.com.kjfleets.entity.Role;
 import br.com.kjfleets.repository.AppUserRepository;
 import java.time.Clock;
+import java.time.Duration;
 import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -66,13 +67,13 @@ public class SecurityConfig {
 
     // só aceita motorista ativo; qualquer outro papel cai como credencial inválida
     @Bean
-    DaoAuthenticationProvider driverAuthProvider(AppUserRepository users, PasswordEncoder encoder) {
+    DaoAuthenticationProvider driverAuthProvider(AppUserRepository users, PasswordEncoder encoder, Clock clock) {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider(username -> users.findByUsername(username)
                 .filter(u -> u.isActive() && u.getRole() == Role.DRIVER)
                 .map(u -> User.withUsername(u.getUsername()).password(u.getPasswordHash()).roles("DRIVER").build())
                 .orElseThrow(() -> new UsernameNotFoundException(
                         "motorista não encontrado")));
-        provider.setPasswordEncoder(encoder);
+        provider.setPasswordEncoder(new CachingPasswordEncoder(encoder, Duration.ofMinutes(5), clock, 10_000));
         return provider;
     }
 

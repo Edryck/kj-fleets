@@ -65,6 +65,7 @@ Pré-requisitos: JDK 21, PostgreSQL (para rodar a aplicação) e Docker (para os
    | `DASHBOARD_STALE_ARRIVED_MIN` | minutos no ponto sem começar a operação (padrão 20) |
    | `DASHBOARD_STALE_IN_PROGRESS_MIN` | minutos em andamento sem concluir (padrão 90) |
    | `DASHBOARD_MAINTENANCE_ALERT_DAYS` | dias em manutenção até o alerta de veículo parado (padrão 7) |
+   | `DASHBOARD_CACHE_S` | segundos que cada painel do dashboard fica em cache por usuário (padrão 10; 0 desliga) |
    | `WS_LOCATION_MIN_INTERVAL_S` | intervalo mínimo, em segundos, entre posições de um motorista no WebSocket (padrão 5, de 1 a 300) |
    | `WS_LOCATION_MIN_DISTANCE_M` | distância mínima, em metros, que o motorista precisa andar para a posição sair no WebSocket (padrão 20, de 0 a 1000) |
    | `CORS_ALLOWED_ORIGINS` | origens do front liberadas no REST, separadas por vírgula (ex.: `http://localhost:5173`); vazio (padrão) desliga o CORS |
@@ -208,7 +209,7 @@ Para a equipe, troque o destino por `/topic/fleet/locations` ou `/topic/orders`.
 Antes de rodar, a equipe precisa atribuir motorista e veículo e despachar o pedido (ou o motorista aceita um pedido da fila). O simulador só toca os pedidos ativos do motorista (`DISPATCHED`, `DRIVER_ENROUTE`, `ARRIVED`, `IN_PROGRESS`). Com a API no ar:
 
 ```bash
-java scripts/DriverSimulator.java --drivers motorista1:senha1,motorista2:senha2 --speed 40 --tick 2
+java scripts/DriverSimulator.java --drivers motorista1:senha1,motorista2:senha2 --speed 40 --tick 5
 ```
 
 | Opção | Padrão | Para quê |
@@ -219,7 +220,7 @@ java scripts/DriverSimulator.java --drivers motorista1:senha1,motorista2:senha2 
 | `--tick` | 2 | segundos entre um ping e outro |
 | `--help` | | mostra a ajuda |
 
-Cada motorista roda numa thread virtual. Ele envia posições em linha reta até os pontos da rota, conclui a parada quando chega a 50 m do ponto e finaliza o pedido (com um POD de texto, se for exigido). Pedido sem rota gravada vai direto de coleta para entrega. Para ver o mapa se mover, abra uma conexão STOMP como equipe em paralelo. Ctrl+C encerra.
+Use `--tick 5` ou mais com muitos motoristas: a API só repassa uma posição por motorista a cada `WS_LOCATION_MIN_INTERVAL_S` (padrão 5 s), então ping mais frequente só gasta CPU. Cada motorista roda numa thread virtual. Ele envia posições em linha reta até os pontos da rota, conclui a parada quando chega a 50 m do ponto e finaliza o pedido (com um POD de texto, se for exigido). Pedido sem rota gravada vai direto de coleta para entrega. Para ver o mapa se mover, abra uma conexão STOMP como equipe em paralelo. Ctrl+C encerra.
 
 ## Documentação
 

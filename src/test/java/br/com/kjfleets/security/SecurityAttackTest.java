@@ -263,4 +263,19 @@ class SecurityAttackTest extends IntegrationTest {
                 .andExpect(status().isCreated());
         return username;
     }
+
+    // o cache de senha do Basic Auth não pode segurar um motorista desativado
+    @Test
+    void deactivatedDriverLosesBasicAuthEvenWithCachedPassword() throws Exception {
+        String username = "drv-" + unique();
+        String created = postJson("/drivers", Map.of("username", username, "password", "password-123",
+                "name", "Motorista"), bearer(Role.FLEET_MANAGER)).andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        mvc.perform(get("/driver/me").with(httpBasic(username, "password-123"))).andExpect(status().isOk());
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete(
+                        "/drivers/" + json.readTree(created).get("publicId").asString())
+                .header("Authorization", bearer(Role.FLEET_MANAGER))).andExpect(status().is2xxSuccessful());
+        mvc.perform(get("/driver/me").with(httpBasic(username, "password-123"))).andExpect(status().isUnauthorized());
+        mvc.perform(get("/driver/me").with(httpBasic(username, "senha-errada"))).andExpect(status().isUnauthorized());
+    }
 }
