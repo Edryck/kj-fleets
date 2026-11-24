@@ -156,7 +156,9 @@ function Comparison({
                 ))}
             </ul>
             {waypointCount > HELD_KARP_MAX && (
-                <p className="lab-note">Held-Karp fica de fora acima de {HELD_KARP_MAX} paradas.</p>
+                <p className="lab-note">
+                    O método exato fica de fora acima de {HELD_KARP_MAX} paradas.
+                </p>
             )}
         </div>
     );
@@ -420,7 +422,7 @@ export default function RouteLab() {
                         <b>{waypoints.length}</b> de {MAX_WAYPOINTS} paradas
                     </span>
                     {waypoints.length > HELD_KARP_MAX && (
-                        <span>Held-Karp vai até {HELD_KARP_MAX} paradas</span>
+                        <span>O método exato vai até {HELD_KARP_MAX} paradas</span>
                     )}
                     {!ready && <span>Defina ao menos retirada e entrega.</span>}
                 </div>

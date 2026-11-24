@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { ALGORITHM_LABEL } from "../components/AlgorithmFields";
 import type { CSSProperties } from "react";
 import { messageFor } from "../api/errors";
 import { ApiError, request } from "../api/http";
@@ -10,13 +11,6 @@ import PeriodSelect, { usePeriod } from "../components/PeriodSelect";
 import Glass from "../glass/Glass";
 import { useTitleBlock } from "../layout/titleBlockContext";
 import HeroNumber from "../patterns/HeroNumber";
-
-const ALGORITHM_LABEL: Record<string, string> = {
-    NEAREST_NEIGHBOR: "Vizinho mais próximo",
-    TWO_OPT: "2-opt",
-    HELD_KARP: "Held-Karp (exato)",
-    SIMULATED_ANNEALING: "Recozimento simulado",
-};
 
 const share = (part: number, whole: number) =>
     whole > 0 ? `${Math.max(2, Math.min(100, (part / whole) * 100))}%` : "0%";

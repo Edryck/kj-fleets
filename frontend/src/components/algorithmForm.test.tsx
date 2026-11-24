@@ -30,6 +30,18 @@ function Harness({
 }
 
 describe("AlgorithmFields", () => {
+    it("cada opção tem nome leigo com o termo técnico entre parênteses", () => {
+        render(<Harness waypoints={3} />);
+        const names = screen
+            .getAllByRole("option")
+            .map((o) => o.textContent ?? "")
+            .filter(Boolean);
+        for (const name of names.filter((n) => n !== "Automático")) {
+            expect(name).toMatch(/^[A-ZÀ-Ú][^(]+ \([^)]+\)$/);
+        }
+        expect(names).toContain("Exato, mais lento (Held-Karp)");
+    });
+
     it("só mostra seed para têmpera simulada", async () => {
         render(<Harness waypoints={3} />);
         expect(screen.queryByLabelText("Seed")).toBeNull();

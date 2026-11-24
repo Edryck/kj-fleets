@@ -16,8 +16,8 @@ export function comparePlans(
     const diffPct = greedy > 0 ? (diffKm / greedy) * 100 : null;
     if (Math.abs(diffKm) < 0.05)
         return { diffKm: 0, diffPct: diffPct === null ? null : 0, summary: "Mesmo resultado" };
-    const winner = diffKm > 0 ? "Húngaro" : "Guloso";
-    const loser = diffKm > 0 ? "o Guloso" : "o Húngaro";
+    const winner = diffKm > 0 ? "A melhor combinação" : "A mais rápida";
+    const loser = diffKm > 0 ? "a mais rápida" : "a melhor combinação";
     const pct = diffPct == null ? "" : ` (${km.format(Math.abs(diffPct))}%)`;
     return {
         diffKm,

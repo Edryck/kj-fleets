@@ -150,7 +150,9 @@ describe("RouteLab", () => {
         const list = await screen.findByRole("list", { name: "Comparação dos algoritmos" });
         const rows = within(list).getAllByRole("listitem");
         expect(rows).toHaveLength(2);
-        expect(within(rows[0]).getByText("Vizinho mais próximo")).toBeInTheDocument();
+        expect(
+            within(rows[0]).getByText("Mais perto primeiro (vizinho mais próximo)"),
+        ).toBeInTheDocument();
         expect(within(rows[0]).getByText("47,3 km")).toBeInTheDocument();
         expect(within(rows[0]).getByText("2 ms")).toBeInTheDocument();
         expect(within(rows[1]).getByText("Menor")).toBeInTheDocument();

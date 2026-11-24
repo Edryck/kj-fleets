@@ -63,8 +63,8 @@ export function periodLabel(period: Period): string {
 
 const SUBNAV = [
     { to: "/dashboard", label: "Visão geral", end: true },
-    { to: "/dashboard/dispatch", label: "Despacho" },
-    { to: "/dashboard/fleet", label: "Frota" },
+    { to: "/dashboard/dispatch", label: "Métricas de despacho" },
+    { to: "/dashboard/fleet", label: "Métricas de frota" },
 ];
 
 export function DashTitleActions({ period = true }: { period?: boolean }) {

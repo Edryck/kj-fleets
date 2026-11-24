@@ -6,7 +6,7 @@ describe("comparePlans", () => {
         const c = comparePlans({ HUNGARIAN: 40, GREEDY: 50 });
         expect(c.diffKm).toBe(10);
         expect(c.diffPct).toBe(20);
-        expect(c.summary).toBe("Húngaro economiza 10 km (20%) contra o Guloso");
+        expect(c.summary).toBe("A melhor combinação economiza 10 km (20%) contra a mais rápida");
     });
 
     it("resultado igual vira 'mesmo resultado'", () => {

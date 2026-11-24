@@ -91,15 +91,27 @@ describe("menu lateral", () => {
     it("CUSTOMER só vê navegação do cliente e sem grupos vazios", () => {
         const items = itemsFor("CUSTOMER");
         expect(items).toEqual(
-            expect.arrayContaining([
-                "Dashboard",
-                "Pedidos",
-                "Novo pedido",
-                "Tendência anual",
-                "Meus endereços",
-            ]),
+            expect.arrayContaining(["Dashboard", "Pedidos", "Tendência anual", "Meus endereços"]),
         );
         expect(items).not.toContain("Despacho");
         expect(screen.queryByText("Administração")).toBeNull();
+    });
+
+    it.each(["ADMIN", "DISPATCHER", "CUSTOMER"] as Role[])(
+        "%s não tem 'Novo pedido' no menu",
+        (role) => {
+            expect(itemsFor(role)).not.toContain("Novo pedido");
+        },
+    );
+
+    it("DISPATCHER não vê o grupo Administração e acha o Mapa viário em Análise", () => {
+        const items = itemsFor("DISPATCHER");
+        expect(items).toContain("Mapa viário");
+        expect(screen.queryByText("Administração")).toBeNull();
+    });
+
+    it("itens de rota dizem a diferença no nome", () => {
+        const items = itemsFor("ADMIN");
+        expect(items).toEqual(expect.arrayContaining(["Rotas: economia", "Rotas: simulador"]));
     });
 });

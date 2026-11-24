@@ -87,7 +87,7 @@ Na tela S12, "Calcular plano" não grava nada. "Aplicar plano" grava as atribui�
 
 ```mermaid
 flowchart LR
-    D["S12 sobre o mapa contínuo, plano e visto de cima"] --> CMD["Barra de comando: algoritmo Húngaro ou Guloso, motoristas e veículos livres, Calcular plano"]
+    D["S12 sobre o mapa contínuo, plano e visto de cima"] --> CMD["Barra de comando: algoritmo Melhor combinação (húngaro) ou Mais rápido (guloso), motoristas e veículos livres, Calcular plano"]
     D --> Q["Painel esquerdo: abas Sem motorista, Atribuídos e Em andamento, com contagem"]
     D --> TR["Faixa inferior: seleção, plano, comparação dos algoritmos, Aplicar plano e Despachar todos"]
     Q --> CA["Cartão do pedido: código, tempo na etapa, mini-rota e seta para S11"]

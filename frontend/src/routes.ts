@@ -6,7 +6,6 @@ import {
     MapPin,
     Network,
     Package,
-    PackagePlus,
     PiggyBank,
     Route as RouteIcon,
     Send,
@@ -56,7 +55,6 @@ export const APP_ROUTES: AppRoute[] = [
         path: "/orders/new",
         title: "Novo pedido",
         roles: ["ADMIN", "DISPATCHER", "CUSTOMER"],
-        nav: { group: "Operação", label: "Novo pedido", icon: PackagePlus },
     },
     { path: "/orders/:id", title: "Pedido", roles: ALL },
     {
@@ -119,13 +117,13 @@ export const APP_ROUTES: AppRoute[] = [
         path: "/analytics/routing",
         title: "Economia de rotas",
         roles: ["ADMIN", "DISPATCHER"],
-        nav: { group: "Análise", label: "Economia de rotas", icon: PiggyBank },
+        nav: { group: "Análise", label: "Rotas: economia", icon: PiggyBank },
     },
     {
         path: "/routes/optimize",
         title: "Simulador de rota",
         roles: ["ADMIN", "DISPATCHER"],
-        nav: { group: "Análise", label: "Simulador de rota", icon: RouteIcon },
+        nav: { group: "Análise", label: "Rotas: simulador", icon: RouteIcon },
     },
     {
         path: "/users",
@@ -137,7 +135,7 @@ export const APP_ROUTES: AppRoute[] = [
         path: "/graph",
         title: "Mapa viário",
         roles: STAFF,
-        nav: { group: "Administração", label: "Mapa viário", icon: Network },
+        nav: { group: "Análise", label: "Mapa viário", icon: Network },
     },
     { path: "/account", title: "Minha conta", roles: ALL },
 ];

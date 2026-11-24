@@ -3,10 +3,10 @@ import { useId } from "react";
 export const HELD_KARP_MAX = 15;
 
 export const ALGORITHM_LABEL: Record<string, string> = {
-    NEAREST_NEIGHBOR: "Vizinho mais próximo",
-    TWO_OPT: "2-opt",
-    HELD_KARP: "Exato (Held-Karp)",
-    SIMULATED_ANNEALING: "Têmpera simulada",
+    NEAREST_NEIGHBOR: "Mais perto primeiro (vizinho mais próximo)",
+    TWO_OPT: "Desfaz cruzamentos (2-opt)",
+    HELD_KARP: "Exato, mais lento (Held-Karp)",
+    SIMULATED_ANNEALING: "Busca aleatória (têmpera simulada)",
 };
 
 interface Props {
@@ -56,7 +56,8 @@ export default function AlgorithmFields({
                 </select>
                 {tooLarge && !compact && (
                     <p className="field-help">
-                        Held-Karp vai até {HELD_KARP_MAX} paradas; este pedido tem {waypointCount}.
+                        O método exato vai até {HELD_KARP_MAX} paradas; este pedido tem{" "}
+                        {waypointCount}.
                     </p>
                 )}
             </div>

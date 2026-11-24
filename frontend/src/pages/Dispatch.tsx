@@ -38,8 +38,8 @@ import { comparePlans } from "./planComparison";
 import { useQueueOrders } from "./useQueueOrders";
 
 const ALGORITHMS: [AssignmentAlgorithm, string][] = [
-    ["HUNGARIAN", "Húngaro"],
-    ["GREEDY", "Guloso"],
+    ["HUNGARIAN", "Melhor combinação (húngaro)"],
+    ["GREEDY", "Mais rápido (guloso)"],
 ];
 
 type Tab = "unassigned" | "assigned" | "inProgress";
