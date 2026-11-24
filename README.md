@@ -75,7 +75,7 @@ Pré-requisitos: JDK 21, PostgreSQL (para rodar a aplicação) e Docker (para os
    ./mvnw spring-boot:run
    ```
 
-4. Rode os testes (com o Docker de pé):
+4. Rode os testes (com o Docker de pé). Os testes no navegador e o teste de carga rodam por comandos separados: veja `frontend/README.md` e `load/README.md`. O relatório de testes fica em `docs/testing/`.
 
    ```bash
    ./mvnw test

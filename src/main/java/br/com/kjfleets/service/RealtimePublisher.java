@@ -21,6 +21,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
@@ -63,7 +64,10 @@ public class RealtimePublisher {
         this.clock = clock;
     }
 
-    // exceção em listener AFTER_COMMIT voltaria pro chamador e viraria 500 num commit que já deu certo
+    // exceção em listener AFTER_COMMIT voltaria pro chamador e viraria 500 num commit que já deu certo.
+    // @Async porque no AFTER_COMMIT a conexão da requisição ainda está presa: pedir outra na mesma thread
+    // travava o pool inteiro sob carga (achado do teste k6, ver ConnectionPoolDeadlockTest)
+    @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
     public void onOrderTracked(OrderTracked event) {
@@ -110,6 +114,7 @@ public class RealtimePublisher {
         lastSent.remove(event.driverId());
     }
 
+    @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
     public void onDriverStatusChanged(DriverStatusChanged event) {

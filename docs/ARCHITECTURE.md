@@ -363,7 +363,7 @@ Cada `SUBSCRIBE` relê o usuário no banco: se ele estiver inativo, a assinatura
 
 ### Publicação
 
-- Tudo sai depois do commit (`@TransactionalEventListener(AFTER_COMMIT)`). Transação com rollback não chega a nenhum assinante.
+- Tudo sai depois do commit (`@TransactionalEventListener(AFTER_COMMIT)`). Transação com rollback não chega a nenhum assinante. Os listeners que precisam reler o banco (eventos de pedido e de status do motorista) rodam com `@Async`, numa thread separada. No `AFTER_COMMIT` a conexão da requisição ainda não foi devolvida, e pedir outra na mesma thread travava o pool sob carga (ver `docs/testing/load.md`).
 - Eventos de pedido vêm de `OrderService.track` (ponto único) e da parada concluída (`RouteService`). Posição vem de `DriverService.updateLocation`, da atividade do pedido e da conclusão de parada. Mudança de status do motorista vem de `StatusHistoryService`.
 - Falha na publicação só gera log. Ela não derruba a requisição, que já foi commitada.
 - Posição passa pelo throttle por motorista: no máximo uma mensagem a cada `WS_LOCATION_MIN_INTERVAL_S`, e só se o motorista andou mais de `WS_LOCATION_MIN_DISTANCE_M`. O primeiro ping sempre sai. Cada ping continua gravado no banco; o throttle só decide o que vai para o socket.
