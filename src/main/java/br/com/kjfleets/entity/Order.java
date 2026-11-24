@@ -31,7 +31,8 @@ import java.util.UUID;
         @Index(columnList = "created_at"),
         @Index(columnList = "finished_at"),
         @Index(columnList = "status, created_at"),
-        @Index(columnList = "driver_id, finished_at")
+        @Index(columnList = "driver_id, finished_at"),
+        @Index(columnList = "customer_id, created_at")
 })
 @Getter
 @Setter

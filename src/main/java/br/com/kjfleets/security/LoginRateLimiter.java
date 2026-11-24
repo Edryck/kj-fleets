@@ -19,6 +19,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class LoginRateLimiter {
 
     private final int maxAttempts;
+    private final int maxKeys;
     private final Duration window;
     private final Clock clock;
     private final Map<String, Deque<Instant>> failures = new ConcurrentHashMap<>();
@@ -27,7 +28,12 @@ public class LoginRateLimiter {
     @Autowired
     public LoginRateLimiter(@Value("${kjfleets.auth.login-max-attempts:5}") int maxAttempts,
                             @Value("${kjfleets.auth.login-window-s:300}") long windowSeconds, Clock clock) {
+        this(maxAttempts, windowSeconds, clock, 100_000);
+    }
+
+    LoginRateLimiter(int maxAttempts, long windowSeconds, Clock clock, int maxKeys) {
         this.maxAttempts = maxAttempts;
+        this.maxKeys = maxKeys;
         this.window = Duration.ofSeconds(windowSeconds);
         this.clock = clock;
     }
@@ -49,6 +55,14 @@ public class LoginRateLimiter {
     }
 
     public void recordFailure(String key) {
+        // teto contra spray de usernames: cheio mesmo depois de limpar, para de contar chaves novas
+        if (!failures.containsKey(key) && failures.size() >= maxKeys) {
+            lastPrune = Instant.EPOCH;
+            pruneAll(clock.instant());
+            if (failures.size() >= maxKeys) {
+                return;
+            }
+        }
         Deque<Instant> attempts = failures.computeIfAbsent(key, k -> new ArrayDeque<>());
         synchronized (attempts) {
             attempts.addLast(clock.instant());

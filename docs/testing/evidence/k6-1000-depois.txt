@@ -4,7 +4,7 @@
     ✓ 'rate>0.99' rate=100.00%
 
     http_req_duration{scenario:browse}
-    ✓ 'p(95)<800' p(95)=439.34ms
+    ✓ 'p(95)<800' p(95)=372.3ms
 
     http_req_failed
     ✓ 'rate<0.01' rate=0.00%
@@ -12,9 +12,9 @@
 
   █ TOTAL RESULTS 
 
-    checks_total.......: 350098  938.544863/s
-    checks_succeeded...: 100.00% 350098 out of 350098
-    checks_failed......: 0.00%   0 out of 350098
+    checks_total.......: 359781  964.625127/s
+    checks_succeeded...: 100.00% 359781 out of 359781
+    checks_failed......: 0.00%   0 out of 359781
 
     ✓ pedido criado (201)
     ✓ me 200
@@ -23,16 +23,16 @@
     ✓ login 200
 
     HTTP
-    http_req_duration..............: avg=128.17ms min=1.53ms   med=47.34ms max=3.98s p(90)=322.27ms p(95)=447.25ms
-      { expected_response:true }...: avg=128.17ms min=1.53ms   med=47.34ms max=3.98s p(90)=322.27ms p(95)=447.25ms
-      { scenario:browse }..........: avg=123.7ms  min=1.53ms   med=41.38ms max=3.38s p(90)=316.74ms p(95)=439.34ms
-    http_req_failed................: 0.00%  0 out of 350198
-    http_reqs......................: 350198 938.812944/s
+    http_req_duration..............: avg=106.83ms min=1.42ms med=36.64ms max=3.97s p(90)=276.56ms p(95)=378.9ms
+      { expected_response:true }...: avg=106.83ms min=1.42ms med=36.64ms max=3.97s p(90)=276.56ms p(95)=378.9ms
+      { scenario:browse }..........: avg=102.88ms min=1.42ms med=33.53ms max=3.03s p(90)=271.57ms p(95)=372.3ms
+    http_req_failed................: 0.00%  0 out of 359881
+    http_reqs......................: 359881 964.893242/s
 
     EXECUTION
-    iteration_duration.............: avg=2.3s     min=923.79ms med=2.26s   max=8.6s  p(90)=3.22s    p(95)=3.5s    
-    iterations.....................: 121602 325.991387/s
-    vus............................: 2      min=0           max=1250
+    iteration_duration.............: avg=2.24s    min=1s     med=2.22s   max=8.09s p(90)=3.12s    p(95)=3.36s  
+    iterations.....................: 125031 335.226275/s
+    vus............................: 1      min=0           max=1250
     vus_max........................: 1250   min=1250        max=1250
 
     NETWORK

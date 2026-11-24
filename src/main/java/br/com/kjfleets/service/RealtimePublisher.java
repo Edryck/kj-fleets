@@ -66,8 +66,9 @@ public class RealtimePublisher {
 
     // exceção em listener AFTER_COMMIT voltaria pro chamador e viraria 500 num commit que já deu certo.
     // @Async porque no AFTER_COMMIT a conexão da requisição ainda está presa: pedir outra na mesma thread
-    // travava o pool inteiro sob carga (achado do teste k6, ver ConnectionPoolDeadlockTest)
-    @Async
+    // travava o pool inteiro sob carga (ver ConnectionPoolDeadlockTest). Todos os listeners daqui usam o
+    // mesmo executor de uma thread, senão posição e status saem fora de ordem (ver RealtimeOrderingTest)
+    @Async("realtimeExecutor")
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
     public void onOrderTracked(OrderTracked event) {
@@ -96,6 +97,7 @@ public class RealtimePublisher {
     }
 
     // sem transação nem consulta: o evento já traz tudo, ping é o caminho mais quente
+    @Async("realtimeExecutor")
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onDriverMoved(DriverMoved event) {
         try {
@@ -109,12 +111,13 @@ public class RealtimePublisher {
         }
     }
 
+    @Async("realtimeExecutor")
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onDriverRemoved(DriverRemoved event) {
         lastSent.remove(event.driverId());
     }
 
-    @Async
+    @Async("realtimeExecutor")
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
     public void onDriverStatusChanged(DriverStatusChanged event) {

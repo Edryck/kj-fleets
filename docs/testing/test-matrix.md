@@ -45,7 +45,7 @@ Resultado da última execução (2026-11-24). Caixa branca = o teste conhece o c
 | E12 | 51 paradas (o limite é 50): 400 | passou | — |
 | E13 | Id inexistente de cliente, pedido ou motorista: 4xx, nunca 500 | passou | — |
 
-## Segurança (caixa branca, JUnit: `SecurityAttackTest` com 19 execuções e `LoginRateLimiterTest` com 5)
+## Segurança (caixa branca, JUnit: `SecurityAttackTest` com 19 execuções e `LoginRateLimiterTest` com 6)
 
 | ID | Caso | Resultado | Achado |
 |---|---|---|---|
@@ -66,14 +66,16 @@ Resultado da última execução (2026-11-24). Caixa branca = o teste conhece o c
 | S15 | Senha ou hash nunca aparecem em `/auth/register`, `/me` e `/users` | passou | — |
 | S16 | Token de usuário desativado para de valer na hora | passou | — |
 | S17 | Força bruta: o 6º login errado responde 429; outro usuário do mesmo IP continua entrando | passou depois da correção | B3 |
-| S18 | Limitador: limite, reset após sucesso, fim da janela, chaves independentes, limpeza da memória | passou | — |
+| S18 | Limitador: limite, reset após sucesso, fim da janela, chaves independentes, limpeza da memória, teto de chaves | passou | B9 |
 
 ## Carga (caixa preta, k6: `load/kjfleets.js`) e concorrência (caixa branca: `ConnectionPoolDeadlockTest`)
 
 | ID | Caso | Resultado | Achado |
 |---|---|---|---|
-| C1 | 1000 usuários navegando, 50 criando pedidos e 200 logins simultâneos: menos de 1% de erros, p95 abaixo de 800 ms | passou depois da correção (0% de erros, p95 de 439 ms, 939 req/s) | B6 |
+| C1 | 1000 usuários navegando, 50 criando pedidos e 200 logins simultâneos: menos de 1% de erros, p95 abaixo de 800 ms | passou depois das correções (0% de erros, p95 de 372 ms, 965 req/s, com 23 mil pedidos na tabela) | B6, B7 |
 | C2 | Pool de 2 conexões com 16 criações de pedido simultâneas: todas respondem 201 | passou depois da correção | B6 |
+| C3 | Os eventos de tempo real saem na ordem em que foram enviados; o executor tem uma thread e fila limitada | passou depois da correção | B8 |
+| C4 | A lista de pedidos do cliente tem índice `(customer_id, created_at)` | passou depois da correção | B7 |
 
 ## Consistência da interface (auditoria + vitest)
 

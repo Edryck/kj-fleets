@@ -6,16 +6,19 @@ Objetivo: mostrar que o sistema aguenta um usuário leigo, um usuário mal-inten
 
 | Camada | Ferramenta | Tipo | Casos | Última execução |
 |---|---|---|---|---|
-| API | JUnit 5 + MockMvc + Testcontainers | caixa branca | 522 (65 novos neste trabalho) | 522 passaram |
+| API | JUnit 5 + MockMvc + Testcontainers | caixa branca | 527 (70 novos neste trabalho) | 527 passaram |
 | Telas (componentes) | Vitest + Testing Library | caixa branca | 447 | 447 passaram |
 | Navegador | Playwright (Chrome desktop e Pixel 7) | caixa preta | 17 execuções (15 cenários) | 17 passaram |
-| Carga | k6 2.4.0 | caixa preta | 3 cenários, até 1000 usuários simultâneos | aprovado (0% de erros, p95 de 439 ms) |
+| Carga | k6 2.4.0 | caixa preta | 3 cenários, até 1000 usuários simultâneos | aprovado (0% de erros, p95 de 372 ms, 965 req/s) |
 
-**Defeitos encontrados e corrigidos: 6** (detalhes em [findings.md](findings.md)):
+**Defeitos encontrados e corrigidos: 9** (detalhes em [findings.md](findings.md)):
 
 | ID | Gravidade | Defeito |
 |---|---|---|
 | B6 | crítica | Deadlock no pool de conexões sob carga: a API travava por 30 a 60 s |
+| B7 | alta | Falta de índice: a lista de pedidos do cliente ficava mais lenta a cada pedido criado |
+| B8 | média | Eventos de tempo real podiam sair fora de ordem, e a fila não tinha limite |
+| B9 | média | O limitador de login podia crescer sem teto de memória |
 | B2 | alta | Senha com mais de 72 bytes (ex.: 20 emojis) derrubava o cadastro com 500 |
 | B3 | alta | Login sem limite de tentativas (força bruta) |
 | B1 | média | Texto longo estourava a coluna do banco e virava 500 |

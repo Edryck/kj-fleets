@@ -81,4 +81,15 @@ class LoginRateLimiterTest {
         limiter.check("ip|bia");
         assertEquals(0, limiter.trackedKeys());
     }
+
+    // achado da revisão: spray de usernames aleatórios criava uma entrada por chave até a próxima varredura
+    @Test
+    void mapIsCappedUnderUsernameSpraying() {
+        LoginRateLimiter small = new LoginRateLimiter(5, 300, clock, 10);
+        for (int i = 0; i < 50; i++) {
+            small.check("ip|user" + i);
+            small.recordFailure("ip|user" + i);
+        }
+        assertEquals(10, small.trackedKeys());
+    }
 }
